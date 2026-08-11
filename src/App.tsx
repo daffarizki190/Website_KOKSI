@@ -6,13 +6,15 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Login } from './pages/Login';
+import { Register } from './pages/Register';
 import { DashboardUser } from './pages/DashboardUser';
 import { DashboardAdmin } from './pages/DashboardAdmin';
+import { DashboardIT } from './pages/DashboardIT';
 import OrderHistory from './pages/OrderHistory';
 import { Splash } from './components/Splash';
 import React, { useState } from 'react';
 
-const ProtectedRoute = ({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) => {
+const ProtectedRoute = ({ children, requireAdmin = false, requireIT = false }: { children: React.ReactNode, requireAdmin?: boolean, requireIT?: boolean }) => {
   const { user } = useAuth();
   
   if (!user) {
@@ -20,6 +22,10 @@ const ProtectedRoute = ({ children, requireAdmin = false }: { children: React.Re
   }
   
   if (requireAdmin && user.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (requireIT && user.role !== 'it' && user.role !== 'admin') {
     return <Navigate to="/dashboard" replace />;
   }
   
@@ -37,6 +43,7 @@ const AppContent = () => {
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route 
           path="/dashboard" 
           element={
@@ -58,6 +65,14 @@ const AppContent = () => {
           element={
             <ProtectedRoute requireAdmin>
               <DashboardAdmin />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/it-dashboard" 
+          element={
+            <ProtectedRoute requireIT>
+              <DashboardIT />
             </ProtectedRoute>
           } 
         />

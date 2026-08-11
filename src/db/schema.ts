@@ -25,6 +25,8 @@ export const orders = pgTable('orders', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => users.id).notNull(),
   total_amount: integer('total_amount').notNull(),
+  status: text('status').notNull().default('Proses'),
+  keterangan: text('keterangan'),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

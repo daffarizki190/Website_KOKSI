@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ShoppingCart, User as UserIcon, X, Plus, Minus, LogOut, ShoppingBag, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { BelanjainLogo } from '../components/BelanjainLogo';
 
 interface Product {
   id: number;
@@ -30,6 +31,21 @@ export const DashboardUser = () => {
 
   useEffect(() => {
     fetchProducts();
+    
+    // Check if user clicked 'Pesan Lagi' from Order History
+    const savedReorder = localStorage.getItem('koksi_cart_reorder');
+    if (savedReorder) {
+      try {
+        const reorderItems = JSON.parse(savedReorder);
+        if (Array.isArray(reorderItems) && reorderItems.length > 0) {
+          setCart(reorderItems);
+          setIsCartOpen(true);
+        }
+      } catch (e) {
+        console.error('Failed to parse reorder items:', e);
+      }
+      localStorage.removeItem('koksi_cart_reorder');
+    }
   }, []);
 
   const fetchProducts = async () => {
@@ -94,14 +110,17 @@ export const DashboardUser = () => {
         body: JSON.stringify({ items, total_amount })
       });
       if (res.ok) {
-        alert('Checkout berhasil!');
+        alert('Checkout berhasil! Pesanan Anda telah dikirim ke Admin KOKSI.');
         setCart([]);
         setIsCartOpen(false);
+        navigate('/orders');
       } else {
-        alert('Gagal checkout');
+        const data = await res.json().catch(() => ({}));
+        alert(`Gagal checkout: ${data.error || 'Terjadi kesalahan'}`);
       }
     } catch (err) {
       console.error(err);
+      alert('Terjadi kesalahan koneksi saat checkout.');
     }
   };
 
@@ -111,8 +130,13 @@ export const DashboardUser = () => {
   };
 
   const filteredProducts = products.filter(p => {
-    const matchesCategory = selectedCategory === 'Semua' || p.kategori.toLowerCase() === selectedCategory.toLowerCase();
-    const matchesSearch = p.nama_barang.toLowerCase().includes(searchQuery.toLowerCase()) || p.kategori.toLowerCase().includes(searchQuery.toLowerCase());
+    const pKategori = (p?.kategori || '').toLowerCase();
+    const pNama = (p?.nama_barang || '').toLowerCase();
+    const selCat = (selectedCategory || 'Semua').toLowerCase();
+    const search = (searchQuery || '').toLowerCase();
+
+    const matchesCategory = selectedCategory === 'Semua' || pKategori === selCat;
+    const matchesSearch = pNama.includes(search) || pKategori.includes(search);
     return matchesCategory && matchesSearch;
   });
 
@@ -126,11 +150,7 @@ export const DashboardUser = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">K</div>
-              <div>
-                <h1 className="text-lg font-bold leading-tight uppercase tracking-wide text-slate-900">Koperasi Sembako</h1>
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider">Internal Perusahaan</p>
-              </div>
+              <BelanjainLogo size="sm" showSubtitle={true} />
             </div>
             <div className="flex items-center space-x-6">
               <button 
@@ -388,6 +408,15 @@ export const DashboardUser = () => {
                         <p className="font-bold text-slate-800 text-sm">{user.no_hp}</p>
                       </div>
                     </div>
+
+                    {(user.role === 'it' || user.role === 'admin') && (
+                      <button
+                        onClick={() => { setIsProfileOpen(false); navigate('/it-dashboard'); }}
+                        className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-slate-900 text-teal-400 font-bold rounded-xl hover:bg-slate-800 transition-colors cursor-pointer text-xs uppercase tracking-wider"
+                      >
+                        <span>Portal Pemantauan IT</span>
+                      </button>
+                    )}
                     
                     <div className="pt-4 mt-2">
                       <button
