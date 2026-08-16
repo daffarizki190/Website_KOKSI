@@ -14,7 +14,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_koperasi';
 
 const app = express();
 app.use((req, res, next) => { console.log("=> " + req.method + " " + req.path); next(); });
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Security Hardening: Disable Express Header
 app.disable('x-powered-by');
