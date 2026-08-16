@@ -1,8 +1,8 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import { Pool, PoolConfig } from 'pg';
 import * as schema from './schema.ts';
 
-// Add global connection pool caching to persist across hot-reloads
+// Add global connection pool caching to persist across hot-reloads and serverless invocations
 declare global {
   var _postgresPool: Pool | undefined;
 }
@@ -10,18 +10,42 @@ declare global {
 // Function to create or retrieve the connection pool.
 export const createPool = () => {
   if (!global._postgresPool) {
-    const user = process.env.SQL_USER || process.env.SQL_ADMIN_USER;
-    const password = process.env.SQL_PASSWORD || process.env.SQL_ADMIN_PASSWORD;
+    const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_DATABASE_URL;
+    
+    let poolConfig: PoolConfig;
 
-    global._postgresPool = new Pool({
-      host: process.env.SQL_HOST,
-      user: user,
-      password: password,
-      database: process.env.SQL_DB_NAME,
-      max: 10,
-      idleTimeoutMillis: 10000,
-      connectionTimeoutMillis: 20000,
-    });
+    if (connectionString) {
+      const isLocalhost = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
+      poolConfig = {
+        connectionString,
+        ssl: isLocalhost ? false : { rejectUnauthorized: false },
+        max: 10,
+        idleTimeoutMillis: 10000,
+        connectionTimeoutMillis: 20000,
+      };
+    } else {
+      const host = process.env.SQL_HOST || 'localhost';
+      const user = process.env.SQL_USER || process.env.SQL_ADMIN_USER || 'postgres';
+      const password = process.env.SQL_PASSWORD || process.env.SQL_ADMIN_PASSWORD || '';
+      const database = process.env.SQL_DB_NAME || 'postgres';
+      const port = Number(process.env.SQL_PORT) || 5432;
+      const isLocal = host === 'localhost' || host === '127.0.0.1';
+      const useSsl = process.env.SQL_SSL === 'true' || (!isLocal && process.env.SQL_SSL !== 'false');
+
+      poolConfig = {
+        host,
+        port,
+        user,
+        password,
+        database,
+        ssl: useSsl ? { rejectUnauthorized: false } : false,
+        max: 10,
+        idleTimeoutMillis: 10000,
+        connectionTimeoutMillis: 20000,
+      };
+    }
+
+    global._postgresPool = new Pool(poolConfig);
 
     // Prevent unhandled pool-level errors from crashing the application
     global._postgresPool.on('error', (err) => {
@@ -86,5 +110,3 @@ export async function withDbRetry<T>(operation: () => Promise<T>, maxRetries = 4
     }
   }
 }
-
-
