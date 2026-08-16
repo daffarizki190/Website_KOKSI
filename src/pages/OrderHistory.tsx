@@ -59,7 +59,7 @@ export default function OrderHistory() {
 
   useEffect(() => {
     if (selectedBarcodeOrder) {
-      const codeText = `KOKSI-PKP-${selectedBarcodeOrder.id}`;
+      const codeText = `SAZA-PKP-${selectedBarcodeOrder.id}`;
       QRCode.toDataURL(codeText, { width: 240, margin: 2 })
         .then(url => setQrDataUrl(url))
         .catch(err => console.error(err));
@@ -119,10 +119,13 @@ export default function OrderHistory() {
       }
 
       const data = await response.json();
-      setOrders(data);
-      setError(null);
+      if (Array.isArray(data)) {
+        setOrders(data);
+        setError(null);
+      }
     } catch (err: any) {
-      setError(err.message || 'Gagal mengambil riwayat pesanan');
+      console.warn('Kendala koneksi riwayat pesanan:', err);
+      setOrders(prev => (prev.length > 0 ? prev : []));
     } finally {
       setLoading(false);
     }
@@ -132,6 +135,7 @@ export default function OrderHistory() {
     const s = (status || '').toLowerCase();
     if (s.includes('selesai') || s === 'completed') return 'bg-teal-100 text-teal-800 border-teal-200';
     if (s.includes('siap')) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    if (s.includes('pengajuan')) return 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold';
     if (s.includes('pengiriman') || s.includes('dikirim')) return 'bg-indigo-100 text-indigo-800 border-indigo-200';
     if (s.includes('menyiapkan') || s.includes('dikemas')) return 'bg-amber-100 text-amber-800 border-amber-200';
     if (s.includes('batal') || s === 'cancelled') return 'bg-red-100 text-red-800 border-red-200';
@@ -169,40 +173,18 @@ export default function OrderHistory() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Gagal membatalkan pesanan');
+        throw new Error(data.error || 'Gagal mengajukan pembatalan pesanan');
       }
 
       await fetchOrders();
       setCancelModalOrder(null);
       setCancelReason('');
-      alert('Pesanan berhasil dibatalkan.');
+      alert(data.message || 'Pengajuan pembatalan pesanan berhasil dikirim. Menunggu konfirmasi Admin.');
     } catch (err: any) {
-      setCancelError(err.message || 'Terjadi kesalahan saat membatalkan pesanan.');
+      setCancelError(err.message || 'Terjadi kesalahan saat mengajukan pembatalan pesanan.');
     } finally {
       setCancelling(false);
     }
-  };
-
-  const handleReorder = (order: Order) => {
-    const cartItemsToStore = order.items
-      .filter(item => item.product)
-      .map(item => ({
-        id: item.productId,
-        nama_barang: item.product.nama_barang,
-        kategori: item.product.kategori || 'Umum',
-        harga: item.price,
-        stok: item.product.stok || 99,
-        gambar: item.product.gambar || '',
-        quantity: item.quantity
-      }));
-
-    if (cartItemsToStore.length === 0) {
-      alert('Produk dalam pesanan ini sudah tidak dapat dimuat ulang.');
-      return;
-    }
-
-    localStorage.setItem('koksi_cart_reorder', JSON.stringify(cartItemsToStore));
-    navigate('/dashboard');
   };
 
   return (
@@ -224,16 +206,9 @@ export default function OrderHistory() {
                 </div>
                 <div>
                   <h1 className="text-lg font-bold leading-tight uppercase tracking-wide text-slate-900">Riwayat & Status Pesanan</h1>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wider">Update Real-Time KOKSI</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider">Update Real-Time BelanjaIn Saza</p>
                 </div>
               </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
-                <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse mr-1.5"></span>
-                Live Update
-              </span>
             </div>
           </div>
         </div>
@@ -272,7 +247,7 @@ export default function OrderHistory() {
                 Belum Ada Pesanan Aktif
               </h3>
               <p className="text-slate-500 text-sm leading-relaxed max-w-md mx-auto mb-8 font-medium">
-                Anda belum pernah melakukan pemesanan bahan pokok di KOKSI (PT. Siemens Indonesia & PT. SIM). Semua riwayat transaksi dan status pengiriman real-time Anda akan muncul di halaman ini.
+                Anda belum pernah melakukan pemesanan di BelanjaIn Saza (PT. Siemens Indonesia). Semua riwayat transaksi dan status pengiriman real-time Anda akan muncul di halaman ini.
               </p>
 
               {/* Action Button */}
@@ -282,7 +257,7 @@ export default function OrderHistory() {
                   className="w-full sm:w-auto px-8 py-3.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-extrabold rounded-2xl transition-all shadow-lg shadow-teal-600/25 flex items-center justify-center gap-2 cursor-pointer text-sm"
                 >
                   <ShoppingCart className="w-4 h-4" />
-                  <span>Mulai Belanja KOKSI</span>
+                  <span>Mulai Belanja</span>
                   <ArrowRight className="w-4 h-4 text-teal-200" />
                 </button>
                 <button 
@@ -322,7 +297,7 @@ export default function OrderHistory() {
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-900">Khusus Karyawan</h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Layanan terintegrasi PT. Siemens Indonesia & PT. SIM.</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">Layanan terintegrasi PT. Siemens Indonesia.</p>
                   </div>
                 </div>
               </div>
@@ -354,37 +329,26 @@ export default function OrderHistory() {
                       <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${getStatusColor(order.status)}`}>
                         {order.status || 'Menunggu Konfirmasi'}
                       </span>
-
-                      {!isCancelled && order.status !== 'Selesai' && (
-                        <button
-                          onClick={() => {
-                            setCancelModalOrder(order);
-                            setCancelReason('');
-                            setCancelError(null);
-                          }}
-                          className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-full text-[10px] font-extrabold transition-colors flex items-center gap-1 shadow-sm"
-                        >
-                          <XCircle className="w-3.5 h-3.5 text-red-600" />
-                          <span>Batalkan</span>
-                        </button>
-                      )}
-
-                      {(isCancelled || order.status === 'Selesai') && (
-                        <button
-                          onClick={() => handleReorder(order)}
-                          className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-full text-[10px] font-extrabold transition-colors flex items-center gap-1 shadow-sm"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Pesan Lagi</span>
-                        </button>
-                      )}
                     </div>
                   </div>
 
                   {/* Stage Progress Tracker Bar */}
                   <div className="p-4 sm:p-6 bg-slate-50/50 border-b border-slate-100">
                     <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">Tahapan Status Pesanan</p>
-                    {isCancelled ? (
+                    {order.status === 'Pengajuan Pembatalan' ? (
+                      <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-amber-950 text-xs font-semibold leading-relaxed space-y-1.5 shadow-xs">
+                        <div className="flex items-center gap-2 text-amber-900 font-extrabold text-sm">
+                          <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+                          <span>Pengajuan Pembatalan Sedang Menunggu Konfirmasi Admin</span>
+                        </div>
+                        <p className="text-slate-800 font-medium pt-1">
+                          <strong className="text-amber-900 font-bold">Alasan Pengajuan Anda:</strong> {order.keterangan ? order.keterangan.replace(/^Pengajuan Pembatalan:\s*/, '') : 'Menunggu peninjauan Admin'}
+                        </p>
+                        <p className="text-[11px] text-amber-800/90 font-medium italic pt-1">
+                          * Pengajuan pembatalan ini sedang ditinjau dan membutuhkan konfirmasi dari Admin.
+                        </p>
+                      </div>
+                    ) : isCancelled ? (
                       <div className="p-4 bg-red-50/90 border border-red-200 rounded-2xl text-red-900 text-xs font-semibold leading-relaxed space-y-1">
                         <div className="flex items-center gap-2 text-red-800 font-extrabold text-sm">
                           <XCircle className="w-5 h-5 text-red-600 shrink-0" />
@@ -394,7 +358,7 @@ export default function OrderHistory() {
                           <strong className="text-red-900 font-bold">Alasan Pembatalan:</strong> {order.keterangan || 'Pesanan telah dibatalkan.'}
                         </p>
                         <p className="text-[11px] text-red-600/90 font-medium italic pt-1">
-                          * Pesanan ini telah dinonaktifkan dan tidak dapat diubah kembali. Gunakan tombol "Pesan Lagi" untuk membuat pesanan baru.
+                          * Pesanan ini telah dinonaktifkan dan tidak dapat diubah kembali.
                         </p>
                       </div>
                     ) : (
@@ -426,9 +390,9 @@ export default function OrderHistory() {
                       </div>
                     )}
 
-                    {!isCancelled && order.keterangan && (
+                    {!isCancelled && order.status !== 'Pengajuan Pembatalan' && order.keterangan && (
                       <div className="mt-4 p-3 bg-teal-50/80 border border-teal-200 rounded-xl text-teal-900 text-xs">
-                        <span className="font-bold">Catatan KOKSI:</span> {order.keterangan}
+                        <span className="font-bold">Catatan Koperasi:</span> {order.keterangan}
                       </div>
                     )}
                   </div>
@@ -436,7 +400,7 @@ export default function OrderHistory() {
                   <div className="p-4 sm:p-6">
                     <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                       <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Daftar Item</h4>
-                      {localStorage.getItem('koksi_barcode_feature_active') === 'true' && (
+                      {(localStorage.getItem('saza_barcode_feature_active') === 'true') && (
                         isCancelled ? (
                           <button
                             disabled
@@ -482,124 +446,10 @@ export default function OrderHistory() {
                         </div>
                       ))}
                     </div>
-
-                    {/* Bottom Order Action Bar */}
-                    <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-3">
-                      <div className="text-xs font-semibold">
-                        {isCancelled ? (
-                          <span className="text-red-600 bg-red-50 px-2.5 py-1 rounded-lg border border-red-200">
-                            • Pesanan Non-Aktif (Dibatalkan)
-                          </span>
-                        ) : order.status === 'Selesai' ? (
-                          <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                            • Pesanan Selesai
-                          </span>
-                        ) : (
-                          <span className="text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
-                            • Pesanan Dalam Proses
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {!isCancelled && order.status !== 'Selesai' && (
-                          <button
-                            onClick={() => {
-                              setCancelModalOrder(order);
-                              setCancelReason('');
-                              setCancelError(null);
-                            }}
-                            className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
-                          >
-                            <XCircle className="w-4 h-4 text-red-600" />
-                            <span>Batalkan Pesanan</span>
-                          </button>
-                        )}
-
-                        {(isCancelled || order.status === 'Selesai') && (
-                          <button
-                            onClick={() => handleReorder(order)}
-                            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-teal-600/20 flex items-center gap-1.5"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                            <span>Pesan Lagi</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
                   </div>
                 </div>
               );
             })}
-          </div>
-        )}
-
-        {/* Modal Batalkan Pesanan (Wajib Alasan) */}
-        {cancelModalOrder && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
-              <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2 text-red-600 font-extrabold text-base">
-                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-                  <span>Batalkan Pesanan #{cancelModalOrder.id}</span>
-                </div>
-                <button
-                  onClick={() => { setCancelModalOrder(null); setCancelReason(''); setCancelError(null); }}
-                  className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-900 leading-relaxed font-medium">
-                <strong>Perhatian:</strong> Setelah dibatalkan, pesanan ini akan langsung <strong>NON-AKTIF</strong> dan tidak dapat diubah kembali statusnya.
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Alasan Pembatalan <span className="text-red-500">* (Wajib Diisi)</span>
-                </label>
-                <textarea
-                  rows={3}
-                  value={cancelReason}
-                  onChange={(e) => {
-                    setCancelReason(e.target.value);
-                    if (cancelError) setCancelError(null);
-                  }}
-                  placeholder="Contoh: Salah pilih produk / Mau ganti jumlah pesanan / Tidak jadi beli"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-                {cancelError && (
-                  <p className="text-red-600 text-xs font-bold mt-1.5 flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>{cancelError}</span>
-                  </p>
-                )}
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => { setCancelModalOrder(null); setCancelReason(''); setCancelError(null); }}
-                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
-                >
-                  Kembali
-                </button>
-                <button
-                  onClick={handleConfirmCancel}
-                  disabled={cancelling}
-                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl transition-colors shadow-sm flex items-center justify-center gap-1.5"
-                >
-                  {cancelling ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Membatalkan...</span>
-                    </>
-                  ) : (
-                    <span>Konfirmasi Pembatalan</span>
-                  )}
-                </button>
-              </div>
-            </div>
           </div>
         )}
 
@@ -614,7 +464,7 @@ export default function OrderHistory() {
                   </div>
                   <div>
                     <h3 className="text-sm font-extrabold text-slate-900">Verifikasi Barcode Pick-Up</h3>
-                    <p className="text-[10px] text-teal-600 font-bold uppercase tracking-wider">Fitur Sistem KOKSI</p>
+                    <p className="text-[10px] text-teal-600 font-bold uppercase tracking-wider">Fitur BelanjaIn Saza</p>
                   </div>
                 </div>
                 <button
@@ -632,7 +482,7 @@ export default function OrderHistory() {
                     <AlertTriangle className="w-10 h-10 text-red-600 mx-auto mb-2" />
                     <h4 className="text-sm font-extrabold text-red-900">Transaksi Dibatalkan</h4>
                     <p className="text-xs text-red-700 mt-1 leading-relaxed">
-                      Kode Barcode / QR untuk pesanan <span className="font-mono font-bold">#KOKSI-PKP-{selectedBarcodeOrder.id}</span> ini telah di-NON-AKTIFKAN karena transaksi telah dibatalkan.
+                      Kode Barcode / QR untuk pesanan <span className="font-mono font-bold">#SAZA-PKP-{selectedBarcodeOrder.id}</span> ini telah di-NON-AKTIFKAN karena transaksi telah dibatalkan.
                     </p>
                   </div>
                   <button
@@ -675,20 +525,20 @@ export default function OrderHistory() {
                   {modalTab === 'show_code' ? (
                     <div className="flex flex-col items-center text-center">
                       <p className="text-xs text-slate-500 mb-3">
-                        Tunjukkan Kode Barcode / QR ini kepada Admin KOKSI saat mengambil pesanan:
+                        Tunjukkan Kode Barcode / QR ini kepada Admin Koperasi saat mengambil pesanan:
                       </p>
 
                       <div className="p-4 bg-slate-50 border-2 border-dashed border-teal-200 rounded-2xl mb-3 flex flex-col items-center shadow-inner">
                         {qrDataUrl ? (
                           <img src={qrDataUrl} alt="QR Code Pickup" className="w-44 h-44 rounded-lg" />
                         ) : (
-                          <div className="w-44 h-44 bg-slate-200 animate-pulse rounded-lg flex items-center justify-center">
+                          <div className="w-44 h-44 bg-slate-200 rounded-lg flex items-center justify-center">
                             <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
                           </div>
                         )}
 
                         <div className="mt-3 px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-mono font-bold tracking-widest">
-                          KOKSI-PKP-{selectedBarcodeOrder.id}
+                          SAZA-PKP-{selectedBarcodeOrder.id}
                         </div>
                       </div>
                     </div>
@@ -704,7 +554,7 @@ export default function OrderHistory() {
                             type="text"
                             value={userBarcodeInput}
                             onChange={(e) => setUserBarcodeInput(e.target.value)}
-                            placeholder={`Contoh: KOKSI-PKP-${selectedBarcodeOrder.id}`}
+                            placeholder={`Contoh: SAZA-PKP-${selectedBarcodeOrder.id}`}
                             className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
                           />
                           <button

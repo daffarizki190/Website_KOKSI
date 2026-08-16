@@ -52,11 +52,25 @@ export const Register = () => {
       const res = await fetch('/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ no_hp: cleanNoHp, channel }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Gagal mengirim OTP');
+      const rawText = await res.text();
+
+      // Deteksi jika respon adalah HTML (berasal dari sistem keamanan proxy AI Studio yang mencegat API)
+      if (rawText && rawText.toLowerCase().includes('<html')) {
+        if (window.self !== window.top) { setError('PROXY_IFRAME_ERROR'); } else { setError('Sesi keamanan kadaluarsa. Silakan muat ulang (Refresh) halaman ini.'); }
+        return;
+      }
+
+      let data: any = null;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        data = null;
+      }
+      if (!res.ok) throw new Error(data?.error || 'Gagal mengirim OTP');
 
       setOtpSent(true);
       setOtpDemoCode(data.otpDemo || data.otpCode);
@@ -95,11 +109,25 @@ export const Register = () => {
       const res = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ no_hp: formData.no_hp.trim(), otp: otpCode.trim() }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Verifikasi OTP gagal');
+      const rawText = await res.text();
+
+      // Deteksi jika respon adalah HTML (berasal dari sistem keamanan proxy AI Studio yang mencegat API)
+      if (rawText && rawText.toLowerCase().includes('<html')) {
+        if (window.self !== window.top) { setError('PROXY_IFRAME_ERROR'); } else { setError('Sesi keamanan kadaluarsa. Silakan muat ulang (Refresh) halaman ini.'); }
+        return;
+      }
+
+      let data: any = null;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        data = null;
+      }
+      if (!res.ok) throw new Error(data?.error || 'Verifikasi OTP gagal');
 
       setIsPhoneVerified(true);
       setOtpMsg('✓ Nomor WhatsApp / SMS berhasil diverifikasi!');
@@ -139,9 +167,11 @@ export const Register = () => {
 
     setLoading(true);
     try {
+      document.cookie = `__SECURE-aistudio_auth_flow_may_set_cookies=true; Path=/; Secure; SameSite=None; Domain=${window.location.hostname}; Partitioned; Max-Age=31536000;`;
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           nama: formData.nama.trim(),
           pt: formData.pt.trim(),
@@ -151,8 +181,21 @@ export const Register = () => {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Pendaftaran gagal');
+      const rawText = await res.text();
+
+      // Deteksi jika respon adalah HTML (berasal dari sistem keamanan proxy AI Studio yang mencegat API)
+      if (rawText && rawText.toLowerCase().includes('<html')) {
+        if (window.self !== window.top) { setError('PROXY_IFRAME_ERROR'); } else { setError('Sesi keamanan kadaluarsa. Silakan muat ulang (Refresh) halaman ini.'); }
+        return;
+      }
+
+      let data: any = null;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        data = null;
+      }
+      if (!res.ok) throw new Error(data?.error || 'Pendaftaran gagal');
 
       setSuccessMsg('Pendaftaran berhasil! Mengalihkan ke halaman login...');
       setTimeout(() => {
@@ -183,7 +226,7 @@ export const Register = () => {
         <div className="mt-4 bg-white py-5 px-4 sm:px-7 shadow-sm rounded-2xl border border-slate-200">
           {successMsg ? (
             <div className="py-6 text-center space-y-3">
-              <CheckCircle className="w-12 h-12 text-teal-600 mx-auto animate-bounce" />
+              <CheckCircle className="w-12 h-12 text-teal-600 mx-auto" />
               <p className="text-sm font-semibold text-slate-900">{successMsg}</p>
             </div>
           ) : (
@@ -281,11 +324,25 @@ export const Register = () => {
                 </div>
               </div>
 
-              {error && (
+              {error === 'PROXY_IFRAME_ERROR' ? (
+                <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl text-sm leading-snug">
+                  <p className="font-semibold text-orange-800 mb-2">⚠️ Akses Keamanan Terblokir</p>
+                  <p className="text-orange-700 mb-3 text-xs sm:text-sm">
+                    Browser Anda memblokir sesi keamanan karena aplikasi dibuka di dalam layar Preview (iFrame).
+                  </p>
+                  <button 
+                    type="button"
+                    onClick={() => window.open(window.location.href, '_blank')}
+                    className="w-full bg-orange-600 text-white font-medium py-2 rounded-lg hover:bg-orange-700 transition-colors shadow-sm cursor-pointer"
+                  >
+                    Buka di Tab Baru (Disarankan)
+                  </button>
+                </div>
+              ) : error ? (
                 <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-medium">
                   {error}
                 </div>
-              )}
+              ) : null}
 
               <div>
                 <button
@@ -311,7 +368,7 @@ export const Register = () => {
       </main>
 
       <footer className="py-1 text-center text-[11px] sm:text-xs text-slate-400 shrink-0">
-        &copy; {new Date().getFullYear()} KOKSI - Belanja Karyawan
+        &copy; {new Date().getFullYear()} BelanjaIn Saza - PT. Siemens Indonesia
       </footer>
     </div>
   );

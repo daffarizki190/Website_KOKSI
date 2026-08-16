@@ -16,6 +16,7 @@ export const products = pgTable('products', {
   id: serial('id').primaryKey(),
   nama_barang: text('nama_barang').notNull(),
   kategori: text('kategori').notNull(),
+  sub_kategori: text('sub_kategori'),
   harga: integer('harga').notNull(),
   stok: integer('stok').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow(),
@@ -38,12 +39,22 @@ export const orderItems = pgTable('order_items', {
   price: integer('price').notNull(),
 });
 
+export const cartItems = pgTable('cart_items', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  productId: integer('product_id').references(() => products.id).notNull(),
+  quantity: integer('quantity').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
+  cartItems: many(cartItems),
 }));
 
 export const productsRelations = relations(products, ({ many }) => ({
   orderItems: many(orderItems),
+  cartItems: many(cartItems),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -61,6 +72,17 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   }),
   product: one(products, {
     fields: [orderItems.productId],
+    references: [products.id],
+  }),
+}));
+
+export const cartItemsRelations = relations(cartItems, ({ one }) => ({
+  user: one(users, {
+    fields: [cartItems.userId],
+    references: [users.id],
+  }),
+  product: one(products, {
+    fields: [cartItems.productId],
     references: [products.id],
   }),
 }));

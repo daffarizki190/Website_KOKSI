@@ -60,8 +60,8 @@ export const BelanjainLogo: React.FC<BelanjainLogoProps> = ({
           <span className="text-amber-500 italic font-black">
             in
           </span>
-          <span className="text-teal-500 font-extrabold text-[0.65em] uppercase tracking-wider ml-1 px-1.5 py-0.5 bg-teal-500/10 rounded-md border border-teal-500/20">
-            Saza
+          <span className="ml-1.5 px-2.5 py-0.5 bg-gradient-to-r from-teal-500 to-emerald-400 text-white rounded-full text-[0.65em] font-extrabold uppercase tracking-widest shadow-sm">
+            SAZA
           </span>
         </div>
         {showSubtitle && (

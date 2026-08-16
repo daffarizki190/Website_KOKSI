@@ -1,6 +1,6 @@
 {
-  "name": "KOKSI Belanja Karyawan",
-  "description": "Sistem Informasi & Platform Belanja Karyawan KOKSI (Koperasi Karyawan) dengan Pemantauan Infrastruktur IT & Otentikasi OTP WhatsApp/SMS",
+  "name": "BelanjaIn Saza",
+  "description": "Sistem Informasi & Platform Belanja Karyawan PT. Siemens Indonesia (BelanjaIn Saza) dengan Pemantauan Infrastruktur IT & Otentikasi OTP WhatsApp/SMS",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

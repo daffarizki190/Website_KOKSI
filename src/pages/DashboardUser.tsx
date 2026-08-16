@@ -1,39 +1,174 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { ShoppingCart, User as UserIcon, X, Plus, Minus, LogOut, ShoppingBag, Search } from 'lucide-react';
+import { 
+  ShoppingCart, User as UserIcon, X, Plus, Minus, LogOut, ShoppingBag, Search, 
+  Trash2, AlertTriangle, Edit3, Save, Check, UtensilsCrossed, HeartPulse, Home, 
+  Sparkles, FolderKanban, Layers, Filter, CheckCircle2, ChevronRight
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { BelanjainLogo } from '../components/BelanjainLogo';
-
-interface Product {
-  id: number;
-  nama_barang: string;
-  kategori: string;
-  harga: number;
-  stok: number;
-}
-
-interface CartItem extends Product {
-  quantity: number;
-}
+import { CATEGORY_STRUCTURES } from '../data/categories';
+import { Product, CartItem } from '../types';
 
 export const DashboardUser = () => {
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<string[]>(['Semua', 'Beras', 'Minyak & Gula', 'Bumbu Dapur', 'Kebutuhan Mandi']);
-  const [selectedCategory, setSelectedCategory] = useState('Semua');
+  const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
 
+  const fetchCart = async () => {
+    try {
+      const res = await fetch('/api/cart', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCart(data);
+      }
+    } catch (err) {
+      console.error('Error fetching cart:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchCart();
+    }
+  }, [token]);
+
+  // Edit Profile State
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [editNama, setEditNama] = useState('');
+  const [editPt, setEditPt] = useState('');
+  const [editDepartemen, setEditDepartemen] = useState('');
+  const [editNoHp, setEditNoHp] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const handleOpenEditProfile = () => {
+    if (user) {
+      setEditNama(user.nama || '');
+      setEditPt(user.pt || 'PT. Siemens Indonesia');
+      setEditDepartemen(user.departemen || '');
+      setEditNoHp(user.no_hp || '');
+      setEditPassword('');
+      setEditError('');
+      setEditSuccess('');
+      setIsProfileOpen(false);
+      setIsEditProfileOpen(true);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editNama.trim() || !editPt.trim() || !editDepartemen.trim() || !editNoHp.trim()) {
+      setEditError('Semua kolom profil wajib diisi!');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    setEditError('');
+    setEditSuccess('');
+
+    try {
+      const res = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          nama: editNama.trim(),
+          pt: editPt.trim(),
+          departemen: editDepartemen.trim(),
+          no_hp: editNoHp.trim(),
+          newPassword: editPassword.trim() || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setEditSuccess('Profil berhasil diperbarui!');
+        // Update user in localStorage and state
+        const updatedUserObj = { ...user, ...data.user };
+        localStorage.setItem('user', JSON.stringify(updatedUserObj));
+        setTimeout(() => {
+          setIsEditProfileOpen(false);
+          window.location.reload();
+        }, 800);
+      } else {
+        setEditError(data.error || 'Gagal memperbarui profil');
+      }
+    } catch (err: any) {
+      setEditError(err.message || 'Koneksi gagal saat memperbarui profil');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  // Delete Account State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteReasonInput, setDeleteReasonInput] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState('');
+  
+  // Checkout & Ordering State
+  const [isCheckoutConfirmOpen, setIsCheckoutConfirmOpen] = useState(false);
+  const dayOfWeek = new Date().getDay();
+  // 1 = Monday, 2 = Tuesday
+  const isOrderingTime = dayOfWeek === 1 || dayOfWeek === 2;
+  const isDemoOrderingEnabled = localStorage.getItem('demo_ordering_enabled') === 'true';
+  const canOrder = isOrderingTime || isDemoOrderingEnabled;
+
+  const handleConfirmDeleteAccount = async () => {
+    if (!user) return;
+    if (!deleteReasonInput.trim() || deleteReasonInput.trim().length < 3) {
+      setDeleteAccountError('Alasan penghapusan akun wajib diisi (minimal 3 karakter)!');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    setDeleteAccountError('');
+
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ reason: deleteReasonInput.trim() })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        alert('Akun Anda telah berhasil dihapus.');
+        logout();
+        navigate('/login');
+      } else {
+        setDeleteAccountError(data.error || 'Gagal menghapus akun.');
+      }
+    } catch (err) {
+      setDeleteAccountError('Terjadi kesalahan koneksi server.');
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
     
     // Check if user clicked 'Pesan Lagi' from Order History
-    const savedReorder = localStorage.getItem('koksi_cart_reorder');
+    const savedReorder = localStorage.getItem('saza_cart_reorder');
     if (savedReorder) {
       try {
         const reorderItems = JSON.parse(savedReorder);
@@ -44,7 +179,7 @@ export const DashboardUser = () => {
       } catch (e) {
         console.error('Failed to parse reorder items:', e);
       }
-      localStorage.removeItem('koksi_cart_reorder');
+      localStorage.removeItem('saza_cart_reorder');
     }
   }, []);
 
@@ -55,10 +190,6 @@ export const DashboardUser = () => {
       });
       const data = await res.json();
       setProducts(data);
-      // Auto extract categories if there are new ones
-      const uniqueCats = Array.from(new Set(data.map((p: Product) => p.kategori)));
-      const finalCats = ['Semua', ...new Set([...categories.slice(1), ...uniqueCats])];
-      setCategories(finalCats as string[]);
     } catch (err) {
       console.error(err);
     }
@@ -72,31 +203,53 @@ export const DashboardUser = () => {
     });
   };
 
-  const addToCart = (product: Product) => {
+  const addToCart = async (product: Product) => {
     const qty = quantities[product.id] || 1;
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
-      if (existing) {
-        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + qty } : item);
+    try {
+      await fetch('/api/cart', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ productId: product.id, quantity: qty })
+      });
+      fetchCart();
+      setQuantities(prev => ({ ...prev, [product.id]: 1 }));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const updateCartQty = async (id: number, delta: number) => {
+    const item = cart.find(i => i.id === id);
+    if (!item) return;
+    const newQty = item.quantity + delta;
+
+    try {
+      if (newQty <= 0) {
+        await fetch(`/api/cart/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } else {
+        await fetch(`/api/cart/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ quantity: newQty })
+        });
       }
-      return [...prev, { ...product, quantity: qty }];
-    });
-    setQuantities(prev => ({ ...prev, [product.id]: 1 }));
+      fetchCart();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const updateCartQty = (id: number, delta: number) => {
-    setCart(prev => {
-      return prev.map(item => {
-        if (item.id === id) {
-          const newQty = Math.max(0, item.quantity + delta);
-          return { ...item, quantity: newQty };
-        }
-        return item;
-      }).filter(item => item.quantity > 0);
-    });
-  };
-
-  const handleCheckout = async () => {
+  const confirmCheckout = async () => {
+    setIsCheckoutConfirmOpen(false);
     try {
       const total_amount = cart.reduce((sum, item) => sum + (item.harga * item.quantity), 0);
       const items = cart.map(item => ({ productId: item.id, quantity: item.quantity, price: item.harga }));
@@ -110,7 +263,7 @@ export const DashboardUser = () => {
         body: JSON.stringify({ items, total_amount })
       });
       if (res.ok) {
-        alert('Checkout berhasil! Pesanan Anda telah dikirim ke Admin KOKSI.');
+        alert('Checkout berhasil! Pesanan Anda telah dikirim ke Admin BelanjaIn Saza.');
         setCart([]);
         setIsCartOpen(false);
         navigate('/orders');
@@ -129,16 +282,72 @@ export const DashboardUser = () => {
     navigate('/login');
   };
 
-  const filteredProducts = products.filter(p => {
-    const pKategori = (p?.kategori || '').toLowerCase();
-    const pNama = (p?.nama_barang || '').toLowerCase();
-    const selCat = (selectedCategory || 'Semua').toLowerCase();
-    const search = (searchQuery || '').toLowerCase();
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      const pKategori = (p?.kategori || '').toLowerCase();
+      const pSubKategori = (p?.sub_kategori || '').toLowerCase();
+      const pNama = (p?.nama_barang || '').toLowerCase();
+      const selCat = (selectedCategory || 'Semua').toLowerCase();
+      const selSub = (selectedSubCategory || 'Semua').toLowerCase();
+      const search = (searchQuery || '').toLowerCase().trim();
 
-    const matchesCategory = selectedCategory === 'Semua' || pKategori === selCat;
-    const matchesSearch = pNama.includes(search) || pKategori.includes(search);
-    return matchesCategory && matchesSearch;
-  });
+      const matchesCategory = selectedCategory === 'Semua' || pKategori === selCat;
+      const matchesSubCategory = selectedSubCategory === 'Semua' || pSubKategori === selSub;
+      const matchesSearch = !search || pNama.includes(search) || pKategori.includes(search) || pSubKategori.includes(search);
+
+      return matchesCategory && matchesSubCategory && matchesSearch;
+    });
+  }, [products, selectedCategory, selectedSubCategory, searchQuery]);
+
+  // Current active subcategories based on selected main category
+  const activeSubCategories = useMemo(() => {
+    if (selectedCategory === 'Semua') {
+      const allSubs = new Set<string>();
+      CATEGORY_STRUCTURES.forEach(cat => cat.subCategories.forEach(s => allSubs.add(s)));
+      return Array.from(allSubs);
+    }
+    const current = CATEGORY_STRUCTURES.find(c => c.name === selectedCategory);
+    return current ? current.subCategories : [];
+  }, [selectedCategory]);
+
+  const handleCategorySelect = (catName: string) => {
+    setSelectedCategory(catName);
+    setSelectedSubCategory('Semua');
+  };
+
+  const renderCategoryIcon = (id: string) => {
+    switch (id) {
+      case 'fnb':
+        return <UtensilsCrossed className="w-3.5 h-3.5" />;
+      case 'personal_care':
+        return <HeartPulse className="w-3.5 h-3.5" />;
+      case 'household':
+        return <Home className="w-3.5 h-3.5" />;
+      case 'impulse_items':
+        return <Sparkles className="w-3.5 h-3.5" />;
+      case 'non_food':
+        return <FolderKanban className="w-3.5 h-3.5" />;
+      default:
+        return <Layers className="w-3.5 h-3.5" />;
+    }
+  };
+
+  const getCategoryTheme = (categoryName?: string) => {
+    switch (categoryName) {
+      case 'Makanan & Minuman Siap Saji (F&B)':
+        return { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' };
+      case 'Perawatan Diri & Kesehatan (Personal Care)':
+        return { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' };
+      case 'Kebutuhan Rumah Tangga (Household)':
+        return { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200' };
+      case 'Rokok & Produk Kasir (Impulse Items)':
+        return { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' };
+      case 'Non-Food & Perlengkapan Umum':
+        return { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' };
+      default:
+        return { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200' };
+    }
+  };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.harga * item.quantity), 0);
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -146,37 +355,38 @@ export const DashboardUser = () => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center gap-3">
+      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 shrink-0">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 w-full">
+          <div className="flex justify-between h-14 sm:h-16 items-center">
+            <div className="flex items-center gap-2 sm:gap-3">
               <BelanjainLogo size="sm" showSubtitle={true} />
             </div>
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center gap-1.5 sm:gap-3">
               <button 
                 onClick={() => navigate('/orders')}
-                className="relative p-2 text-slate-600 hover:text-teal-600 transition-colors"
+                className="relative p-2 text-slate-600 hover:text-teal-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
                 title="Riwayat Pesanan"
               >
-                <ShoppingBag className="w-6 h-6" />
+                <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
               <button 
                 onClick={() => setIsCartOpen(true)}
-                className="relative p-2 text-slate-600 hover:text-teal-600 transition-colors"
+                className="relative p-2 text-slate-600 hover:text-teal-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
                 title="Keranjang Saya"
               >
-                <ShoppingCart className="w-6 h-6" />
+                <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
                 {cartItemCount > 0 && (
-                  <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-teal-600 rounded-full">
+                  <span className="absolute top-1 right-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-extrabold text-white bg-teal-600 rounded-full shadow-xs">
                     {cartItemCount}
                   </span>
                 )}
               </button>
               <button 
                 onClick={() => setIsProfileOpen(true)}
-                className="flex items-center justify-center w-10 h-10 rounded-full bg-teal-100 border border-teal-200 text-teal-700 hover:bg-teal-200 transition-colors font-bold text-sm"
+                className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-teal-100 border border-teal-200 text-teal-700 hover:bg-teal-200 transition-colors font-bold text-xs cursor-pointer ml-1"
+                title="Profil Karyawan"
               >
-                {user?.nama?.substring(0, 2).toUpperCase() || <UserIcon className="w-5 h-5" />}
+                {user?.nama?.substring(0, 2).toUpperCase() || <UserIcon className="w-4 h-4" />}
               </button>
             </div>
           </div>
@@ -184,93 +394,233 @@ export const DashboardUser = () => {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 flex flex-col overflow-hidden">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-5 w-full flex-1 flex flex-col overflow-hidden">
         
-        {/* Search and Categories */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4 shrink-0">
-          <div className="relative flex-1 max-w-md">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-slate-400" />
+        {/* Search Bar */}
+        <div className="flex items-center gap-2 mb-3 shrink-0">
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-slate-400" />
             </div>
             <input
               type="text"
-              placeholder="Cari produk atau kategori..."
+              placeholder="Cari sembako, minuman, sabun..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 sm:text-sm transition-colors"
+              className="block w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200/90 rounded-2xl leading-5 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm font-medium transition-all shadow-xs"
             />
-          </div>
-          <div className="flex-1 max-w-xs">
-            <div className="relative">
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="block w-full pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 sm:text-sm font-medium text-slate-700 transition-colors appearance-none cursor-pointer"
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
               >
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                <svg className="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7l3-3 3 3m0 6l-3 3-3-3" />
-                </svg>
-              </div>
-            </div>
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
+        {/* Main Category Tabs */}
+        <div className="mb-2.5 shrink-0">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none no-scrollbar">
+            <button
+              onClick={() => handleCategorySelect('Semua')}
+              className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                selectedCategory === 'Semua'
+                  ? 'bg-teal-600 text-white shadow-teal-600/20 ring-2 ring-teal-600/20'
+                  : 'bg-white text-slate-700 border border-slate-200/90 hover:bg-slate-50'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Semua</span>
+            </button>
+            {CATEGORY_STRUCTURES.map((cat) => {
+              const isSelected = selectedCategory === cat.name;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => handleCategorySelect(cat.name)}
+                  className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                    isSelected
+                      ? 'bg-teal-600 text-white shadow-teal-600/20 ring-2 ring-teal-600/20'
+                      : 'bg-white text-slate-700 border border-slate-200/90 hover:bg-slate-50'
+                  }`}
+                >
+                  {renderCategoryIcon(cat.id)}
+                  <span>{cat.shortName}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Sub-Category Filter Chips */}
+        <div className="mb-3 shrink-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none no-scrollbar">
+            <button
+              onClick={() => setSelectedSubCategory('Semua')}
+              className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer ${
+                selectedSubCategory === 'Semua'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-200/70 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              Semua ({filteredProducts.length})
+            </button>
+            {activeSubCategories.map((sub) => {
+              const isSubSelected = selectedSubCategory === sub;
+              const subCount = products.filter(p => {
+                const matchCat = selectedCategory === 'Semua' || p.kategori === selectedCategory;
+                return matchCat && p.sub_kategori === sub;
+              }).length;
+
+              return (
+                <button
+                  key={sub}
+                  onClick={() => setSelectedSubCategory(sub)}
+                  className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                    isSubSelected
+                      ? 'bg-slate-900 text-white font-bold shadow-xs'
+                      : 'bg-slate-200/70 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>{sub}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSubSelected ? 'bg-slate-800 text-slate-200' : 'bg-white/80 text-slate-600'}`}>
+                    {subCount}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Product Ordering Alert */}
+        {!canOrder && (
+          <div className="bg-amber-50 border border-amber-200/80 p-3 mb-3 rounded-2xl flex items-center gap-2.5 shrink-0">
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+            <div className="text-xs text-amber-900 leading-snug">
+              <span className="font-bold">Waktu Pemesanan Ditutup:</span> Pesanan dibuka <strong>Senin s/d Selasa</strong> (00.00-23.59). Katalog tetap dapat dilihat.
+            </div>
+          </div>
+        )}
+
         {/* Product List */}
-        <div className="flex-1 overflow-y-auto pr-2 pb-4">
+        <div className={`flex-1 overflow-y-auto pr-0.5 pb-20 sm:pb-6 transition-all duration-300 ${!canOrder ? 'opacity-70' : ''}`}>
           {filteredProducts.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
-              Tidak ada produk di kategori ini.
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-10 text-center text-slate-500 flex flex-col items-center justify-center my-4 shadow-xs">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+                <Layers className="w-6 h-6" />
+              </div>
+              <p className="font-bold text-slate-800 text-sm">Tidak ada produk ditemukan</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                Coba gunakan kata kunci lain atau pilih kategori yang berbeda.
+              </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
-              {filteredProducts.map(product => (
-                <div key={product.id} className="bg-white rounded-xl border border-slate-200 p-4 flex flex-row items-center hover:border-teal-300 hover:shadow-md transition-all">
-                  <div className="flex-1 pr-4">
-                    <h3 className="font-bold text-slate-800 text-lg leading-tight mb-1">{product.nama_barang}</h3>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-1 rounded-md">
-                        Stok: {product.stok}
-                      </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+              {filteredProducts.map(product => {
+                const theme = getCategoryTheme(product.kategori);
+                const currentQty = quantities[product.id] || 1;
+                return (
+                  <div 
+                    key={product.id} 
+                    className="bg-white rounded-2xl border border-slate-200/80 p-3.5 flex flex-col justify-between hover:border-teal-300 hover:shadow-md transition-all shadow-xs"
+                  >
+                    <div>
+                      {/* Top: Category Tag & Stock Status */}
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border truncate max-w-[180px] ${theme.bg} ${theme.text} ${theme.border}`}>
+                          {product.sub_kategori || product.kategori}
+                        </span>
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                          product.stok < 10 
+                            ? 'bg-amber-100 text-amber-800' 
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          Stok: {product.stok}
+                        </span>
+                      </div>
+
+                      {/* Middle: Product Name */}
+                      <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug line-clamp-2 mb-3">
+                        {product.nama_barang}
+                      </h3>
                     </div>
-                  </div>
-                  
-                  <div className="flex flex-col items-end gap-3 min-w-[120px]">
-                    <p className="text-lg font-black text-teal-700">Rp {product.harga.toLocaleString('id-ID')}</p>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200">
-                        <button 
-                          onClick={() => handleQuantityChange(product.id, -1)}
-                          className="w-8 h-8 flex items-center justify-center hover:bg-slate-200 text-slate-700 transition-colors rounded-l-lg"
+
+                    {/* Bottom: Price & Stepper + Action */}
+                    <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100 mt-auto">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-medium">Harga</span>
+                        <p className="text-base sm:text-lg font-black text-teal-700 leading-tight">
+                          Rp {product.harga.toLocaleString('id-ID')}
+                        </p>
+                      </div>
+
+                      {/* Stepper & Tambah Button */}
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200/80 p-0.5">
+                          <button 
+                            onClick={() => handleQuantityChange(product.id, -1)}
+                            className="w-7 h-7 flex items-center justify-center hover:bg-white text-slate-700 transition-colors rounded-lg cursor-pointer"
+                            title="Kurangi"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="text-xs font-bold w-6 text-center text-slate-900">
+                            {currentQty}
+                          </span>
+                          <button 
+                            onClick={() => handleQuantityChange(product.id, 1)}
+                            className="w-7 h-7 flex items-center justify-center hover:bg-white text-slate-700 transition-colors rounded-lg cursor-pointer"
+                            title="Tambah"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                        
+                        <button
+                          onClick={() => addToCart(product)}
+                          disabled={!canOrder}
+                          className="h-8 px-3.5 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <Minus className="w-3 h-3" />
-                        </button>
-                        <span className="text-sm font-bold w-6 text-center text-slate-900">{quantities[product.id] || 1}</span>
-                        <button 
-                          onClick={() => handleQuantityChange(product.id, 1)}
-                          className="w-8 h-8 flex items-center justify-center hover:bg-slate-200 text-slate-700 transition-colors rounded-r-lg"
-                        >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Beli</span>
                         </button>
                       </div>
-                      <button
-                        onClick={() => addToCart(product)}
-                        className="h-8 px-4 bg-teal-600 text-white text-xs font-bold rounded-lg hover:bg-teal-700 transition-colors shadow-sm"
-                      >
-                        Tambah
-                      </button>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       </main>
+
+      {/* Floating Bottom Cart Bar for Mobile */}
+      {cart.length > 0 && (
+        <div className="sm:hidden fixed bottom-3 left-3 right-3 z-30">
+          <motion.div 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            onClick={() => setIsCartOpen(true)}
+            className="bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-2xl shadow-xl flex items-center justify-between cursor-pointer border border-slate-800"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-teal-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                <ShoppingCart className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-200">{cartItemCount} Barang Dipilih</p>
+                <p className="text-sm font-black text-teal-400">Rp {cartTotal.toLocaleString('id-ID')}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 text-xs font-bold bg-teal-600 hover:bg-teal-500 px-3.5 py-2 rounded-xl transition-colors shadow-xs">
+              <span>Keranjang</span>
+              <ChevronRight className="w-4 h-4" />
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Cart Drawer */}
       <AnimatePresence>
@@ -345,7 +695,7 @@ export const DashboardUser = () => {
                   <p className="text-lg font-black text-teal-800">Rp {cartTotal.toLocaleString('id-ID')}</p>
                 </div>
                 <button
-                  onClick={handleCheckout}
+                  onClick={() => setIsCheckoutConfirmOpen(true)}
                   disabled={cart.length === 0}
                   className="w-full py-4 bg-teal-600 text-white rounded-xl font-bold shadow-lg shadow-teal-600/20 hover:bg-teal-700 active:scale-[0.98] transition-all uppercase tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -418,14 +768,35 @@ export const DashboardUser = () => {
                       </button>
                     )}
                     
-                    <div className="pt-4 mt-2">
+                    <div className="pt-3 mt-2 space-y-2">
+                      <button
+                        onClick={handleOpenEditProfile}
+                        className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-colors cursor-pointer text-xs uppercase tracking-wider shadow-sm shadow-teal-600/20"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                        <span>Edit Profil</span>
+                      </button>
+
                       <button
                         onClick={handleLogout}
-                        className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-white border-2 border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 hover:text-red-600 hover:border-red-200 transition-colors"
+                        className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors cursor-pointer text-xs uppercase tracking-wider"
                       >
                         <LogOut className="w-4 h-4" />
-                        <span className="uppercase tracking-widest text-xs">Keluar Akun</span>
+                        <span>Keluar Akun</span>
                       </button>
+
+                      {(user.role === 'admin' || user.role === 'it') && (
+                        <button
+                          onClick={() => {
+                            setIsProfileOpen(false);
+                            setIsDeleteModalOpen(true);
+                          }}
+                          className="w-full flex items-center justify-center space-x-1.5 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-xl transition-colors cursor-pointer text-[11px] uppercase tracking-wider"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                          <span>Hapus Akun Saya</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -434,6 +805,243 @@ export const DashboardUser = () => {
           </>
         )}
       </AnimatePresence>
+
+      {/* MODAL HAPUS AKUN SAYA */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center font-bold">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Konfirmasi Hapus Akun</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Tindakan ini tidak dapat dibatalkan</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setDeleteReasonInput('');
+                  setDeleteAccountError('');
+                }}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-3">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Apakah Anda yakin ingin menghapus akun Anda (<strong className="text-slate-800">{user?.nama}</strong>) dari BelanjaIn Saza (PT. Siemens Indonesia)? Mohon berikan **alasan penghapusan akun**:
+              </p>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Alasan Penghapusan Akun <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={deleteReasonInput}
+                  onChange={(e) => {
+                    setDeleteReasonInput(e.target.value);
+                    if (deleteAccountError) setDeleteAccountError('');
+                  }}
+                  rows={3}
+                  placeholder="Contoh: Resign / Keluar dari perusahaan Siemens, Duplikasi akun, atau Alasan Pribadi..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white resize-none"
+                />
+              </div>
+
+              {deleteAccountError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-1.5">
+                  <X className="w-4 h-4 shrink-0" />
+                  <span>{deleteAccountError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex gap-2">
+              <button
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setDeleteReasonInput('');
+                  setDeleteAccountError('');
+                }}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmDeleteAccount}
+                disabled={isDeletingAccount || !deleteReasonInput.trim()}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 active:bg-red-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-red-600/30 flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isDeletingAccount ? 'Proses Hapus...' : 'Ya, Hapus Akun'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIT PROFIL */}
+      {isEditProfileOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-50 border border-teal-100 text-teal-700 flex items-center justify-center font-bold">
+                  <Edit3 className="w-5 h-5 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Edit Profil Saya</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Perbarui informasi data akun BelanjaIn Saza Anda</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsEditProfileOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Nama Lengkap <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editNama}
+                  onChange={(e) => setEditNama(e.target.value)}
+                  placeholder="Masukkan Nama Lengkap"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Perusahaan <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={editPt}
+                    onChange={(e) => setEditPt(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white cursor-pointer"
+                  >
+                    <option value="PT. Siemens Indonesia">PT. Siemens Indonesia</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Departemen <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editDepartemen}
+                    onChange={(e) => setEditDepartemen(e.target.value)}
+                    placeholder="Contoh: IT, HR, Finance..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  No. HP (WhatsApp) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editNoHp}
+                  onChange={(e) => setEditNoHp(e.target.value)}
+                  placeholder="Contoh: 081234567890"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Password Baru <span className="text-slate-400 font-normal">(Kosongkan jika tidak diubah)</span>
+                </label>
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Minimal 6 karakter"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                />
+              </div>
+
+              {editError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-1.5">
+                  <X className="w-4 h-4 shrink-0" />
+                  <span>{editError}</span>
+                </div>
+              )}
+
+              {editSuccess && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{editSuccess}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex gap-2">
+              <button
+                onClick={() => setIsEditProfileOpen(false)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleSaveProfile}
+                disabled={isSavingProfile}
+                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-teal-600/30 flex items-center justify-center gap-1.5"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSavingProfile ? 'Menyimpan...' : 'Simpan Profil'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* MODAL KONFIRMASI CHECKOUT */}
+      {isCheckoutConfirmOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center font-bold shrink-0 mt-0.5">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Konfirmasi Pemesanan</h3>
+                <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">
+                  Apakah Anda yakin ingin melanjutkan pesanan ini? 
+                  <span className="block mt-1 font-bold text-red-600">Pesanan yang sudah dilanjutkan tidak dapat dibatalkan.</span>
+                </p>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-slate-100 flex gap-2">
+              <button
+                onClick={() => setIsCheckoutConfirmOpen(false)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={confirmCheckout}
+                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-teal-600/30 flex items-center justify-center gap-1.5"
+              >
+                <span>Ya, Lanjut</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

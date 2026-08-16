@@ -4,19 +4,27 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Plus, Edit2, Trash2, LogOut, Upload, Download, FileText, 
   ShoppingBag, RefreshCw, CheckCircle, Clock, Package, 
-  Phone, MessageSquare, Search, Filter, AlertCircle, Check, X,
+  Phone, MessageSquare, Search, Filter, AlertCircle, AlertTriangle, Check, X,
   QrCode, ScanLine, Camera, CameraOff, Inbox, FilterX, PackageSearch,
-  Calendar, FileSpreadsheet, Building2, Key, Lock, Eye, EyeOff, Server
+  Calendar, FileSpreadsheet, Building2, Key, Lock, Eye, EyeOff, Server,
+  User as UserIcon, Edit3, Save, TrendingUp, BarChart2
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import XLSX from 'xlsx-js-style';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
+import { SalesTrendChart } from '../components/SalesTrendChart';
+import { 
+  CATEGORY_STRUCTURES, 
+  ALL_MAIN_CATEGORIES, 
+  getSubCategoriesForCategory 
+} from '../data/categories';
 
 interface Product {
   id: number;
   nama_barang: string;
   kategori: string;
+  sub_kategori?: string | null;
   harga: number;
   stok: number;
 }
@@ -56,7 +64,7 @@ export const DashboardAdmin = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'users' | 'scan'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'analytics' | 'products' | 'users' | 'scan'>('orders');
   
   // Users state
   const [users, setUsers] = useState<any[]>([]);
@@ -87,6 +95,7 @@ export const DashboardAdmin = () => {
 
   // Monthly Export Excel Modal State
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [exportMonth, setExportMonth] = useState<number>(new Date().getMonth() + 1);
   const [exportYear, setExportYear] = useState<number>(new Date().getFullYear());
   const [exportPtFilter, setExportPtFilter] = useState<string>('Semua');
@@ -99,19 +108,188 @@ export const DashboardAdmin = () => {
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [resetPasswordError, setResetPasswordError] = useState('');
 
+  // Delete User Modal State
+  const [deleteTargetUser, setDeleteTargetUser] = useState<{ id: number, nama: string, pt: string, no_hp: string } | null>(null);
+  const [deleteReasonInput, setDeleteReasonInput] = useState('');
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [deleteUserError, setDeleteUserError] = useState('');
+
+  // Cancellation Action Modal State
+  const [cancellationConfirmModal, setCancellationConfirmModal] = useState<{
+    orderId: number;
+    type: 'approve' | 'reject';
+    orderNumber: number;
+  } | null>(null);
+  const [cancellationNoteInput, setCancellationNoteInput] = useState('');
+  const [isProcessingCancellation, setIsProcessingCancellation] = useState(false);
+  const [cancellationActionError, setCancellationActionError] = useState('');
+  const [cancellationActionSuccess, setCancellationActionSuccess] = useState('');
+
+  // Delete Product Confirmation Modal State
+  const [deleteProductConfirmModal, setDeleteProductConfirmModal] = useState<{ id: number; nama: string } | null>(null);
+
+  // Admin Profile Edit State
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [editNama, setEditNama] = useState('');
+  const [editPt, setEditPt] = useState('');
+  const [editDepartemen, setEditDepartemen] = useState('');
+  const [editNoHp, setEditNoHp] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Demo Ordering Toggle
+  const [isDemoOrderingEnabled, setIsDemoOrderingEnabled] = useState(
+    localStorage.getItem('demo_ordering_enabled') === 'true'
+  );
+
+  const toggleDemoOrdering = () => {
+    const newVal = !isDemoOrderingEnabled;
+    setIsDemoOrderingEnabled(newVal);
+    localStorage.setItem('demo_ordering_enabled', newVal.toString());
+  };
+
+  const handleOpenProfileModal = () => {
+    if (user) {
+      setEditNama(user.nama || '');
+      setEditPt(user.pt || 'PT. Siemens Indonesia');
+      setEditDepartemen(user.departemen || '');
+      setEditNoHp(user.no_hp || '');
+      setEditPassword('');
+      setEditError('');
+      setEditSuccess('');
+      setIsProfileModalOpen(true);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editNama.trim() || !editPt.trim() || !editDepartemen.trim() || !editNoHp.trim()) {
+      setEditError('Semua kolom profil wajib diisi!');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    setEditError('');
+    setEditSuccess('');
+
+    try {
+      const res = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          nama: editNama.trim(),
+          pt: editPt.trim(),
+          departemen: editDepartemen.trim(),
+          no_hp: editNoHp.trim(),
+          newPassword: editPassword.trim() || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setEditSuccess('Profil berhasil diperbarui!');
+        const updatedUserObj = { ...user, ...data.user };
+        localStorage.setItem('user', JSON.stringify(updatedUserObj));
+        setTimeout(() => {
+          setIsProfileModalOpen(false);
+          window.location.reload();
+        }, 800);
+      } else {
+        setEditError(data.error || 'Gagal memperbarui profil');
+      }
+    } catch (err: any) {
+      setEditError(err.message || 'Koneksi gagal saat memperbarui profil');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  // Edit Any User Profile State
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editUserNama, setEditUserNama] = useState('');
+  const [editUserPt, setEditUserPt] = useState('');
+  const [editUserDepartemen, setEditUserDepartemen] = useState('');
+  const [editUserNoHp, setEditUserNoHp] = useState('');
+  const [editUserRole, setEditUserRole] = useState('user');
+  const [editUserPassword, setEditUserPassword] = useState('');
+  const [editUserError, setEditUserError] = useState('');
+  const [editUserSuccess, setEditUserSuccess] = useState('');
+  const [isSavingUser, setIsSavingUser] = useState(false);
+
+  const openEditUserModal = (targetUser: any) => {
+    setEditingUser(targetUser);
+    setEditUserNama(targetUser.nama || '');
+    setEditUserPt(targetUser.pt || 'PT. Siemens Indonesia');
+    setEditUserDepartemen(targetUser.departemen || '');
+    setEditUserNoHp(targetUser.no_hp || '');
+    setEditUserRole(targetUser.role || 'user');
+    setEditUserPassword('');
+    setEditUserError('');
+    setEditUserSuccess('');
+  };
+
+  const handleSaveUserProfile = async () => {
+    if (!editingUser) return;
+    if (!editUserNama.trim() || !editUserPt.trim() || !editUserDepartemen.trim() || !editUserNoHp.trim()) {
+      setEditUserError('Nama, PT, Departemen, dan No HP wajib diisi!');
+      return;
+    }
+
+    setIsSavingUser(true);
+    setEditUserError('');
+    setEditUserSuccess('');
+
+    try {
+      const res = await fetch(`/api/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          nama: editUserNama.trim(),
+          pt: editUserPt.trim(),
+          departemen: editUserDepartemen.trim(),
+          no_hp: editUserNoHp.trim(),
+          role: editUserRole,
+          newPassword: editUserPassword.trim() || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setEditUserSuccess(`Profil ${editUserNama} berhasil diperbarui!`);
+        fetchUsers();
+        setTimeout(() => {
+          setEditingUser(null);
+        }, 1000);
+      } else {
+        setEditUserError(data.error || 'Gagal memperbarui profil pengguna');
+      }
+    } catch (err: any) {
+      setEditUserError(err.message || 'Terjadi kesalahan jaringan');
+    } finally {
+      setIsSavingUser(false);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem('koksi_barcode_feature_active', 'false');
+    localStorage.setItem('saza_barcode_feature_active', 'false');
   }, []);
 
   const toggleBarcodeFeature = (active: boolean) => {
     setIsBarcodeFeatureActive(active);
-    localStorage.setItem('koksi_barcode_feature_active', active ? 'true' : 'false');
+    localStorage.setItem('saza_barcode_feature_active', active ? 'true' : 'false');
   };
 
   const executeVerifyBarcode = async (codeToVerify?: string) => {
     const code = (codeToVerify || scannedBarcodeInput).trim();
     if (!code) {
-      setBarcodeVerifyMessage({ type: 'error', text: 'Silakan ketik atau pilih kode pesanan terlebih dahulu (contoh: KOKSI-PKP-1002).' });
+      setBarcodeVerifyMessage({ type: 'error', text: 'Silakan ketik atau pilih kode pesanan terlebih dahulu (contoh: SAZA-PKP-1002).' });
       return;
     }
 
@@ -200,10 +378,16 @@ export const DashboardAdmin = () => {
   // Product Form state
   const [formData, setFormData] = useState({
     nama_barang: '',
-    kategori: '',
+    kategori: CATEGORY_STRUCTURES[0].name,
+    sub_kategori: CATEGORY_STRUCTURES[0].subCategories[0] || '',
     harga: 0,
     stok: 0
   });
+
+  // Product Filter State
+  const [productSearch, setProductSearch] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState('Semua');
+  const [productSubCategoryFilter, setProductSubCategoryFilter] = useState('Semua');
 
   useEffect(() => {
     if (user && user.role !== 'admin') {
@@ -249,16 +433,22 @@ export const DashboardAdmin = () => {
   const fetchOrders = async (isBackground = false) => {
     if (!isBackground) setOrdersLoading(true);
     try {
+      const authToken = token || localStorage.getItem('token');
+      if (!authToken) return;
       const res = await fetch('/api/orders/all', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${authToken}` }
       });
       if (res.ok) {
         const data = await res.json();
-        setOrders(data);
-        setLastUpdated(new Date());
+        if (Array.isArray(data)) {
+          setOrders(data);
+          setLastUpdated(new Date());
+        }
       }
     } catch (err) {
-      console.error('Failed to fetch orders:', err);
+      if (!isBackground) {
+        console.warn('Kendala koneksi mengambil data pesanan:', err);
+      }
     } finally {
       if (!isBackground) setOrdersLoading(false);
     }
@@ -291,6 +481,92 @@ export const DashboardAdmin = () => {
     }
   };
 
+  const handleApproveCancellation = async (orderId: number, note?: string) => {
+    setIsProcessingCancellation(true);
+    setCancellationActionError('');
+    setCancellationActionSuccess('');
+
+    try {
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch(`/api/orders/${orderId}/approve-cancellation`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ catatan: note || 'Pembatalan Disetujui Admin.' })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCancellationActionSuccess('Pengajuan pembatalan DISETUJUI! Pesanan telah resmi Dibatalkan.');
+        fetchOrders(true);
+        setTimeout(() => {
+          setCancellationConfirmModal(null);
+          setCancellationActionSuccess('');
+        }, 1000);
+      } else {
+        setCancellationActionError(data.error || 'Gagal menyetujui pembatalan.');
+      }
+    } catch (err: any) {
+      setCancellationActionError('Terjadi kesalahan koneksi.');
+    } finally {
+      setIsProcessingCancellation(false);
+    }
+  };
+
+  const handleRejectCancellation = async (orderId: number, reason?: string) => {
+    const finalReason = reason && reason.trim() ? reason.trim() : 'Pesanan sedang diproses dan tidak dapat dibatalkan.';
+    setIsProcessingCancellation(true);
+    setCancellationActionError('');
+    setCancellationActionSuccess('');
+
+    try {
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch(`/api/orders/${orderId}/reject-cancellation`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ alasanPenolakan: finalReason })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCancellationActionSuccess('Pengajuan pembatalan DITOLAK! Pesanan dikembalikan ke status "Proses".');
+        fetchOrders(true);
+        setTimeout(() => {
+          setCancellationConfirmModal(null);
+          setCancellationActionSuccess('');
+        }, 1000);
+      } else {
+        setCancellationActionError(data.error || 'Gagal menolak pembatalan.');
+      }
+    } catch (err: any) {
+      setCancellationActionError('Terjadi kesalahan koneksi.');
+    } finally {
+      setIsProcessingCancellation(false);
+    }
+  };
+
+  const handleDeleteProductConfirmed = async () => {
+    if (!deleteProductConfirmModal) return;
+    try {
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch(`/api/products/${deleteProductConfirmModal.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        fetchProducts();
+        setDeleteProductConfirmModal(null);
+      } else {
+        alert('Gagal menghapus produk');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const openStatusModal = (order: Order) => {
     setSelectedOrderForStatus(order);
     setNewStatusValue(order.status || 'Menunggu Konfirmasi');
@@ -304,15 +580,27 @@ export const DashboardAdmin = () => {
 
   const openAddModal = () => {
     setEditingProduct(null);
-    setFormData({ nama_barang: '', kategori: '', harga: 0, stok: 0 });
+    const initialCategory = CATEGORY_STRUCTURES[0].name;
+    const initialSubCategory = CATEGORY_STRUCTURES[0].subCategories[0] || '';
+    setFormData({ 
+      nama_barang: '', 
+      kategori: initialCategory, 
+      sub_kategori: initialSubCategory, 
+      harga: 0, 
+      stok: 0 
+    });
     setIsModalOpen(true);
   };
 
   const openEditModal = (p: Product) => {
     setEditingProduct(p);
+    const cat = p.kategori || CATEGORY_STRUCTURES[0].name;
+    const availableSubs = getSubCategoriesForCategory(cat);
+    const subCat = p.sub_kategori || availableSubs[0] || '';
     setFormData({
       nama_barang: p.nama_barang,
-      kategori: p.kategori,
+      kategori: cat,
+      sub_kategori: subCat,
       harga: p.harga,
       stok: p.stok
     });
@@ -405,6 +693,50 @@ export const DashboardAdmin = () => {
     }
   };
 
+  const openDeleteUserModal = (u: { id: number, nama: string, pt: string, no_hp: string }) => {
+    setDeleteTargetUser(u);
+    setDeleteReasonInput('');
+    setDeleteUserError('');
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!deleteTargetUser) return;
+    if (!deleteReasonInput.trim() || deleteReasonInput.trim().length < 3) {
+      setDeleteUserError('Alasan penghapusan akun wajib diisi (minimal 3 karakter)!');
+      return;
+    }
+
+    setIsDeletingUser(true);
+    setDeleteUserError('');
+
+    try {
+      const res = await fetch(`/api/users/${deleteTargetUser.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ reason: deleteReasonInput.trim() })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        alert(data.message || `Akun "${deleteTargetUser.nama}" berhasil dihapus.`);
+        setDeleteTargetUser(null);
+        setDeleteReasonInput('');
+        fetchUsers();
+      } else {
+        setDeleteUserError(data.error || 'Gagal menghapus akun pengguna.');
+      }
+    } catch (err) {
+      console.error(err);
+      setDeleteUserError('Terjadi kesalahan koneksi server.');
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
   const getRowValue = (row: any, keys: string[]): any => {
     if (!row) return undefined;
     for (const key of keys) {
@@ -417,14 +749,59 @@ export const DashboardAdmin = () => {
 
   const handleDownloadTemplate = () => {
     const templateData = [
-      { 'Nama Barang': 'mi goreng Indomie', 'Satuan': 'Dus', 'Qty': 1, 'HARGA JUAL KE KOKSI': 110000 },
-      { 'Nama Barang': 'Beras Premium 5kg', 'Satuan': 'Karung', 'Qty': 50, 'HARGA JUAL KE KOKSI': 75000 },
-      { 'Nama Barang': 'Minyak Goreng 2L', 'Satuan': 'Pouch', 'Qty': 30, 'HARGA JUAL KE KOKSI': 34000 }
+      { 
+        'Nama Barang': 'Pocari Sweat 500ml', 
+        'Kategori': 'Makanan & Minuman Siap Saji (F&B)', 
+        'Sub Kategori': 'Minuman Dingin & Kemasan',
+        'Satuan': 'Botol', 
+        'Qty': 50, 
+        'HARGA JUAL': 8000 
+      },
+      { 
+        'Nama Barang': 'Beras Setra Ramos 5kg', 
+        'Kategori': 'Makanan & Minuman Siap Saji (F&B)', 
+        'Sub Kategori': 'Bahan Makanan (Sembako)',
+        'Satuan': 'Karung', 
+        'Qty': 40, 
+        'HARGA JUAL': 75000 
+      },
+      { 
+        'Nama Barang': 'Lifebuoy Sabun Cair 450ml', 
+        'Kategori': 'Perawatan Diri & Kesehatan (Personal Care)', 
+        'Sub Kategori': 'Perawatan Mandi & Rambut',
+        'Satuan': 'Pouch', 
+        'Qty': 30, 
+        'HARGA JUAL': 24000 
+      },
+      { 
+        'Nama Barang': 'Rinso Matic Front Load 1kg', 
+        'Kategori': 'Kebutuhan Rumah Tangga (Household)', 
+        'Sub Kategori': 'Pembersih Pakaian',
+        'Satuan': 'Bungkus', 
+        'Qty': 25, 
+        'HARGA JUAL': 32000 
+      },
+      { 
+        'Nama Barang': 'SilverQueen Almond 58g', 
+        'Kategori': 'Rokok & Produk Kasir (Impulse Items)', 
+        'Sub Kategori': 'Permen & Cokelat Kecil',
+        'Satuan': 'Pcs', 
+        'Qty': 60, 
+        'HARGA JUAL': 16500 
+      },
+      { 
+        'Nama Barang': 'Buku Tulis Sinar Dunia A5', 
+        'Kategori': 'Non-Food & Perlengkapan Umum', 
+        'Sub Kategori': 'Alat Tulis Kantor (ATK) Dasar',
+        'Satuan': 'Pack', 
+        'Qty': 20, 
+        'HARGA JUAL': 45000 
+      }
     ];
     const ws = XLSX.utils.json_to_sheet(templateData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Template Produk');
-    XLSX.writeFile(wb, 'Template_Import_Produk_KOKSI.xlsx');
+    XLSX.writeFile(wb, 'Template_Import_Produk_BelanjaIn_Saza.xlsx');
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -440,13 +817,15 @@ export const DashboardAdmin = () => {
         const ws = wb.Sheets[wsname];
 
         const matrixRows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-        const formattedProducts: { nama_barang: string; kategori: string; harga: number; stok: number }[] = [];
+        const formattedProducts: { nama_barang: string; kategori: string; sub_kategori?: string; harga: number; stok: number }[] = [];
 
-        let currentCategory = 'Sembako';
+        let currentCategory = CATEGORY_STRUCTURES[0].name;
+        let currentSubCategory = CATEGORY_STRUCTURES[0].subCategories[0] || '';
         let idxNama = -1;
         let idxHarga = -1;
         let idxQty = -1;
         let idxKat = -1;
+        let idxSubKat = -1;
 
         if (matrixRows && matrixRows.length > 0) {
           for (let r = 0; r < matrixRows.length; r++) {
@@ -469,6 +848,7 @@ export const DashboardAdmin = () => {
 
               idxQty = rowStr.findIndex(cell => cell === 'qty' || cell === 'stok' || cell === 'stock' || cell === 'jumlah' || cell.includes('stok'));
               idxKat = rowStr.findIndex(cell => cell === 'kategori' || cell === 'category' || cell === 'jenis');
+              idxSubKat = rowStr.findIndex(cell => cell === 'sub kategori' || cell === 'sub_kategori' || cell === 'sub category' || cell === 'subkategori' || cell.includes('sub kat'));
 
               for (let i = r + 1; i < matrixRows.length; i++) {
                 const itemRow = matrixRows[i];
@@ -478,6 +858,7 @@ export const DashboardAdmin = () => {
                 const hargaRaw = idxHarga !== -1 ? itemRow[idxHarga] : undefined;
                 const qtyRaw = idxQty !== -1 ? itemRow[idxQty] : undefined;
                 const katRaw = idxKat !== -1 ? itemRow[idxKat] : undefined;
+                const subKatRaw = idxSubKat !== -1 ? itemRow[idxSubKat] : undefined;
 
                 if (!namaCell) continue;
 
@@ -493,9 +874,14 @@ export const DashboardAdmin = () => {
                   continue;
                 }
 
+                const parsedKategori = String(katRaw || currentCategory || CATEGORY_STRUCTURES[0].name).trim();
+                const defaultSub = getSubCategoriesForCategory(parsedKategori)[0] || '';
+                const parsedSubKategori = String(subKatRaw || currentSubCategory || defaultSub).trim();
+
                 formattedProducts.push({
                   nama_barang: namaCell,
-                  kategori: String(katRaw || currentCategory || 'Lainnya').trim(),
+                  kategori: parsedKategori,
+                  sub_kategori: parsedSubKategori,
                   harga: hargaNum,
                   stok: qtyNum
                 });
@@ -510,17 +896,23 @@ export const DashboardAdmin = () => {
           if (objectData && objectData.length > 0) {
             objectData.forEach(item => {
               const nama = getRowValue(item, ['nama_barang', 'nama barang', 'nama', 'barang', 'nama produk', 'product name', 'item', 'produk']);
-              const kategori = getRowValue(item, ['kategori', 'category', 'jenis', 'kat']) || 'Lainnya';
-              const hargaRaw = getRowValue(item, ['harga jual ke koksi', 'harga jual', 'harga', 'harga barang', 'price']);
+              const kategori = getRowValue(item, ['kategori', 'category', 'jenis', 'kat']) || CATEGORY_STRUCTURES[0].name;
+              const subKategori = getRowValue(item, ['sub_kategori', 'sub kategori', 'sub category', 'subkategori', 'sub_kat', 'subkat']) || '';
+              const hargaRaw = getRowValue(item, ['harga jual ke saza', 'harga jual', 'harga', 'harga barang', 'price']);
               const stokRaw = getRowValue(item, ['qty', 'stok', 'stock', 'jumlah', 'stok barang']);
 
               const hargaNum = parseInt(String(hargaRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
               const stokNum = parseInt(String(stokRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
 
               if (nama && String(nama).trim().length > 0) {
+                const cleanKat = String(kategori).trim();
+                const defaultSub = getSubCategoriesForCategory(cleanKat)[0] || '';
+                const cleanSub = String(subKategori).trim() || defaultSub;
+
                 formattedProducts.push({
                   nama_barang: String(nama).trim(),
-                  kategori: String(kategori).trim(),
+                  kategori: cleanKat,
+                  sub_kategori: cleanSub,
                   harga: hargaNum,
                   stok: stokNum
                 });
@@ -621,7 +1013,7 @@ export const DashboardAdmin = () => {
       });
 
       // Construct AOA Matrix
-      const r0 = ['KOPERASI KARYAWAN SIEMENS (KOKSI) - PT. SIEMENS INDONESIA & PT. SIM', '', '', '', '', '', '', '', '', '', '', '', ''];
+      const r0 = ['BELANJAIN SAZA - PT. SIEMENS INDONESIA', '', '', '', '', '', '', '', '', '', '', '', ''];
       const r1 = ['LAPORAN REKAPITULASI TARIKAN DATA TRANSAKSI PENJUALAN BULANAN', '', '', '', '', '', '', '', '', '', '', '', ''];
       const r2 = [`Periode Laporan: ${periodTitle}   |   Tanggal Cetak: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale: idLocale })} WIB   |   PT: ${ptToUse}   |   Status: ${statusToUse}`, '', '', '', '', '', '', '', '', '', '', '', ''];
       const r3 = ['', '', '', '', '', '', '', '', '', '', '', '', ''];
@@ -682,7 +1074,7 @@ export const DashboardAdmin = () => {
           if (itemIdx === 0) {
             aoa.push([
               orderCounter,
-              `#KOKSI-PKP-${order.id}`,
+              `#SAZA-PKP-${order.id}`,
               dateStr,
               order.user?.nama || '-',
               order.user?.pt || '-',
@@ -980,7 +1372,7 @@ export const DashboardAdmin = () => {
       XLSX.utils.book_append_sheet(wb, ws, 'Laporan Penjualan');
 
       const cleanPeriod = periodTitle.replace(/[^a-zA-Z0-9]/g, '_');
-      XLSX.writeFile(wb, `Laporan_Transaksi_KOKSI_${cleanPeriod}.xlsx`);
+      XLSX.writeFile(wb, `Laporan_Transaksi_BelanjaIn_Saza_${cleanPeriod}.xlsx`);
 
       setIsExportModalOpen(false);
     } catch (err) {
@@ -993,6 +1385,7 @@ export const DashboardAdmin = () => {
     const s = (status || '').toLowerCase();
     if (s.includes('selesai') || s === 'completed') return 'bg-teal-100 text-teal-800 border-teal-200';
     if (s.includes('siap')) return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+    if (s.includes('pengajuan')) return 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold';
     if (s.includes('proses')) return 'bg-blue-100 text-blue-800 border-blue-200';
     if (s.includes('batal') || s === 'cancelled') return 'bg-red-100 text-red-800 border-red-200';
     return 'bg-amber-100 text-amber-800 border-amber-200';
@@ -1004,35 +1397,35 @@ export const DashboardAdmin = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* Navbar Admin */}
       <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-teal-500 text-slate-900 rounded-xl flex items-center justify-center font-black text-xl italic shadow-inner">
-              K
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-[64px] py-2.5 sm:py-0 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-tr from-teal-500 via-teal-400 to-amber-400 text-slate-950 rounded-xl flex items-center justify-center font-black text-lg sm:text-xl italic shadow-md shrink-0">
+              B
             </div>
-            <div>
-              <h1 className="text-base font-extrabold tracking-tight">KOKSI - Admin Portal</h1>
-              <p className="text-[10px] text-teal-400 font-bold uppercase tracking-wider">PT. Siemens Indonesia & PT. SIM</p>
+            <div className="min-w-0 flex flex-col justify-center">
+              <h1 className="text-sm sm:text-base font-extrabold tracking-tight leading-tight text-white flex items-center gap-1">
+                <span>BelanjaIn Saza</span> <span className="text-teal-400 font-bold">&bull;</span> <span className="text-slate-300 font-semibold text-xs sm:text-sm">Admin Portal</span>
+              </h1>
+              <p className="text-[9.5px] sm:text-[10px] text-teal-400 font-bold uppercase tracking-wider leading-tight mt-0.5">
+                PT. Siemens Indonesia
+              </p>
             </div>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <button
-              onClick={() => navigate('/it-dashboard')}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-teal-500 hover:text-slate-950 text-teal-400 border border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-              title="Buka Dashboard Pemantauan IT"
+              onClick={handleOpenProfileModal}
+              className="flex items-center gap-1 sm:gap-1.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white px-2.5 sm:px-3 py-1.5 rounded-xl transition-all cursor-pointer border border-teal-500 shadow-sm"
+              title="Edit Profil Saya"
             >
-              <Server className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Pemantauan IT</span>
+              <UserIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span className="text-[11px] sm:text-xs font-bold whitespace-nowrap">Edit Profil</span>
             </button>
-            <div className="text-right hidden sm:block">
-              <p className="text-xs font-bold text-slate-200">{user?.nama}</p>
-              <p className="text-[10px] text-slate-400 uppercase font-medium">Administrator</p>
-            </div>
             <button
               onClick={handleLogout}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
+              className="p-1.5 sm:p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
               title="Logout"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </div>
@@ -1053,10 +1446,22 @@ export const DashboardAdmin = () => {
             <ShoppingBag className="w-4 h-4" />
             <span>Permintaan Transaksi</span>
             {pendingOrdersCount > 0 && (
-              <span className="ml-1.5 px-2 py-0.5 text-[10px] bg-amber-500 text-white rounded-full font-black animate-pulse">
+              <span className="ml-1.5 px-2 py-0.5 text-[10px] bg-amber-500 text-white rounded-full font-black">
                 {pendingOrdersCount} Baru
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'analytics'
+                ? 'border-teal-600 text-teal-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4 text-teal-600" />
+            <span>Grafik & Tren Penjualan</span>
           </button>
 
           <button
@@ -1083,6 +1488,14 @@ export const DashboardAdmin = () => {
             <span>Daftar Pengguna ({users.length})</span>
           </button>
 
+          <button
+            onClick={handleOpenProfileModal}
+            className="py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 border-transparent text-slate-600 hover:text-teal-600 transition-colors whitespace-nowrap bg-teal-50/60 rounded-t-lg"
+          >
+            <UserIcon className="w-4 h-4 text-teal-600" />
+            <span>Edit Profil Saya</span>
+          </button>
+
           {isBarcodeFeatureActive && (
             <button
               onClick={() => setActiveTab('scan')}
@@ -1107,7 +1520,7 @@ export const DashboardAdmin = () => {
             {/* Header Toolbar */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm shrink-0">
               <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 rounded-full bg-teal-500 animate-ping"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-teal-500"></div>
                 <div>
                   <h2 className="text-base font-bold text-slate-900">Permintaan Transaksi Karyawan</h2>
                   <p className="text-xs text-slate-500">
@@ -1117,6 +1530,24 @@ export const DashboardAdmin = () => {
               </div>
 
               <div className="flex items-center space-x-2 flex-wrap gap-y-2 w-full md:w-auto">
+                <button
+                  onClick={toggleDemoOrdering}
+                  className={`flex items-center space-x-1.5 px-3 py-2 text-white text-xs font-extrabold rounded-xl transition-all shadow-md cursor-pointer border ${isDemoOrderingEnabled ? 'bg-amber-500 hover:bg-amber-600 border-amber-600 shadow-amber-500/20' : 'bg-slate-500 hover:bg-slate-600 border-slate-600'}`}
+                  title="Aktifkan ini untuk mengizinkan pesanan di luar hari Senin-Selasa untuk demo"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>{isDemoOrderingEnabled ? 'Mode Demo Aktif' : 'Mode Demo Mati'}</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('analytics')}
+                  className="flex items-center space-x-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold rounded-xl transition-all shadow-md cursor-pointer border border-slate-700"
+                  title="Lihat grafik tren penjualan dan analisis Recharts"
+                >
+                  <BarChart2 className="w-4 h-4 text-teal-400" />
+                  <span>Grafik Tren Penjualan</span>
+                </button>
+
                 <button
                   onClick={() => setIsExportModalOpen(true)}
                   className="flex items-center space-x-1.5 px-3.5 py-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white text-xs font-extrabold rounded-xl transition-all shadow-md shadow-teal-600/20 cursor-pointer"
@@ -1158,6 +1589,7 @@ export const DashboardAdmin = () => {
                   <option value="Pengiriman">Pengiriman</option>
                   <option value="Siap Diambil">Siap Diambil</option>
                   <option value="Selesai">Selesai</option>
+                  <option value="Pengajuan Pembatalan">⚠️ Pengajuan Pembatalan</option>
                   <option value="Dibatalkan">Dibatalkan</option>
                 </select>
 
@@ -1193,7 +1625,7 @@ export const DashboardAdmin = () => {
                     <RefreshCw className="w-8 h-8 animate-spin" />
                   </div>
                   <p className="text-sm font-extrabold text-slate-800">Memuat Permintaan Transaksi Real-Time...</p>
-                  <p className="text-xs text-slate-400 mt-1 font-medium">Menghubungkan ke Server KOKSI PT. Siemens Indonesia & PT. SIM</p>
+                  <p className="text-xs text-slate-400 mt-1 font-medium">Menghubungkan ke Server BelanjaIn Saza PT. Siemens Indonesia</p>
                 </div>
               ) : orders.filter(order => {
                 const matchStatus = orderStatusFilter === 'Semua' || (order.status || 'Menunggu Konfirmasi').toLowerCase() === orderStatusFilter.toLowerCase();
@@ -1220,7 +1652,7 @@ export const DashboardAdmin = () => {
                       </div>
                       <h3 className="text-xl font-extrabold text-slate-900 mb-2">Belum Ada Permintaan Transaksi Masuk</h3>
                       <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed mb-6 font-medium">
-                        Sistem KOKSI belum menerima pesanan baru dari karyawan PT. Siemens Indonesia & PT. SIM. Transaksi yang dikirim oleh pengguna akan muncul otomatis secara real-time di halaman ini.
+                        Sistem BelanjaIn Saza belum menerima pesanan baru dari karyawan PT. Siemens Indonesia. Transaksi yang dikirim oleh pengguna akan muncul otomatis secara real-time di halaman ini.
                       </p>
                       <div className="flex items-center gap-3">
                         <button
@@ -1326,7 +1758,7 @@ export const DashboardAdmin = () => {
 
                           {order.user?.no_hp && (
                             <a
-                              href={`https://wa.me/62${order.user.no_hp.replace(/^0/, '')}?text=${encodeURIComponent(`Halo Sdr/i ${order.user.nama}, mengenai pesanan #${order.id} KOKSI...`)}`}
+                              href={`https://wa.me/62${order.user.no_hp.replace(/^0/, '')}?text=${encodeURIComponent(`Halo Sdr/i ${order.user.nama}, mengenai pesanan #${order.id} BelanjaIn Saza...`)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg border border-emerald-200 text-xs font-bold transition-colors"
@@ -1345,19 +1777,83 @@ export const DashboardAdmin = () => {
                             </span>
                           </div>
 
-                          <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border ${getStatusBadgeStyle(order.status)}`}>
+                          <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border whitespace-nowrap shrink-0 ${getStatusBadgeStyle(order.status)}`}>
                             {order.status || 'Menunggu Konfirmasi'}
                           </span>
                         </div>
                       </div>
 
                       {/* Stage Status Management Bar */}
-                      <div className="p-4 sm:px-6 bg-slate-50/70 border-b border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                        <div className="w-full md:w-auto">
+                      <div className="p-4 sm:px-6 bg-slate-50/70 border-b border-slate-100 flex flex-col items-start justify-between gap-3">
+                        <div className="w-full">
                           <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1">
                             Update Tahap Status Pesanan:
                           </p>
-                          {order.status === 'Dibatalkan' ? (
+                          {order.status === 'Pengajuan Pembatalan' ? (
+                            <div className="p-4 bg-amber-50/90 border-2 border-amber-300 rounded-2xl text-amber-900 text-xs font-semibold w-full space-y-3 shadow-xs">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-amber-200/80">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-600 text-white font-black text-[10px] uppercase tracking-wider rounded-lg shadow-2xs">
+                                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-100" />
+                                    <span>Pengajuan Pembatalan Karyawan</span>
+                                  </span>
+                                  <span className="text-amber-950 font-extrabold text-xs">
+                                    • Membutuhkan Konfirmasi Admin
+                                  </span>
+                                </div>
+                                <span className="text-[11px] font-bold text-amber-800">
+                                  Status: Menunggu Konfirmasi
+                                </span>
+                              </div>
+
+                              <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200/90 text-slate-800">
+                                <span className="font-extrabold text-amber-950">Catatan/Alasan Pengajuan: </span>
+                                <span className="font-medium">{order.keterangan ? order.keterangan.replace(/^Pengajuan Pembatalan:\s*/, '') : 'Tidak ada alasan dicantumkan.'}</span>
+                              </div>
+
+                              <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2 pt-1">
+                                <button
+                                  onClick={() => {
+                                    setCancellationNoteInput('Pembatalan Disetujui Admin.');
+                                    setCancellationActionError('');
+                                    setCancellationActionSuccess('');
+                                    setCancellationConfirmModal({
+                                      orderId: order.id,
+                                      type: 'approve',
+                                      orderNumber: order.id
+                                    });
+                                  }}
+                                  className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-extrabold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                  <Check className="w-4 h-4 shrink-0" />
+                                  <span>Setujui Pembatalan</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setCancellationNoteInput('Pesanan sedang diproses dan tidak dapat dibatalkan.');
+                                    setCancellationActionError('');
+                                    setCancellationActionSuccess('');
+                                    setCancellationConfirmModal({
+                                      orderId: order.id,
+                                      type: 'reject',
+                                      orderNumber: order.id
+                                    });
+                                  }}
+                                  className="flex-1 sm:flex-none px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-extrabold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                  <X className="w-4 h-4 shrink-0" />
+                                  <span>Tolak Pembatalan</span>
+                                </button>
+                                <button
+                                  onClick={() => openStatusModal(order)}
+                                  className="w-full sm:w-auto px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                  <span>Edit Detail Status</span>
+                                </button>
+                              </div>
+                            </div>
+                          ) : order.status === 'Dibatalkan' ? (
                             <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-semibold flex items-center justify-between gap-3 w-full">
                               <div>
                                 <span className="font-extrabold text-red-900 mr-2">🔒 Non-Aktif (Dibatalkan):</span>
@@ -1391,7 +1887,7 @@ export const DashboardAdmin = () => {
                                 &rarr; Pengiriman
                               </button>
                               <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'Siap Diambil', 'Pesanan sudah siap diambil di lokasi KOKSI')}
+                                onClick={() => handleUpdateOrderStatus(order.id, 'Siap Diambil', 'Pesanan sudah siap diambil di lokasi Koperasi / PT. Siemens Indonesia')}
                                 className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
                               >
                                 &rarr; Siap Diambil
@@ -1404,14 +1900,11 @@ export const DashboardAdmin = () => {
                               </button>
                               <button
                                 onClick={() => {
-                                  const reason = prompt('Masukkan alasan pembatalan pesanan (Wajib):');
-                                  if (reason && reason.trim()) {
-                                    handleUpdateOrderStatus(order.id, 'Dibatalkan', `Dibatalkan oleh Admin. Alasan: ${reason.trim()}`);
-                                  } else if (reason !== null) {
-                                    alert('Alasan pembatalan wajib diisi!');
-                                  }
+                                  setSelectedOrderForStatus(order);
+                                  setNewStatusValue('Dibatalkan');
+                                  setNewKeteranganValue('Dibatalkan oleh Admin.');
                                 }}
-                                className="px-2.5 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-bold transition-colors"
+                                className="px-2.5 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                               >
                                 Batalkan
                               </button>
@@ -1461,49 +1954,127 @@ export const DashboardAdmin = () => {
           </div>
         )}
 
-        {/* TAB 2: DATA PRODUK */}
+        {/* TAB 2: ANALISIS & TREN PENJUALAN (RECHARTS) */}
+        {activeTab === 'analytics' && (
+          <div className="flex flex-col flex-1 space-y-4">
+            <SalesTrendChart orders={orders} />
+          </div>
+        )}
+
+        {/* TAB 3: DATA PRODUK */}
         {activeTab === 'products' && (
           <>
-            <div className="flex justify-between items-center mb-4 shrink-0">
-              <h2 className="text-xl font-bold text-slate-900">Data Produk</h2>
-              <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap gap-y-2">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4 shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Data Produk ({products.length})</h2>
+                <p className="text-xs text-slate-500">Kelola katalog produk, kategori, harga, dan stok barang BelanjaIn Saza</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <input 
                   type="file" 
                   accept=".xlsx, .xls, .csv" 
                   className="hidden" 
                   ref={fileInputRef}
-                  onChange={handleFileUpload}
+                  onChange={(e) => {
+                    handleFileUpload(e);
+                    setIsImportModalOpen(false);
+                  }}
                 />
+                
+                {/* 1. IMPORT DATA EXCEL */}
                 <button
-                  onClick={handleDownloadTemplate}
-                  title="Unduh contoh format Excel"
-                  className="flex items-center space-x-2 px-3 py-2.5 bg-slate-100 text-slate-700 rounded-full hover:bg-slate-200 transition-colors font-bold text-xs uppercase tracking-wider"
+                  onClick={() => setIsImportModalOpen(true)}
+                  title="Import Data Produk Excel (Upload & Template)"
+                  aria-label="Import Data Produk Excel"
+                  className="flex items-center space-x-1.5 px-3.5 py-2 bg-slate-100 text-slate-800 hover:bg-slate-200 transition-colors font-bold text-xs tracking-wide rounded-full shadow-xs cursor-pointer"
                 >
-                  <FileText className="w-4 h-4 text-teal-600" />
-                  <span className="hidden sm:inline">Template Excel</span>
+                  <Upload className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span className="text-xs">Import Data</span>
                 </button>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center space-x-2 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-full hover:bg-slate-200 transition-colors font-bold text-xs uppercase tracking-wider"
-                >
-                  <Upload className="w-4 h-4" />
-                  <span className="hidden sm:inline">Import Excel</span>
-                </button>
+
+                {/* 2. EXPORT DATA EXCEL (FILTERED) */}
                 <button
                   onClick={() => setIsExportModalOpen(true)}
-                  className="flex items-center space-x-2 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-full hover:bg-slate-200 transition-colors font-bold text-xs uppercase tracking-wider"
+                  title="Export Laporan Excel dengan Filter (Bulan, Tahun, PT, Status)"
+                  aria-label="Export Laporan Excel dengan Filter"
+                  className="flex items-center space-x-1.5 px-3.5 py-2 bg-slate-100 text-slate-800 hover:bg-slate-200 transition-colors font-bold text-xs tracking-wide rounded-full shadow-xs cursor-pointer"
                 >
-                  <FileSpreadsheet className="w-4 h-4 text-teal-600" />
-                  <span className="hidden sm:inline">Export Penjualan</span>
+                  <FileSpreadsheet className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span className="text-xs">Export Data</span>
                 </button>
+
+                {/* TAMBAH PRODUK MANUAL */}
                 <button
                   onClick={openAddModal}
-                  className="flex items-center space-x-2 px-5 py-2.5 bg-teal-600 text-white rounded-full hover:bg-teal-700 transition-colors shadow-sm font-bold text-xs uppercase tracking-wider"
+                  title="Tambah Produk Baru Manual"
+                  aria-label="Tambah Produk Baru"
+                  className="flex items-center space-x-1.5 px-4 py-2 bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm font-bold text-xs tracking-wide rounded-full cursor-pointer"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Tambah Produk</span>
+                  <Plus className="w-4 h-4 shrink-0" />
+                  <span className="text-xs">Tambah</span>
                 </button>
               </div>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs mb-3 flex flex-wrap items-center gap-2.5">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari nama produk..."
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              {/* Category Filter */}
+              <div className="w-full sm:w-auto">
+                <select
+                  value={productCategoryFilter}
+                  onChange={(e) => {
+                    setProductCategoryFilter(e.target.value);
+                    setProductSubCategoryFilter('Semua');
+                  }}
+                  className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="Semua">Semua Kategori ({ALL_MAIN_CATEGORIES.length})</option>
+                  {ALL_MAIN_CATEGORIES.map((catName) => (
+                    <option key={catName} value={catName}>{catName}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sub-Category Filter */}
+              {productCategoryFilter !== 'Semua' && (
+                <div className="w-full sm:w-auto">
+                  <select
+                    value={productSubCategoryFilter}
+                    onChange={(e) => setProductSubCategoryFilter(e.target.value)}
+                    className="w-full sm:w-auto px-3 py-2 bg-teal-50 border border-teal-200 rounded-xl text-xs font-bold text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  >
+                    <option value="Semua">Semua Sub-Kategori</option>
+                    {getSubCategoriesForCategory(productCategoryFilter).map((subName) => (
+                      <option key={subName} value={subName}>{subName}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {(productSearch || productCategoryFilter !== 'Semua' || productSubCategoryFilter !== 'Semua') && (
+                <button
+                  onClick={() => {
+                    setProductSearch('');
+                    setProductCategoryFilter('Semua');
+                    setProductSubCategoryFilter('Semua');
+                  }}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <FilterX className="w-3.5 h-3.5" />
+                  <span>Reset Filter</span>
+                </button>
+              )}
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 flex-1 overflow-hidden flex flex-col">
@@ -1513,26 +2084,50 @@ export const DashboardAdmin = () => {
                     <tr>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Nama Barang</th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Kategori</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Sub-Kategori</th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Harga</th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Stok</th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-100">
-                    {products.map((p) => (
+                    {products
+                      .filter((p) => {
+                        const matchCat = productCategoryFilter === 'Semua' || p.kategori === productCategoryFilter;
+                        const matchSub = productSubCategoryFilter === 'Semua' || p.sub_kategori === productSubCategoryFilter;
+                        const matchQuery = !productSearch || 
+                          p.nama_barang.toLowerCase().includes(productSearch.toLowerCase()) ||
+                          p.kategori.toLowerCase().includes(productSearch.toLowerCase()) ||
+                          (p.sub_kategori || '').toLowerCase().includes(productSearch.toLowerCase());
+                        return matchCat && matchSub && matchQuery;
+                      })
+                      .map((p) => (
                       <tr key={p.id} className="hover:bg-teal-50/30 transition-colors">
                         <td className="px-6 py-4">
                           <p className="font-semibold text-slate-800">{p.nama_barang}</p>
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">{p.kategori}</td>
+                        <td className="px-6 py-4">
+                          <span className="inline-block px-2.5 py-1 bg-teal-50 text-teal-800 border border-teal-200 rounded-lg text-xs font-bold">
+                            {p.kategori}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-block px-2.5 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium">
+                            {p.sub_kategori || '-'}
+                          </span>
+                        </td>
                         <td className="px-6 py-4 text-sm font-bold text-teal-700 text-right">Rp {p.harga.toLocaleString('id-ID')}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700 text-right">{p.stok}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700 text-right">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-extrabold ${p.stok < 10 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>
+                            {p.stok}
+                          </span>
+                        </td>
                         <td className="px-6 py-4">
                           <div className="flex justify-center space-x-3">
-                            <button onClick={() => openEditModal(p)} className="text-slate-400 hover:text-teal-600 p-2 bg-slate-50 hover:bg-teal-50 rounded-lg transition-colors">
+                            <button onClick={() => openEditModal(p)} className="text-slate-400 hover:text-teal-600 p-2 bg-slate-50 hover:bg-teal-50 rounded-lg transition-colors cursor-pointer" title="Edit Produk">
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleDelete(p.id)} className="text-slate-400 hover:text-red-600 p-2 bg-slate-50 hover:bg-red-50 rounded-lg transition-colors">
+                            <button onClick={() => setDeleteProductConfirmModal({ id: p.id, nama: p.nama_barang })} className="text-slate-400 hover:text-red-600 p-2 bg-slate-50 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Hapus Produk">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
@@ -1541,7 +2136,7 @@ export const DashboardAdmin = () => {
                     ))}
                     {products.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Belum ada produk.</td>
+                        <td colSpan={6} className="px-6 py-8 text-center text-slate-500">Belum ada produk.</td>
                       </tr>
                     )}
                   </tbody>
@@ -1613,20 +2208,45 @@ export const DashboardAdmin = () => {
                           <p className="text-xs text-slate-500">{u.departemen}</p>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-md ${
-                            u.role === 'admin' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+                          <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${
+                            u.role === 'admin' 
+                              ? 'bg-amber-100 text-amber-900 border-amber-200' 
+                              : u.role === 'it' 
+                              ? 'bg-purple-100 text-purple-900 border-purple-200 font-black' 
+                              : 'bg-slate-100 text-slate-700 border-slate-200'
                           }`}>
                             {u.role}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <button 
-                            onClick={() => openResetPasswordModal(u)}
-                            className="px-3.5 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 text-xs font-bold rounded-xl transition-all border border-slate-200/80 hover:border-teal-200 flex items-center gap-1.5 mx-auto cursor-pointer"
-                          >
-                            <Key className="w-3.5 h-3.5 text-teal-600" />
-                            <span>Reset Password</span>
-                          </button>
+                          <div className="flex items-center justify-center gap-2 flex-wrap">
+                            <button 
+                              onClick={() => openEditUserModal(u)}
+                              title="Edit Profil Pengguna Ini"
+                              className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-bold rounded-xl transition-all border border-teal-200 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                              <span>Edit Profil</span>
+                            </button>
+
+                            <button 
+                              onClick={() => openResetPasswordModal(u)}
+                              title="Reset Password Pengguna"
+                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all border border-slate-200/80 hover:border-slate-300 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            >
+                              <Key className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                              <span>Reset Password</span>
+                            </button>
+
+                            <button 
+                              onClick={() => openDeleteUserModal(u)}
+                              title="Hapus Akun Pengguna (Sertakan Alasan)"
+                              className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 text-xs font-bold rounded-xl transition-all border border-red-200/80 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                              <span>Hapus Akun</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1655,11 +2275,11 @@ export const DashboardAdmin = () => {
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-lg font-extrabold text-white">Halaman Pindai Barcode / QR Code</h2>
                     <span className="px-2 py-0.5 text-[10px] bg-teal-500 text-slate-900 font-black rounded-md uppercase tracking-wider">
-                      Fitur KOKSI
+                      BelanjaIn Saza
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 mt-1">
-                    Pindai atau masukkan kode barcode pengambilan barang karyawan (PT. Siemens Indonesia & PT. SIM) untuk verifikasi instan.
+                    Pindai atau masukkan kode barcode pengambilan barang karyawan (PT. Siemens Indonesia) untuk verifikasi instan.
                   </p>
                 </div>
               </div>
@@ -1698,7 +2318,7 @@ export const DashboardAdmin = () => {
                   <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 space-y-3">
                     <div className="flex justify-between items-center text-white">
                       <span className="text-xs font-bold flex items-center gap-2 text-teal-400">
-                        <Camera className="w-4 h-4 animate-pulse" />
+                        <Camera className="w-4 h-4" />
                         Kamera Scanner Aktif
                       </span>
                       <button
@@ -1725,7 +2345,7 @@ export const DashboardAdmin = () => {
                       type="text"
                       value={scannedBarcodeInput}
                       onChange={(e) => setScannedBarcodeInput(e.target.value)}
-                      placeholder="Contoh: KOKSI-PKP-1002"
+                      placeholder="Contoh: SAZA-PKP-1002"
                       className="w-full px-4 py-3.5 bg-slate-50 border-2 border-slate-300 rounded-2xl text-base font-mono font-bold text-slate-900 focus:outline-none focus:border-teal-500 focus:bg-white shadow-inner"
                     />
                   </div>
@@ -1785,7 +2405,7 @@ export const DashboardAdmin = () => {
                     Panduan Penggunaan Pemindaian Barcode:
                   </p>
                   <ul className="list-disc list-inside text-[11px] text-amber-800 space-y-1 leading-relaxed">
-                    <li>Barcode Karyawan berisi format ID unik, contohnya: <span className="font-mono font-bold">KOKSI-PKP-1002</span>.</li>
+                    <li>Barcode Karyawan berisi format ID unik, contohnya: <span className="font-mono font-bold">SAZA-PKP-1002</span>.</li>
                     <li>Sistem akan secara otomatis mengubah status transaksi pesanan menjadi <span className="font-bold text-teal-700">"Selesai"</span> setelah barcode terverifikasi.</li>
                     <li>Barcode dari transaksi yang <span className="font-bold text-red-700">Dibatalkan</span> akan ditolak otomatis oleh sistem.</li>
                   </ul>
@@ -1810,7 +2430,7 @@ export const DashboardAdmin = () => {
                       >
                         <div>
                           <p className="text-xs font-mono font-bold text-slate-900">
-                            #KOKSI-PKP-{ord.id}
+                            #SAZA-PKP-{ord.id}
                           </p>
                           <p className="text-[11px] text-slate-600 font-medium">
                             {ord.user?.nama || 'Karyawan'} &bull; {ord.user?.pt || 'PT. Siemens Indonesia'}
@@ -1822,8 +2442,8 @@ export const DashboardAdmin = () => {
                         <button
                           type="button"
                           onClick={() => {
-                            setScannedBarcodeInput(`KOKSI-PKP-${ord.id}`);
-                            executeVerifyBarcode(`KOKSI-PKP-${ord.id}`);
+                            setScannedBarcodeInput(`SAZA-PKP-${ord.id}`);
+                            executeVerifyBarcode(`SAZA-PKP-${ord.id}`);
                           }}
                           className="px-3 py-1.5 bg-slate-900 hover:bg-teal-600 text-white rounded-lg text-xs font-bold transition-colors shrink-0 cursor-pointer shadow-sm"
                         >
@@ -1841,7 +2461,7 @@ export const DashboardAdmin = () => {
                 </div>
 
                 <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-400 text-center font-medium">
-                  Fitur KOKSI PT. Siemens Indonesia & PT. SIM &bull; Server Auto-Sync
+                  BelanjaIn Saza PT. Siemens Indonesia &bull; Server Auto-Sync
                 </div>
               </div>
             </div>
@@ -1879,6 +2499,7 @@ export const DashboardAdmin = () => {
                   <option value="Pengiriman">3. Pengiriman</option>
                   <option value="Siap Diambil">4. Siap Diambil</option>
                   <option value="Selesai">5. Selesai</option>
+                  <option value="Pengajuan Pembatalan">⚠️ Pengajuan Pembatalan (Konfirmasi Admin)</option>
                   <option value="Dibatalkan">Dibatalkan</option>
                 </select>
               </div>
@@ -1889,7 +2510,7 @@ export const DashboardAdmin = () => {
                 </label>
                 <textarea
                   rows={3}
-                  placeholder="Contoh: Silakan di ambil di Koperasi KOKSI PT. Siemens Indonesia jam 12:00 WIB"
+                  placeholder="Contoh: Silakan di ambil di Koperasi PT. Siemens Indonesia / BelanjaIn Saza jam 12:00 WIB"
                   value={newKeteranganValue}
                   onChange={(e) => setNewKeteranganValue(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-teal-500 placeholder-slate-400"
@@ -1926,6 +2547,12 @@ export const DashboardAdmin = () => {
               <h3 className="text-lg font-bold text-slate-900">
                 {editingProduct ? 'Edit Produk' : 'Tambah Produk'}
               </h3>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
@@ -1933,31 +2560,61 @@ export const DashboardAdmin = () => {
                 <input
                   type="text"
                   required
+                  placeholder="Contoh: Pocari Sweat 500ml"
                   value={formData.nama_barang}
                   onChange={(e) => setFormData({...formData, nama_barang: e.target.value})}
-                  className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
+                  className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
                 />
               </div>
+
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Kategori</label>
-                <input
-                  type="text"
-                  required
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Kategori Utama</label>
+                <select
                   value={formData.kategori}
-                  onChange={(e) => setFormData({...formData, kategori: e.target.value})}
-                  className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
-                />
+                  onChange={(e) => {
+                    const newCat = e.target.value;
+                    const availableSubs = getSubCategoriesForCategory(newCat);
+                    setFormData({
+                      ...formData,
+                      kategori: newCat,
+                      sub_kategori: availableSubs[0] || ''
+                    });
+                  }}
+                  className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 sm:text-sm font-bold text-slate-800 transition-colors"
+                >
+                  {CATEGORY_STRUCTURES.map((cat) => (
+                    <option key={cat.id} value={cat.name}>
+                      {cat.id}. {cat.name}
+                    </option>
+                  ))}
+                </select>
               </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Sub-Kategori</label>
+                <select
+                  value={formData.sub_kategori}
+                  onChange={(e) => setFormData({...formData, sub_kategori: e.target.value})}
+                  className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 sm:text-sm font-semibold text-slate-800 transition-colors"
+                >
+                  {getSubCategoriesForCategory(formData.kategori).map((subName) => (
+                    <option key={subName} value={subName}>
+                      {subName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Harga</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Harga (Rp)</label>
                   <input
                     type="number"
                     required
                     min="0"
                     value={formData.harga}
                     onChange={(e) => setFormData({...formData, harga: parseInt(e.target.value) || 0})}
-                    className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
+                    className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
                   />
                 </div>
                 <div>
@@ -1968,7 +2625,7 @@ export const DashboardAdmin = () => {
                     min="0"
                     value={formData.stok}
                     onChange={(e) => setFormData({...formData, stok: parseInt(e.target.value) || 0})}
-                    className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
+                    className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
                   />
                 </div>
               </div>
@@ -1976,13 +2633,13 @@ export const DashboardAdmin = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2.5 bg-white border border-slate-200 shadow-sm text-xs font-bold uppercase tracking-widest rounded-xl text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="px-5 py-2.5 bg-white border border-slate-200 shadow-sm text-xs font-bold uppercase tracking-widest rounded-xl text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-teal-600 shadow-sm text-xs font-bold uppercase tracking-widest rounded-xl text-white hover:bg-teal-700 transition-colors"
+                  className="px-5 py-2.5 bg-teal-600 shadow-sm text-xs font-bold uppercase tracking-widest rounded-xl text-white hover:bg-teal-700 transition-colors cursor-pointer"
                 >
                   Simpan
                 </button>
@@ -2005,7 +2662,7 @@ export const DashboardAdmin = () => {
                   <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-1.5">
                     Modul Fitur: Verifikasi Barcode
                   </h3>
-                  <p className="text-[11px] text-slate-500 font-medium">Konfirmasi Otomatis Pengambilan Barang KOKSI</p>
+                  <p className="text-[11px] text-slate-500 font-medium">Konfirmasi Otomatis Pengambilan Barang BelanjaIn Saza</p>
                 </div>
               </div>
               <button
@@ -2053,7 +2710,7 @@ export const DashboardAdmin = () => {
                     type="text"
                     value={scannedBarcodeInput}
                     onChange={(e) => setScannedBarcodeInput(e.target.value)}
-                    placeholder="Contoh: KOKSI-PKP-1002"
+                    placeholder="Contoh: SAZA-PKP-1002"
                     autoFocus
                     className="flex-1 px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
                   />
@@ -2112,6 +2769,79 @@ export const DashboardAdmin = () => {
         </div>
       )}
 
+      {/* MODAL IMPORT DATA PRODUK EXCEL */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-11 h-11 rounded-2xl bg-teal-50 border border-teal-100 text-teal-700 flex items-center justify-center font-bold shadow-sm">
+                  <Upload className="w-6 h-6 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Import Data Produk</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Upload file Excel atau unduh contoh template</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsImportModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4">
+              {/* Unduh Template */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                <p className="text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-teal-600" />
+                  <span>1. Unduh Format Template Excel</span>
+                </p>
+                <p className="text-[11px] text-slate-500 mb-3">
+                  Gunakan template ini untuk mengisi daftar nama barang, kategori, harga, dan stok produk baru.
+                </p>
+                <button
+                  onClick={handleDownloadTemplate}
+                  className="w-full py-2.5 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                >
+                  <Download className="w-4 h-4 text-teal-600" />
+                  <span>Unduh File Template (.xlsx)</span>
+                </button>
+              </div>
+
+              {/* Upload File */}
+              <div className="p-4 bg-teal-50/60 rounded-2xl border border-teal-100">
+                <p className="text-xs font-bold text-teal-950 mb-1 flex items-center gap-1.5">
+                  <Upload className="w-4 h-4 text-teal-700" />
+                  <span>2. Upload File Excel Anda</span>
+                </p>
+                <p className="text-[11px] text-teal-800/80 mb-3">
+                  Pilih file Excel yang telah diisi untuk mengimpor produk secara otomatis ke database.
+                </p>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-teal-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Upload className="w-4 h-4 text-white" />
+                  <span>Pilih File Excel & Import</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setIsImportModalOpen(false)}
+                className="w-full py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL TARIKAN DATA TRANSAKSI BULANAN EXCEL */}
       {isExportModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -2126,7 +2856,7 @@ export const DashboardAdmin = () => {
                   <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-1.5">
                     Tarikan Data Transaksi Bulanan
                   </h3>
-                  <p className="text-[11px] text-slate-500 font-medium">Export Excel Laporan KOKSI PT. Siemens Indonesia (PT SIM)</p>
+                  <p className="text-[11px] text-slate-500 font-medium">Export Excel Laporan BelanjaIn Saza PT. Siemens Indonesia</p>
                 </div>
               </div>
               <button
@@ -2138,6 +2868,11 @@ export const DashboardAdmin = () => {
             </div>
 
             <div className="py-4 space-y-4">
+              <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-800 font-medium">
+                <strong className="block text-teal-900 mb-1">Jadwal Tarikan Data:</strong>
+                Data transaksi wajib ditarik dalam format Excel setiap hari <strong>Rabu</strong> (setelah periode pemesanan hari Senin s/d Selasa ditutup).
+              </div>
+
               {/* Select Month and Year */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -2238,11 +2973,11 @@ export const DashboardAdmin = () => {
 
               {/* Highlights Specs Checklist */}
               <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/70 text-[11px] text-slate-600 space-y-1.5">
-                <p className="font-extrabold text-slate-800 uppercase tracking-wider mb-1">Fitur Format Excel Professional KOKSI:</p>
+                <p className="font-extrabold text-slate-800 uppercase tracking-wider mb-1">Fitur Format Excel Professional BelanjaIn Saza:</p>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-1">
                   <div className="flex items-center gap-1.5">
                     <Check className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                    <span>Header Logo & Brand KOKSI</span>
+                    <span>Header Logo & Brand BelanjaIn Saza</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Check className="w-3.5 h-3.5 text-teal-600 shrink-0" />
@@ -2378,6 +3113,493 @@ export const DashboardAdmin = () => {
                     <span>Simpan Password Baru</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI HAPUS AKUN PENGGUNA */}
+      {deleteTargetUser && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center font-bold shadow-xs">
+                  <Trash2 className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Konfirmasi Hapus Akun</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Penghapusan permanen dari sistem</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDeleteTargetUser(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4">
+              {/* User Details Badge */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-extrabold text-slate-900">{deleteTargetUser.nama}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-teal-50 text-teal-800 rounded border border-teal-100">
+                    {deleteTargetUser.pt}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">No. HP: {deleteTargetUser.no_hp} | ID: #{deleteTargetUser.id}</p>
+              </div>
+
+              {/* Mandatory Reason Input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Alasan Penghapusan Akun <span className="text-rose-600">*</span>
+                </label>
+                <textarea
+                  value={deleteReasonInput}
+                  onChange={(e) => {
+                    setDeleteReasonInput(e.target.value);
+                    if (deleteUserError) setDeleteUserError('');
+                  }}
+                  rows={3}
+                  placeholder="Contoh: Karyawan telah resign, Duplikasi data anggota, atau Permintaan pengguna..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white resize-none"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Alasan wajib diisi untuk dicatat dalam Log Audit IT.</p>
+              </div>
+
+              {deleteUserError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{deleteUserError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                onClick={() => setDeleteTargetUser(null)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+
+              <button
+                onClick={handleConfirmDeleteUser}
+                disabled={isDeletingUser || !deleteReasonInput.trim()}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-rose-600/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isDeletingUser ? 'Proses Hapus...' : 'Hapus Akun Permanen'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIT PROFIL PENGGUNA (ADMIN ACCESS) */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-50 border border-teal-100 text-teal-700 flex items-center justify-center font-bold">
+                  <Edit3 className="w-5 h-5 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Edit Profil Pengguna #{editingUser.id}</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Perbarui profil, perusahaan, role, atau password untuk Sdr/i {editingUser.nama}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingUser(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Nama Lengkap <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editUserNama}
+                  onChange={(e) => setEditUserNama(e.target.value)}
+                  placeholder="Masukkan Nama Lengkap"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Perusahaan (PT) <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={editUserPt}
+                    onChange={(e) => setEditUserPt(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white cursor-pointer"
+                  >
+                    <option value="PT. Siemens Indonesia">PT. Siemens Indonesia</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Departemen <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editUserDepartemen}
+                    onChange={(e) => setEditUserDepartemen(e.target.value)}
+                    placeholder="Contoh: Produksi, Logistics, HR..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    No. HP / WhatsApp <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editUserNoHp}
+                    onChange={(e) => setEditUserNoHp(e.target.value)}
+                    placeholder="Contoh: 081234567890"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Hak Akses / Role <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={editUserRole}
+                    onChange={(e) => setEditUserRole(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white cursor-pointer"
+                  >
+                    <option value="user">User (Karyawan)</option>
+                    <option value="admin">Admin (Portal BelanjaIn Saza)</option>
+                    <option value="it">IT (Audit Log System)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Password Baru <span className="text-slate-400 font-normal">(Kosongkan jika tidak ingin mengubah)</span>
+                </label>
+                <input
+                  type="password"
+                  value={editUserPassword}
+                  onChange={(e) => setEditUserPassword(e.target.value)}
+                  placeholder="Masukkan password baru (minimal 6 karakter)"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                />
+              </div>
+
+              {editUserError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-1.5">
+                  <X className="w-4 h-4 shrink-0" />
+                  <span>{editUserError}</span>
+                </div>
+              )}
+
+              {editUserSuccess && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{editUserSuccess}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex gap-2">
+              <button
+                onClick={() => setEditingUser(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleSaveUserProfile}
+                disabled={isSavingUser}
+                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-teal-600/30 flex items-center justify-center gap-1.5"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSavingUser ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI PENGAJUAN PEMBATALAN (SETUJUI / TOLAK) */}
+      {cancellationConfirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-bold ${
+                  cancellationConfirmModal.type === 'approve'
+                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                    : 'bg-rose-100 text-rose-700 border border-rose-200'
+                }`}>
+                  {cancellationConfirmModal.type === 'approve' ? (
+                    <Check className="w-5 h-5" />
+                  ) : (
+                    <X className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    {cancellationConfirmModal.type === 'approve'
+                      ? `Setujui Pembatalan #${cancellationConfirmModal.orderNumber}`
+                      : `Tolak Pembatalan #${cancellationConfirmModal.orderNumber}`}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    {cancellationConfirmModal.type === 'approve'
+                      ? 'Pesanan ini akan diubah statusnya menjadi DIBATALKAN.'
+                      : 'Pengajuan akan ditolak & pesanan dilanjutkan ke PROSES.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCancellationConfirmModal(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-extrabold text-slate-800 mb-1">
+                  {cancellationConfirmModal.type === 'approve'
+                    ? 'Catatan Admin untuk Karyawan (Opsional):'
+                    : 'Alasan Penolakan untuk Karyawan:'}
+                </label>
+                <textarea
+                  rows={3}
+                  value={cancellationNoteInput}
+                  onChange={(e) => setCancellationNoteInput(e.target.value)}
+                  placeholder={
+                    cancellationConfirmModal.type === 'approve'
+                      ? 'Pembatalan Disetujui Admin.'
+                      : 'Contoh: Pesanan telah disiapkan dan tidak dapat dibatalkan.'
+                  }
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white resize-none"
+                />
+              </div>
+
+              {cancellationActionError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-1.5">
+                  <X className="w-4 h-4 shrink-0" />
+                  <span>{cancellationActionError}</span>
+                </div>
+              )}
+
+              {cancellationActionSuccess && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{cancellationActionSuccess}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex gap-2">
+              <button
+                onClick={() => setCancellationConfirmModal(null)}
+                disabled={isProcessingCancellation}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              {cancellationConfirmModal.type === 'approve' ? (
+                <button
+                  onClick={() => handleApproveCancellation(cancellationConfirmModal.orderId, cancellationNoteInput)}
+                  disabled={isProcessingCancellation}
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-emerald-600/30 flex items-center justify-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{isProcessingCancellation ? 'Memproses...' : 'Ya, Setujui & Batalkan'}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleRejectCancellation(cancellationConfirmModal.orderId, cancellationNoteInput)}
+                  disabled={isProcessingCancellation}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-rose-600/30 flex items-center justify-center gap-1.5"
+                >
+                  <X className="w-4 h-4" />
+                  <span>{isProcessingCancellation ? 'Memproses...' : 'Ya, Tolak Pembatalan'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI HAPUS PRODUK */}
+      {deleteProductConfirmModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center font-bold shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Hapus Produk?</h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  Apakah Anda yakin ingin menghapus produk <strong className="text-slate-800">"{deleteProductConfirmModal.nama}"</strong>?
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex gap-2">
+              <button
+                onClick={() => setDeleteProductConfirmModal(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleDeleteProductConfirmed}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-rose-600/30 flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Hapus Produk</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIT PROFIL ADMIN */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-50 border border-teal-100 text-teal-700 flex items-center justify-center font-bold">
+                  <Edit3 className="w-5 h-5 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Edit Profil Admin</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Perbarui data profil administrator BelanjaIn Saza Anda</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsProfileModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Nama Lengkap <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editNama}
+                  onChange={(e) => setEditNama(e.target.value)}
+                  placeholder="Masukkan Nama Lengkap"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Perusahaan <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={editPt}
+                    onChange={(e) => setEditPt(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white cursor-pointer"
+                  >
+                    <option value="PT. Siemens Indonesia">PT. Siemens Indonesia</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Departemen <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editDepartemen}
+                    onChange={(e) => setEditDepartemen(e.target.value)}
+                    placeholder="Contoh: Admin, IT, HR..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  No. HP (WhatsApp) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editNoHp}
+                  onChange={(e) => setEditNoHp(e.target.value)}
+                  placeholder="Contoh: 081234567890"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Password Baru <span className="text-slate-400 font-normal">(Kosongkan jika tidak diubah)</span>
+                </label>
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Minimal 6 karakter"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                />
+              </div>
+
+              {editError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-1.5">
+                  <X className="w-4 h-4 shrink-0" />
+                  <span>{editError}</span>
+                </div>
+              )}
+
+              {editSuccess && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{editSuccess}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex gap-2">
+              <button
+                onClick={() => setIsProfileModalOpen(false)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleSaveProfile}
+                disabled={isSavingProfile}
+                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-teal-600/30 flex items-center justify-center gap-1.5"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSavingProfile ? 'Menyimpan...' : 'Simpan Profil'}</span>
               </button>
             </div>
           </div>

@@ -6,7 +6,7 @@ import {
   UserCheck, Users, Lock, Key, ArrowLeft, Download, Copy, Printer, 
   Terminal, Zap, Globe, Layers, Search, Filter, ShieldAlert,
   Clock, Check, Radio, BarChart3, AlertCircle, ShoppingBag, DollarSign, Package,
-  MessageSquare, Phone, ExternalLink, Send
+  MessageSquare, Phone, ExternalLink, Send, Trash2, X, User as UserIcon, Edit3, Save
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -162,6 +162,50 @@ export function DashboardIT() {
   const [updatingRoleId, setUpdatingRoleId] = useState<number | null>(null);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string>('');
 
+  // Delete User State
+  const [deleteTargetUser, setDeleteTargetUser] = useState<UserItem | null>(null);
+  const [deleteReasonInput, setDeleteReasonInput] = useState('');
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [deleteUserError, setDeleteUserError] = useState('');
+
+  const handleConfirmDeleteUser = async () => {
+    if (!deleteTargetUser) return;
+    if (!deleteReasonInput.trim() || deleteReasonInput.trim().length < 3) {
+      setDeleteUserError('Alasan penghapusan akun wajib diisi (minimal 3 karakter)!');
+      return;
+    }
+
+    setIsDeletingUser(true);
+    setDeleteUserError('');
+
+    try {
+      const res = await fetch(`/api/users/${deleteTargetUser.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ reason: deleteReasonInput.trim() })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        setActionSuccessMsg(`Akun "${deleteTargetUser.nama}" berhasil dihapus.`);
+        setDeleteTargetUser(null);
+        setDeleteReasonInput('');
+        fetchITData();
+        setTimeout(() => setActionSuccessMsg(''), 4000);
+      } else {
+        setDeleteUserError(data.error || 'Gagal menghapus akun pengguna');
+      }
+    } catch (err) {
+      setDeleteUserError('Terjadi kesalahan koneksi server');
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
   const fetchITData = useCallback(async () => {
     if (!token) return;
     try {
@@ -192,6 +236,75 @@ export function DashboardIT() {
   useEffect(() => {
     fetchITData();
   }, [fetchITData]);
+
+  // Edit Profile State
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [editNama, setEditNama] = useState('');
+  const [editPt, setEditPt] = useState('');
+  const [editDepartemen, setEditDepartemen] = useState('');
+  const [editNoHp, setEditNoHp] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const handleOpenProfileModal = () => {
+    if (user) {
+      setEditNama(user.nama || '');
+      setEditPt(user.pt || 'PT. Siemens Indonesia');
+      setEditDepartemen(user.departemen || '');
+      setEditNoHp(user.no_hp || '');
+      setEditPassword('');
+      setEditError('');
+      setEditSuccess('');
+      setIsProfileModalOpen(true);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editNama.trim() || !editPt.trim() || !editDepartemen.trim() || !editNoHp.trim()) {
+      setEditError('Semua kolom profil wajib diisi!');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    setEditError('');
+    setEditSuccess('');
+
+    try {
+      const res = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          nama: editNama.trim(),
+          pt: editPt.trim(),
+          departemen: editDepartemen.trim(),
+          no_hp: editNoHp.trim(),
+          newPassword: editPassword.trim() || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setEditSuccess('Profil berhasil diperbarui!');
+        const updatedUserObj = { ...user, ...data.user };
+        localStorage.setItem('user', JSON.stringify(updatedUserObj));
+        setTimeout(() => {
+          setIsProfileModalOpen(false);
+          window.location.reload();
+        }, 800);
+      } else {
+        setEditError(data.error || 'Gagal memperbarui profil');
+      }
+    } catch (err: any) {
+      setEditError(err.message || 'Koneksi gagal saat memperbarui profil');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   // Auto refresh interval handler
   useEffect(() => {
@@ -349,7 +462,7 @@ export function DashboardIT() {
                   : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-300'
               }`}
             >
-              <Radio className={`w-3.5 h-3.5 ${autoRefresh ? 'animate-pulse text-emerald-400' : 'text-slate-400'}`} />
+              <Radio className={`w-3.5 h-3.5 ${autoRefresh ? 'text-emerald-400' : 'text-slate-400'}`} />
               <span>Auto-Refresh (5s): {autoRefresh ? 'AKTIF' : 'NONAKTIF'}</span>
             </button>
 
@@ -379,6 +492,15 @@ export function DashboardIT() {
                 <span>Dashboard Admin</span>
               </button>
             )}
+
+            <button
+              onClick={handleOpenProfileModal}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-teal-400 border border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Edit Profil Saya"
+            >
+              <UserIcon className="w-3.5 h-3.5" />
+              <span>Edit Profil</span>
+            </button>
 
             <button
               onClick={() => { logout(); navigate('/login'); }}
@@ -421,7 +543,7 @@ export function DashboardIT() {
               <div>
                 <p className="text-base font-extrabold text-white">{metrics.serverHealth.uptimeFormatted}</p>
                 <div className="flex items-center gap-1.5 mt-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
                   <span className="text-[11px] text-emerald-400 font-semibold">{metrics.serverHealth.containerStatus}</span>
                 </div>
               </div>
@@ -590,7 +712,7 @@ export function DashboardIT() {
                         Laporan Rangkuman Berkala Pemantauan IT
                       </h2>
                       <p className="text-xs text-slate-400 mt-1">
-                        Laporan otomatis kondisi server, keamanan, traffic, dan performa website KOKSI.
+                        Laporan otomatis kondisi server, keamanan, traffic, dan performa website BelanjaIn Saza.
                       </p>
                     </div>
 
@@ -638,7 +760,7 @@ export function DashboardIT() {
                   <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-xs text-slate-300 flex flex-col sm:flex-row items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <Terminal className="w-4 h-4 text-teal-400 shrink-0" />
-                      <span>Rangkuman ini siap diexport untuk keperluan audit dan koordinasi tim IT KOKSI.</span>
+                      <span>Rangkuman ini siap diexport untuk keperluan audit dan koordinasi tim IT BelanjaIn Saza.</span>
                     </div>
 
                     <button
@@ -1112,6 +1234,19 @@ export function DashboardIT() {
                                       {r}
                                     </button>
                                   ))}
+
+                                  <button
+                                    onClick={() => {
+                                      setDeleteTargetUser(u);
+                                      setDeleteReasonInput('');
+                                      setDeleteUserError('');
+                                    }}
+                                    title="Hapus Akun Pengguna (Wajib Alasan)"
+                                    className="px-2 py-1 bg-red-950/80 hover:bg-red-600 text-red-300 hover:text-white border border-red-800/80 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ml-1"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Hapus</span>
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -1155,11 +1290,11 @@ export function DashboardIT() {
                         Layanan Verifikasi Nomor HP via WhatsApp & SMS OTP
                       </h2>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        Fasilitas pengiriman kode OTP otomatis untuk keamanan pendaftaran anggota KOKSI & konfirmasi transaksi.
+                        Fasilitas pengiriman kode OTP otomatis untuk keamanan pendaftaran anggota & konfirmasi transaksi BelanjaIn Saza.
                       </p>
                     </div>
                     <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
                       Gateway Aktif
                     </span>
                   </div>
@@ -1296,6 +1431,209 @@ export function DashboardIT() {
                 className="px-5 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold rounded-xl text-xs transition-all cursor-pointer shadow-md shadow-teal-500/20"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL HAPUS AKUN PENGGUNA (IT PORTAL) */}
+      {deleteTargetUser && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-800 animate-in fade-in zoom-in duration-200 text-slate-100">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-800">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-950/80 border border-red-800 text-red-400 flex items-center justify-center font-bold">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Konfirmasi Hapus Akun</h3>
+                  <p className="text-[11px] text-slate-400 font-medium">Tindakan ini akan memicu Log Audit IT</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDeleteTargetUser(null)}
+                className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4">
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-extrabold text-white">{deleteTargetUser.nama}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-teal-950 text-teal-300 rounded border border-teal-800">
+                    {deleteTargetUser.departemen || 'PT. Siemens Indonesia'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">No. HP: {deleteTargetUser.no_hp} | ID: #{deleteTargetUser.id}</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  Alasan Penghapusan Akun <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={deleteReasonInput}
+                  onChange={(e) => {
+                    setDeleteReasonInput(e.target.value);
+                    if (deleteUserError) setDeleteUserError('');
+                  }}
+                  rows={3}
+                  placeholder="Contoh: Permintaan karyawan, Penutupan akun non-aktif, atau Alasan Audit..."
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Alasan wajib diisi (min 3 karakter) untuk dicatat dalam database audit.</p>
+              </div>
+
+              {deleteUserError && (
+                <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 text-xs font-semibold rounded-xl flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                  <span>{deleteUserError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+              <button
+                onClick={() => setDeleteTargetUser(null)}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+
+              <button
+                onClick={handleConfirmDeleteUser}
+                disabled={isDeletingUser || !deleteReasonInput.trim()}
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-red-600/30 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isDeletingUser ? 'Proses Hapus...' : 'Hapus Akun Permanen'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIT PROFIL IT */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-800 animate-in fade-in zoom-in duration-200 text-slate-100">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-800">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center font-bold">
+                  <Edit3 className="w-5 h-5 text-teal-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Edit Profil IT</h3>
+                  <p className="text-[11px] text-slate-400 font-medium">Perbarui data profil akun IT/Admin BelanjaIn Saza Anda</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsProfileModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">
+                  Nama Lengkap <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editNama}
+                  onChange={(e) => setEditNama(e.target.value)}
+                  placeholder="Masukkan Nama Lengkap"
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1">
+                    Perusahaan <span className="text-red-400">*</span>
+                  </label>
+                  <select
+                    value={editPt}
+                    onChange={(e) => setEditPt(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+                  >
+                    <option value="PT. Siemens Indonesia">PT. Siemens Indonesia</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1">
+                    Departemen <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editDepartemen}
+                    onChange={(e) => setEditDepartemen(e.target.value)}
+                    placeholder="Contoh: IT, Admin, HR..."
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">
+                  No. HP (WhatsApp) <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editNoHp}
+                  onChange={(e) => setEditNoHp(e.target.value)}
+                  placeholder="Contoh: 081234567890"
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">
+                  Password Baru <span className="text-slate-500 font-normal">(Kosongkan jika tidak diubah)</span>
+                </label>
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Minimal 6 karakter"
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              {editError && (
+                <div className="p-2.5 bg-red-500/20 border border-red-500/30 rounded-xl text-xs text-red-300 font-semibold flex items-center gap-1.5">
+                  <X className="w-4 h-4 shrink-0" />
+                  <span>{editError}</span>
+                </div>
+              )}
+
+              {editSuccess && (
+                <div className="p-2.5 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 font-semibold flex items-center gap-1.5">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{editSuccess}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-800 flex gap-2">
+              <button
+                onClick={() => setIsProfileModalOpen(false)}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleSaveProfile}
+                disabled={isSavingProfile}
+                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-500 active:bg-teal-700 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-md shadow-teal-600/30 flex items-center justify-center gap-1.5"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSavingProfile ? 'Menyimpan...' : 'Simpan Profil'}</span>
               </button>
             </div>
           </div>
