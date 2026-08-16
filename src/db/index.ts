@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool, PoolConfig } from 'pg';
-import * as schema from './schema.ts';
+import * as schema from './schema';
 
 // Add global connection pool caching to persist across hot-reloads and serverless invocations
 declare global {

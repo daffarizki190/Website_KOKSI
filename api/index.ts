@@ -1,4 +1,4 @@
-import { app, seedDefaultUsers } from '../server.ts';
+import { app, seedDefaultUsers } from '../server';
 
 // Trigger seed in background on cold start without blocking initial request
 let seedTriggered = false;
@@ -11,8 +11,7 @@ const triggerColdStartSeed = () => {
   }
 };
 
-// Vercel serverless request handler
-export default async function handler(req: any, res: any) {
+export default function handler(req: any, res: any) {
   triggerColdStartSeed();
   return app(req, res);
 }
