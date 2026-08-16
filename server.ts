@@ -5,9 +5,9 @@ import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { db, createPool, withDbRetry, isTransientDbError } from './src/db/index';
+import { db, withDbRetry } from './src/db/index';
 import { users, products, orders, orderItems, cartItems } from './src/db/schema';
-import { eq, desc, asc, and, sql } from 'drizzle-orm';
+import { eq, asc, and, sql } from 'drizzle-orm';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_koperasi';
 
