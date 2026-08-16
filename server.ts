@@ -1630,4 +1630,4 @@ if (!process.env.VERCEL) {
   startServer();
 }
 
-export { app };
+export { app, seedDefaultUsers };
