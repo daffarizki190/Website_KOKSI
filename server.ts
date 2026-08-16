@@ -186,19 +186,34 @@ function normalizePhone(phone: string): string {
 }
 
 // --- HEALTH CHECK ROUTE ---
-app.get('/api/health', async (req, res) => {
+app.get(['/api/health', '/health'], async (req, res) => {
+  const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+  
+  if (!isDbConfigured) {
+    res.json({
+      status: 'ok',
+      service: 'belanjain-saza-api',
+      database: 'pending_configuration',
+      message: 'Serverless API online. Tambahkan DATABASE_URL atau SQL_* di Vercel Environment Variables untuk koneksi penuh database.',
+      timestamp: new Date().toISOString()
+    });
+    return;
+  }
+
   try {
     const userCount = await withDbRetry(() => db.select({ count: sql<number>`count(*)` }).from(users));
     res.json({
       status: 'ok',
+      service: 'belanjain-saza-api',
       database: 'connected',
       userCount: userCount[0]?.count ?? 0,
       timestamp: new Date().toISOString()
     });
   } catch (err: any) {
     console.error('Database health check error:', err);
-    res.status(500).json({
-      status: 'error',
+    res.status(200).json({
+      status: 'degraded',
+      service: 'belanjain-saza-api',
       database: 'disconnected',
       error: err?.message || 'Database error',
       cause: err?.cause?.message,

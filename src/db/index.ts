@@ -19,29 +19,29 @@ export const createPool = () => {
       poolConfig = {
         connectionString,
         ssl: isLocalhost ? false : { rejectUnauthorized: false },
-        max: 10,
-        idleTimeoutMillis: 10000,
-        connectionTimeoutMillis: 20000,
+        max: 5,
+        idleTimeoutMillis: 5000,
+        connectionTimeoutMillis: 4000,
       };
     } else {
-      const host = process.env.SQL_HOST || 'localhost';
+      const host = process.env.SQL_HOST;
       const user = process.env.SQL_USER || process.env.SQL_ADMIN_USER || 'postgres';
       const password = process.env.SQL_PASSWORD || process.env.SQL_ADMIN_PASSWORD || '';
       const database = process.env.SQL_DB_NAME || 'postgres';
       const port = Number(process.env.SQL_PORT) || 5432;
-      const isLocal = host === 'localhost' || host === '127.0.0.1';
+      const isLocal = !host || host === 'localhost' || host === '127.0.0.1';
       const useSsl = process.env.SQL_SSL === 'true' || (!isLocal && process.env.SQL_SSL !== 'false');
 
       poolConfig = {
-        host,
+        host: host || 'localhost',
         port,
         user,
         password,
         database,
         ssl: useSsl ? { rejectUnauthorized: false } : false,
-        max: 10,
-        idleTimeoutMillis: 10000,
-        connectionTimeoutMillis: 20000,
+        max: 5,
+        idleTimeoutMillis: 5000,
+        connectionTimeoutMillis: 4000,
       };
     }
 
@@ -93,7 +93,7 @@ export function isTransientDbError(error: any): boolean {
 }
 
 // Helper to safely execute db operations with automatic retry for transient socket drops (EPIPE, ECONNRESET, scale-to-zero wake up)
-export async function withDbRetry<T>(operation: () => Promise<T>, maxRetries = 4): Promise<T> {
+export async function withDbRetry<T>(operation: () => Promise<T>, maxRetries = 2): Promise<T> {
   let attempt = 0;
   while (true) {
     try {
@@ -101,7 +101,7 @@ export async function withDbRetry<T>(operation: () => Promise<T>, maxRetries = 4
     } catch (error: any) {
       attempt++;
       if (isTransientDbError(error) && attempt <= maxRetries) {
-        const delayMs = attempt * 500;
+        const delayMs = attempt * 300;
         console.warn(`Transient DB socket event (${error?.code || error?.message || 'unknown'}), retrying in ${delayMs}ms (attempt ${attempt}/${maxRetries})...`);
         await new Promise((resolve) => setTimeout(resolve, delayMs));
         continue;
