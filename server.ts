@@ -3,7 +3,6 @@ dotenv.config();
 
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db, createPool, withDbRetry, isTransientDbError } from './src/db/index.ts';
@@ -1594,7 +1593,8 @@ app.all('/api/*', (req, res) => {
 async function startServer() {
   await seedDefaultUsers();
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

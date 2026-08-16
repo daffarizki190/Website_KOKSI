@@ -11,10 +11,10 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index"
+      "destination": "/api"
     },
     {
-      "source": "/((?!api|assets|icon-|favicon|apple-touch|manifest|sw\\.js).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ],

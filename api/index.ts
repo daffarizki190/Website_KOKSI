@@ -1,20 +1,18 @@
-import { app, seedDefaultUsers } from '../server';
+import { app, seedDefaultUsers } from '../server.ts';
 
-// Run seed on cold start (Vercel serverless)
-let seeded = false;
-const ensureSeeded = async () => {
-  if (!seeded) {
-    try {
-      await seedDefaultUsers();
-      seeded = true;
-    } catch (err) {
-      console.error('Seed on cold start failed:', err);
-    }
+// Trigger seed in background on cold start without blocking initial request
+let seedTriggered = false;
+const triggerColdStartSeed = () => {
+  if (!seedTriggered) {
+    seedTriggered = true;
+    seedDefaultUsers().catch((err) => {
+      console.warn('Cold-start DB seed check notice:', err?.message || err);
+    });
   }
 };
 
-// Vercel serverless handler
+// Vercel serverless request handler
 export default async function handler(req: any, res: any) {
-  await ensureSeeded();
+  triggerColdStartSeed();
   return app(req, res);
 }
