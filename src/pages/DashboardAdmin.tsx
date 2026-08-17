@@ -408,11 +408,15 @@ export const DashboardAdmin = () => {
 
   const fetchUsers = async () => {
     try {
+      const authToken = token || localStorage.getItem('token');
+      if (!authToken) return;
       const res = await fetch('/api/users', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${authToken}` }
       });
       const data = await res.json();
-      setUsers(data);
+      if (Array.isArray(data)) {
+        setUsers(data);
+      }
     } catch (error) {
       console.error('Failed to fetch users');
     }
@@ -420,11 +424,14 @@ export const DashboardAdmin = () => {
 
   const fetchProducts = async () => {
     try {
+      const authToken = token || localStorage.getItem('token');
       const res = await fetch('/api/products', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${authToken}` }
       });
       const data = await res.json();
-      setProducts(data);
+      if (Array.isArray(data)) {
+        setProducts(data);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -1496,22 +1503,7 @@ export const DashboardAdmin = () => {
             <span>Edit Profil Saya</span>
           </button>
 
-          {isBarcodeFeatureActive && (
-            <button
-              onClick={() => setActiveTab('scan')}
-              className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === 'scan'
-                  ? 'border-teal-600 text-teal-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <ScanLine className="w-4 h-4 text-teal-500" />
-              <span>Pindai Barcode (Scan)</span>
-              <span className="px-1.5 py-0.5 text-[9px] bg-slate-900 text-teal-400 font-mono rounded">
-                FITUR
-              </span>
-            </button>
-          )}
+          
         </div>
 
         {/* TAB 1: PERMINTAAN TRANSAKSI (REAL-TIME ORDERS) */}

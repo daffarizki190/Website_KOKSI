@@ -4,7 +4,7 @@ export const CATEGORY_STRUCTURES: CategoryStructure[] = [
   {
     id: 'fnb',
     name: 'Makanan & Minuman Siap Saji (F&B)',
-    shortName: 'Makanan & Minuman',
+    shortName: 'Makanan & Minuman Siap Saji (F&B)',
     iconName: 'UtensilsCrossed',
     color: 'amber',
     subCategories: [
@@ -18,7 +18,7 @@ export const CATEGORY_STRUCTURES: CategoryStructure[] = [
   {
     id: 'personal_care',
     name: 'Perawatan Diri & Kesehatan (Personal Care)',
-    shortName: 'Perawatan Diri',
+    shortName: 'Perawatan Diri & Kesehatan (Personal Care)',
     iconName: 'HeartPulse',
     color: 'teal',
     subCategories: [
@@ -32,7 +32,7 @@ export const CATEGORY_STRUCTURES: CategoryStructure[] = [
   {
     id: 'household',
     name: 'Kebutuhan Rumah Tangga (Household)',
-    shortName: 'Kebutuhan Rumah',
+    shortName: 'Kebutuhan Rumah Tangga (Household)',
     iconName: 'Home',
     color: 'sky',
     subCategories: [
@@ -45,7 +45,7 @@ export const CATEGORY_STRUCTURES: CategoryStructure[] = [
   {
     id: 'impulse_items',
     name: 'Rokok & Produk Kasir (Impulse Items)',
-    shortName: 'Rokok & Kasir',
+    shortName: 'Rokok & Produk Kasir (Impulse Items)',
     iconName: 'Sparkles',
     color: 'rose',
     subCategories: [
@@ -57,7 +57,7 @@ export const CATEGORY_STRUCTURES: CategoryStructure[] = [
   {
     id: 'non_food',
     name: 'Non-Food & Perlengkapan Umum',
-    shortName: 'Non-Food & ATK',
+    shortName: 'Non-Food & Perlengkapan Umum',
     iconName: 'FolderKanban',
     color: 'indigo',
     subCategories: [

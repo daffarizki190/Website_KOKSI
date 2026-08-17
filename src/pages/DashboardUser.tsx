@@ -22,6 +22,7 @@ export const DashboardUser = () => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
+  const [addedProductId, setAddedProductId] = useState<number | null>(null);
 
   const fetchCart = async () => {
     try {
@@ -123,10 +124,11 @@ export const DashboardUser = () => {
   // Checkout & Ordering State
   const [isCheckoutConfirmOpen, setIsCheckoutConfirmOpen] = useState(false);
   const dayOfWeek = new Date().getDay();
-  // 1 = Monday, 2 = Tuesday
+  // 1 = Monday, 2 = Tuesday (Bisa diaktifkan kapan saja atau via Mode Demo)
   const isOrderingTime = dayOfWeek === 1 || dayOfWeek === 2;
-  const isDemoOrderingEnabled = localStorage.getItem('demo_ordering_enabled') === 'true';
-  const canOrder = isOrderingTime || isDemoOrderingEnabled;
+  const isDemoOrderingEnabled = localStorage.getItem('demo_ordering_enabled') !== 'false';
+  // Selalu izinkan pemesanan & tambah keranjang (canOrder = true)
+  const canOrder = true;
 
   const handleConfirmDeleteAccount = async () => {
     if (!user) return;
@@ -205,8 +207,21 @@ export const DashboardUser = () => {
 
   const addToCart = async (product: Product) => {
     const qty = quantities[product.id] || 1;
+    
+    // Optimistic UI update: Immediately update cart state
+    setCart(prev => {
+      const exist = prev.find(item => item.id === product.id);
+      if (exist) {
+        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + qty } : item);
+      }
+      return [...prev, { ...product, quantity: qty }];
+    });
+    setAddedProductId(product.id);
+    setTimeout(() => setAddedProductId(null), 1200);
+    setQuantities(prev => ({ ...prev, [product.id]: 1 }));
+
     try {
-      await fetch('/api/cart', {
+      const res = await fetch('/api/cart', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -214,10 +229,11 @@ export const DashboardUser = () => {
         },
         body: JSON.stringify({ productId: product.id, quantity: qty })
       });
-      fetchCart();
-      setQuantities(prev => ({ ...prev, [product.id]: 1 }));
+      if (res.ok) {
+        fetchCart();
+      }
     } catch (err) {
-      console.error(err);
+      console.warn('Network issue saving cart to backend, kept in local state:', err);
     }
   };
 
@@ -225,6 +241,13 @@ export const DashboardUser = () => {
     const item = cart.find(i => i.id === id);
     if (!item) return;
     const newQty = item.quantity + delta;
+
+    // Optimistic UI update
+    if (newQty <= 0) {
+      setCart(prev => prev.filter(i => i.id !== id));
+    } else {
+      setCart(prev => prev.map(i => i.id === id ? { ...i, quantity: newQty } : i));
+    }
 
     try {
       if (newQty <= 0) {
@@ -244,7 +267,7 @@ export const DashboardUser = () => {
       }
       fetchCart();
     } catch (err) {
-      console.error(err);
+      console.warn('Cart backend sync note:', err);
     }
   };
 
@@ -447,7 +470,7 @@ export const DashboardUser = () => {
                   }`}
                 >
                   {renderCategoryIcon(cat.id)}
-                  <span>{cat.shortName}</span>
+                  <span>{cat.name}</span>
                 </button>
               );
             })}
@@ -581,10 +604,23 @@ export const DashboardUser = () => {
                         <button
                           onClick={() => addToCart(product)}
                           disabled={!canOrder}
-                          className="h-8 px-3.5 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className={`h-8 px-3.5 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+                            addedProductId === product.id 
+                              ? 'bg-emerald-600' 
+                              : 'bg-teal-600 hover:bg-teal-700 active:scale-95'
+                          }`}
                         >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Beli</span>
+                          {addedProductId === product.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Masuk</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Beli</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
