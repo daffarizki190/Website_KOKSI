@@ -98,8 +98,41 @@ export const DashboardAdmin = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [exportMonth, setExportMonth] = useState<number>(new Date().getMonth() + 1);
   const [exportYear, setExportYear] = useState<number>(new Date().getFullYear());
+  const [exportRabu, setExportRabu] = useState<string>('Semua');
   const [exportPtFilter, setExportPtFilter] = useState<string>('Semua');
   const [exportStatusFilter, setExportStatusFilter] = useState<string>('Semua');
+
+  // Helper functions for Wednesday export
+  const getWednesdaysInMonth = (month: number, year: number) => {
+    if (month === 0 || year === 0) return [];
+    const wednesdays = [];
+    const d = new Date(year, month - 1, 1);
+    while (d.getDay() !== 3) {
+      d.setDate(d.getDate() + 1);
+    }
+    while (d.getMonth() === month - 1) {
+      wednesdays.push(new Date(d));
+      d.setDate(d.getDate() + 7);
+    }
+    return wednesdays;
+  };
+
+  const isDateInWednesdayPeriod = (orderDate: Date, wednesdayDateStr: string) => {
+    if (wednesdayDateStr === 'Semua') return true;
+    const wedDate = new Date(wednesdayDateStr);
+    
+    // End date is Tuesday 23:59:59 before this Wednesday
+    const endDate = new Date(wedDate);
+    endDate.setDate(endDate.getDate() - 1);
+    endDate.setHours(23, 59, 59, 999);
+
+    // Start date is Previous Wednesday 00:00:00
+    const startDate = new Date(wedDate);
+    startDate.setDate(startDate.getDate() - 7);
+    startDate.setHours(0, 0, 0, 0);
+
+    return orderDate >= startDate && orderDate <= endDate;
+  };
 
   // Reset Password Modal State
   const [resetPasswordUser, setResetPasswordUser] = useState<{ id: number, nama: string, no_hp: string } | null>(null);
@@ -984,16 +1017,18 @@ export const DashboardAdmin = () => {
       const yearToUse = targetYear ?? exportYear;
       const ptToUse = targetPt ?? exportPtFilter;
       const statusToUse = targetStatus ?? exportStatusFilter;
+      const rabuToUse = exportRabu;
 
-      // Filter orders by Month, Year, PT, and Status
+      // Filter orders by Month, Year, Rabu Period, PT, and Status
       const filteredOrders = allOrders.filter(order => {
         const orderDate = new Date(order.createdAt);
         const matchMonth = monthToUse === 0 || (orderDate.getMonth() + 1) === monthToUse;
         const matchYear = yearToUse === 0 || orderDate.getFullYear() === yearToUse;
+        const matchRabu = isDateInWednesdayPeriod(orderDate, rabuToUse);
         const matchPt = ptToUse === 'Semua' || (order.user?.pt || '').toLowerCase() === ptToUse.toLowerCase();
         const matchStatus = statusToUse === 'Semua' || (order.status || 'Menunggu Konfirmasi').toLowerCase() === statusToUse.toLowerCase();
 
-        return matchMonth && matchYear && matchPt && matchStatus;
+        return matchMonth && matchYear && matchRabu && matchPt && matchStatus;
       });
 
       if (filteredOrders.length === 0) {
@@ -2874,7 +2909,10 @@ export const DashboardAdmin = () => {
                   </label>
                   <select
                     value={exportMonth}
-                    onChange={(e) => setExportMonth(parseInt(e.target.value))}
+                    onChange={(e) => {
+                      setExportMonth(parseInt(e.target.value));
+                      setExportRabu('Semua'); // Reset rabu when month changes
+                    }}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
                   >
                     <option value={0}>Semua Bulan (Tahun Penuh)</option>
@@ -2890,7 +2928,10 @@ export const DashboardAdmin = () => {
                   </label>
                   <select
                     value={exportYear}
-                    onChange={(e) => setExportYear(parseInt(e.target.value))}
+                    onChange={(e) => {
+                      setExportYear(parseInt(e.target.value));
+                      setExportRabu('Semua'); // Reset rabu when year changes
+                    }}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
                   >
                     <option value={2026}>2026</option>
@@ -2898,6 +2939,44 @@ export const DashboardAdmin = () => {
                     <option value={2024}>2024</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Filter Periode Rabu */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Pilihan Hari Rabu (Periode Tarikan)</span>
+                </label>
+                <select
+                  value={exportRabu}
+                  onChange={(e) => setExportRabu(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  disabled={exportMonth === 0 || exportYear === 0}
+                >
+                  <option value="Semua">Semua Periode (Satu Bulan Penuh)</option>
+                  {getWednesdaysInMonth(exportMonth, exportYear).map((wedDate, idx) => {
+                    const d = wedDate.getDate();
+                    const m = wedDate.getMonth();
+                    const y = wedDate.getFullYear();
+                    
+                    const startD = new Date(wedDate);
+                    startD.setDate(startD.getDate() - 7);
+                    
+                    const endD = new Date(wedDate);
+                    endD.setDate(endD.getDate() - 1);
+
+                    const label = `Rabu, ${d} ${MONTH_NAMES[m]} ${y} (Periode: ${startD.getDate()} ${MONTH_NAMES[startD.getMonth()]} - ${endD.getDate()} ${MONTH_NAMES[endD.getMonth()]})`;
+                    
+                    return (
+                      <option key={idx} value={wedDate.toISOString()}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+                {(exportMonth === 0 || exportYear === 0) && (
+                  <p className="text-[10px] text-slate-400 mt-1">Pilih bulan & tahun spesifik untuk melihat opsi hari Rabu.</p>
+                )}
               </div>
 
               {/* Filter PT & Status */}
@@ -2945,9 +3024,10 @@ export const DashboardAdmin = () => {
                   const d = new Date(o.createdAt);
                   const matchM = exportMonth === 0 || (d.getMonth() + 1) === exportMonth;
                   const matchY = exportYear === 0 || d.getFullYear() === exportYear;
+                  const matchRabu = isDateInWednesdayPeriod(d, exportRabu);
                   const matchPt = exportPtFilter === 'Semua' || (o.user?.pt || '').toLowerCase() === exportPtFilter.toLowerCase();
                   const matchSt = exportStatusFilter === 'Semua' || (o.status || 'Menunggu Konfirmasi').toLowerCase() === exportStatusFilter.toLowerCase();
-                  return matchM && matchY && matchPt && matchSt;
+                  return matchM && matchY && matchRabu && matchPt && matchSt;
                 }).length;
 
                 return (
