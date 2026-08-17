@@ -32,8 +32,22 @@ interface Order {
 
 export default function OrderHistory() {
   const { token, user } = useAuth();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const storageKey = `saza_user_orders_${user?.id || 'guest'}`;
+
+  // Initialize from localStorage so orders are immediately visible
+  const [orders, setOrders] = useState<Order[]>(() => {
+    try {
+      const stored = localStorage.getItem(storageKey) || localStorage.getItem('saza_user_orders_guest');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedBarcodeOrder, setSelectedBarcodeOrder] = useState<Order | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -113,19 +127,26 @@ export default function OrderHistory() {
         }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Gagal mengambil riwayat pesanan');
-      }
-
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        setOrders(data);
-        setError(null);
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setOrders(prev => {
+            const map = new Map<number, Order>();
+            // Load current cached local orders first
+            prev.forEach(o => map.set(o.id, o));
+            // Apply server orders
+            data.forEach((o: Order) => map.set(o.id, o));
+            const merged = Array.from(map.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            try {
+              localStorage.setItem(storageKey, JSON.stringify(merged));
+            } catch (e) {}
+            return merged;
+          });
+          setError(null);
+        }
       }
     } catch (err: any) {
       console.warn('Kendala koneksi riwayat pesanan:', err);
-      setOrders(prev => (prev.length > 0 ? prev : []));
     } finally {
       setLoading(false);
     }

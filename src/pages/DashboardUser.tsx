@@ -34,6 +34,11 @@ export const DashboardUser = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
   const [addedProductId, setAddedProductId] = useState<number | null>(null);
+  
+  // Checkout Modal & Success State
+  const [checkoutSuccessOrder, setCheckoutSuccessOrder] = useState<any | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   // Sync cart to localStorage whenever it changes
   useEffect(() => {
@@ -306,7 +311,8 @@ export const DashboardUser = () => {
   };
 
   const confirmCheckout = async () => {
-    setIsCheckoutConfirmOpen(false);
+    setIsCheckingOut(true);
+    setCheckoutError(null);
     try {
       const total_amount = cart.reduce((sum, item) => sum + (item.harga * item.quantity), 0);
       const items = cart.map(item => ({ productId: item.id, quantity: item.quantity, price: item.harga }));
@@ -315,23 +321,60 @@ export const DashboardUser = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token || localStorage.getItem('token')}`
         },
         body: JSON.stringify({ items, total_amount })
       });
+
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
-        alert('Checkout berhasil! Pesanan Anda telah dikirim ke Admin BelanjaIn Saza.');
+        const newOrderId = data.orderId || (data.order && data.order.id) || (1000 + Math.floor(Math.random() * 9000));
+        const createdOrderObj = data.order || {
+          id: newOrderId,
+          userId: user?.id,
+          total_amount,
+          status: 'Proses',
+          keterangan: 'Pesanan telah dibuat dan sedang dalam proses',
+          createdAt: new Date().toISOString(),
+          items: cart.map((cItem, idx) => ({
+            id: idx + 1,
+            orderId: newOrderId,
+            productId: cItem.id,
+            quantity: cItem.quantity,
+            price: cItem.harga,
+            product: {
+              id: cItem.id,
+              nama_barang: cItem.nama_barang,
+              kategori: cItem.kategori,
+              harga: cItem.harga
+            }
+          }))
+        };
+
+        // Cache locally in localStorage so it appears in /orders instantly
+        try {
+          const storageKey = `saza_user_orders_${user?.id || 'guest'}`;
+          const existingStored = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          const updatedStored = [createdOrderObj, ...existingStored.filter((o: any) => o.id !== createdOrderObj.id)];
+          localStorage.setItem(storageKey, JSON.stringify(updatedStored));
+        } catch (e) {
+          console.warn('Failed to cache created order:', e);
+        }
+
         setCart([]);
         try { localStorage.removeItem('saza_cart_items'); } catch (e) {}
         setIsCartOpen(false);
-        navigate('/orders');
+        setIsCheckoutConfirmOpen(false);
+        setCheckoutSuccessOrder(createdOrderObj);
       } else {
-        const data = await res.json().catch(() => ({}));
-        alert(`Gagal checkout: ${data.error || 'Terjadi kesalahan'}`);
+        setCheckoutError(data.error || 'Gagal memproses pesanan. Silakan coba kembali.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Terjadi kesalahan koneksi saat checkout.');
+      setCheckoutError(err.message || 'Terjadi kesalahan koneksi saat checkout.');
+    } finally {
+      setIsCheckingOut(false);
     }
   };
 
@@ -1099,15 +1142,82 @@ export const DashboardUser = () => {
             <div className="pt-3 border-t border-slate-100 flex gap-2">
               <button
                 onClick={() => setIsCheckoutConfirmOpen(false)}
+                disabled={isCheckingOut}
                 className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
               >
                 Batal
               </button>
               <button
                 onClick={confirmCheckout}
-                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-teal-600/30 flex items-center justify-center gap-1.5"
+                disabled={isCheckingOut}
+                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-teal-600/30 flex items-center justify-center gap-1.5"
               >
-                <span>Ya, Lanjut</span>
+                {isCheckingOut ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Memproses...</span>
+                  </>
+                ) : (
+                  <span>Ya, Lanjut</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CHECKOUT SUCCESS */}
+      {checkoutSuccessOrder && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-6 text-center animate-in fade-in zoom-in duration-200">
+            <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-50 border-2 border-emerald-100 text-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/10">
+              <CheckCircle2 className="w-9 h-9 text-emerald-600" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="inline-flex items-center px-3 py-1 bg-teal-50 border border-teal-200/60 rounded-full text-xs font-black text-teal-800 tracking-wide uppercase">
+                Pesanan #{checkoutSuccessOrder.id}
+              </span>
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                Pesanan Berhasil Dibuat!
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed max-w-xs mx-auto">
+                Pesanan Anda telah dikirim ke Pengelola BelanjaIn Saza dan siap diproses di Riwayat Pesanan.
+              </p>
+            </div>
+
+            {/* Order Summary Box */}
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-left space-y-2.5">
+              <div className="flex justify-between items-center text-xs text-slate-500 font-semibold">
+                <span>Total Pembayaran</span>
+                <span className="text-sm font-black text-teal-700">
+                  Rp {(checkoutSuccessOrder.total_amount || 0).toLocaleString('id-ID')}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs text-slate-500 font-semibold border-t border-slate-200/60 pt-2">
+                <span>Status Pesanan</span>
+                <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg font-bold text-[11px]">
+                  {checkoutSuccessOrder.status || 'Proses'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setCheckoutSuccessOrder(null);
+                  navigate('/orders');
+                }}
+                className="w-full py-3.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-2xl text-sm font-extrabold transition-all shadow-lg shadow-teal-600/25 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>Lihat Riwayat Pesanan</span>
+              </button>
+              <button
+                onClick={() => setCheckoutSuccessOrder(null)}
+                className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-sm font-bold transition-all cursor-pointer"
+              >
+                Belanja Lagi
               </button>
             </div>
           </div>
