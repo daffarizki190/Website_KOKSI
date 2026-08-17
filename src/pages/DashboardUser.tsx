@@ -241,21 +241,24 @@ export const DashboardUser = () => {
   };
 
   const handleQuantityChange = (id: number, delta: number) => {
+    const prod = products.find(p => p.id === id);
+    const maxStock = prod ? prod.stok : 999;
     setQuantities(prev => {
       const current = prev[id] || 1;
-      const next = Math.max(1, current + delta);
+      const next = Math.max(1, Math.min(Math.max(1, maxStock), current + delta));
       return { ...prev, [id]: next };
     });
   };
 
   const addToCart = async (product: Product) => {
-    const qty = quantities[product.id] || 1;
+    if (product.stok <= 0) return;
+    const qty = Math.min(product.stok, quantities[product.id] || 1);
     
     // Optimistic UI update: Immediately update cart state
     setCart(prev => {
       const exist = prev.find(item => item.id === product.id);
       if (exist) {
-        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + qty } : item);
+        return prev.map(item => item.id === product.id ? { ...item, quantity: Math.min(product.stok, item.quantity + qty) } : item);
       }
       return [...prev, { ...product, quantity: qty }];
     });
@@ -361,6 +364,16 @@ export const DashboardUser = () => {
         } catch (e) {
           console.warn('Failed to cache created order:', e);
         }
+
+        // Decrement local product stock immediately for seamless UX
+        setProducts(prev => prev.map(p => {
+          const cItem = cart.find(c => c.id === p.id);
+          if (cItem) {
+            return { ...p, stok: Math.max(0, p.stok - cItem.quantity) };
+          }
+          return p;
+        }));
+        fetchProducts();
 
         setCart([]);
         try { localStorage.removeItem('saza_cart_items'); } catch (e) {}
@@ -634,11 +647,13 @@ export const DashboardUser = () => {
                           {product.sub_kategori || product.kategori}
                         </span>
                         <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                          product.stok < 10 
-                            ? 'bg-amber-100 text-amber-800' 
-                            : 'bg-slate-100 text-slate-600'
+                          product.stok <= 0
+                            ? 'bg-red-100 text-red-700 font-black'
+                            : product.stok < 10 
+                              ? 'bg-amber-100 text-amber-800' 
+                              : 'bg-slate-100 text-slate-600'
                         }`}>
-                          Stok: {product.stok}
+                          {product.stok <= 0 ? 'Stok Habis' : `Stok: ${product.stok}`}
                         </span>
                       </div>
 
@@ -659,10 +674,11 @@ export const DashboardUser = () => {
 
                       {/* Stepper & Tambah Button */}
                       <div className="flex items-center gap-1.5">
-                        <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200/80 p-0.5">
+                        <div className={`flex items-center bg-slate-100 rounded-xl border border-slate-200/80 p-0.5 ${product.stok <= 0 ? 'opacity-40 pointer-events-none' : ''}`}>
                           <button 
                             onClick={() => handleQuantityChange(product.id, -1)}
-                            className="w-7 h-7 flex items-center justify-center hover:bg-white text-slate-700 transition-colors rounded-lg cursor-pointer"
+                            disabled={product.stok <= 0}
+                            className="w-7 h-7 flex items-center justify-center hover:bg-white text-slate-700 transition-colors rounded-lg cursor-pointer disabled:cursor-not-allowed"
                             title="Kurangi"
                           >
                             <Minus className="w-3 h-3" />
@@ -672,7 +688,8 @@ export const DashboardUser = () => {
                           </span>
                           <button 
                             onClick={() => handleQuantityChange(product.id, 1)}
-                            className="w-7 h-7 flex items-center justify-center hover:bg-white text-slate-700 transition-colors rounded-lg cursor-pointer"
+                            disabled={product.stok <= 0}
+                            className="w-7 h-7 flex items-center justify-center hover:bg-white text-slate-700 transition-colors rounded-lg cursor-pointer disabled:cursor-not-allowed"
                             title="Tambah"
                           >
                             <Plus className="w-3 h-3" />
@@ -681,14 +698,18 @@ export const DashboardUser = () => {
                         
                         <button
                           onClick={() => addToCart(product)}
-                          disabled={!canOrder}
-                          className={`h-8 px-3.5 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
-                            addedProductId === product.id 
-                              ? 'bg-emerald-600' 
-                              : 'bg-teal-600 hover:bg-teal-700 active:scale-95'
+                          disabled={!canOrder || product.stok <= 0}
+                          className={`h-8 px-3.5 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
+                            product.stok <= 0
+                              ? 'bg-slate-400'
+                              : addedProductId === product.id 
+                                ? 'bg-emerald-600' 
+                                : 'bg-teal-600 hover:bg-teal-700 active:scale-95'
                           }`}
                         >
-                          {addedProductId === product.id ? (
+                          {product.stok <= 0 ? (
+                            <span>Habis</span>
+                          ) : addedProductId === product.id ? (
                             <>
                               <Check className="w-3.5 h-3.5" />
                               <span>Masuk</span>

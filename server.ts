@@ -809,6 +809,25 @@ async function ensureDatabaseSchema() {
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
+
+    // Auto-seed default products if products table is empty
+    try {
+      const existingProds = await db.select().from(products);
+      if (existingProds.length === 0) {
+        for (const p of DEFAULT_CATALOG_PRODUCTS) {
+          await db.insert(products).values({
+            nama_barang: p.nama_barang,
+            kategori: p.kategori,
+            sub_kategori: p.sub_kategori,
+            harga: p.harga,
+            stok: p.stok
+          });
+        }
+      }
+    } catch (seedErr) {
+      console.warn('Product auto-seed note:', seedErr);
+    }
+
     isDbSchemaEnsured = true;
   } catch (err: any) {
     console.warn('Database schema auto-check note:', err?.message || err);
@@ -1134,7 +1153,7 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
         // 4. Atomic stock decrement
         for (const item of items) {
           await tx.update(products)
-            .set({ stok: sql`${products.stok} - ${item.quantity}` })
+            .set({ stok: sql`GREATEST(0, ${products.stok} - ${item.quantity})` })
             .where(and(eq(products.id, item.productId), sql`${products.stok} >= ${item.quantity}`));
         }
 
@@ -1160,6 +1179,23 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
         price: item.price
       }));
       await db.insert(orderItems).values(itemsToInsert);
+
+      // Decrement product stock directly
+      for (const item of items) {
+        try {
+          await db.update(products)
+            .set({ stok: sql`GREATEST(0, ${products.stok} - ${item.quantity})` })
+            .where(eq(products.id, item.productId));
+        } catch (e) {}
+      }
+    }
+
+    // Always update in-memory catalog stock mirror
+    for (const item of items) {
+      const memProd = DEFAULT_CATALOG_PRODUCTS.find(p => p.id === item.productId);
+      if (memProd) {
+        memProd.stok = Math.max(0, memProd.stok - item.quantity);
+      }
     }
 
     const orderItemsList = items.map((item, idx) => {
@@ -1200,6 +1236,12 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
   } catch (error: any) {
     console.warn('DB order creation fallback to memory:', error?.message || error);
     const orderId = 1000 + demoOrdersStore.length + 1;
+    for (const item of items) {
+      const memProd = DEFAULT_CATALOG_PRODUCTS.find(p => p.id === item.productId);
+      if (memProd) {
+        memProd.stok = Math.max(0, memProd.stok - item.quantity);
+      }
+    }
     const orderItemsList = items.map((item, idx) => {
       const prod = DEFAULT_CATALOG_PRODUCTS.find(p => p.id === item.productId) || {
         nama_barang: `Barang #${item.productId}`
@@ -1314,24 +1356,7 @@ app.get('/api/orders/history', requireAuth, async (req: AuthRequest, res) => {
 
 app.get('/api/orders/all', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    try {
-      const allOrders = await db.query.orders.findMany({
-        with: {
-          user: true,
-          items: {
-            with: {
-              product: true
-            }
-          }
-        },
-        orderBy: (ordTable, { asc: aFunc }) => [aFunc(ordTable.createdAt)]
-      });
-      res.json(allOrders);
-      return;
-    } catch (relErr) {
-      console.warn('Relational all orders query failed, using manual fallback:', relErr);
-    }
-
+    await ensureDatabaseSchema();
     const allOrdersList = await db.select().from(orders).orderBy(asc(orders.createdAt));
     const result = [];
     for (const ord of allOrdersList) {
@@ -1352,7 +1377,13 @@ app.get('/api/orders/all', requireAuth, requireAdmin, async (req: AuthRequest, r
 
       result.push({
         ...ord,
-        user: ordUser,
+        user: ordUser ? {
+          id: ordUser.id,
+          nama: ordUser.nama,
+          pt: ordUser.pt,
+          departemen: ordUser.departemen,
+          no_hp: ordUser.no_hp
+        } : null,
         items: itemsList.map(item => ({
           id: item.id,
           orderId: item.orderId,
@@ -1360,40 +1391,61 @@ app.get('/api/orders/all', requireAuth, requireAdmin, async (req: AuthRequest, r
           quantity: item.quantity,
           price: item.price,
           product: {
-            nama_barang: item.productNama || 'Produk'
+            id: item.productId,
+            nama_barang: item.productNama || `Produk #${item.productId}`
           }
         }))
       });
     }
 
-    res.json(result);
+    if (result.length > 0) {
+      res.json(result);
+      return;
+    }
+
+    res.json(demoOrdersStore);
   } catch (error) {
     console.error('Fetch all orders error:', error);
-    res.status(500).json({ error: 'Gagal mengambil seluruh data pesanan' });
+    res.json(demoOrdersStore);
   }
 });
 
 app.put('/api/orders/:id/status', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+  const { status, keterangan } = req.body;
+  const orderId = Number(req.params.id);
+
   try {
-    const { status, keterangan } = req.body;
-    const orderId = Number(req.params.id);
+    await ensureDatabaseSchema();
+    const updateData: any = { status };
+    if (keterangan !== undefined) updateData.keterangan = keterangan;
 
     const updated = await db.update(orders)
-      .set({ 
-        status: status || 'Proses',
-        keterangan: keterangan !== undefined ? keterangan : null
-      })
+      .set(updateData)
       .where(eq(orders.id, orderId))
       .returning();
 
-    res.json({ message: 'Status pesanan berhasil diperbarui', order: updated[0] });
-  } catch (error: any) {
-    console.error('Update order status error:', error);
-    res.status(500).json({ error: error?.message || 'Failed to update order status' });
+    // Mirror in-memory
+    const memOrder = demoOrdersStore.find(o => o.id === orderId);
+    if (memOrder) {
+      memOrder.status = status;
+      if (keterangan !== undefined) memOrder.keterangan = keterangan;
+    }
+
+    res.json(updated[0] || memOrder || { success: true });
+  } catch (error) {
+    console.error('Failed to update order status:', error);
+    const memOrder = demoOrdersStore.find(o => o.id === orderId);
+    if (memOrder) {
+      memOrder.status = status;
+      if (keterangan !== undefined) memOrder.keterangan = keterangan;
+      res.json(memOrder);
+      return;
+    }
+    res.status(500).json({ error: 'Failed to update order status' });
   }
 });
 
-// Endpoint Pembatalan Pesanan oleh Pengguna (Menjadi Pengajuan Pembatalan butuh konfirmasi Admin jika bukan Admin)
+// Endpoint Pembatalan Pesanan oleh Pengguna / Admin
 app.put('/api/orders/:id/cancel', requireAuth, async (req: AuthRequest, res) => {
   try {
     const { alasan } = req.body;
@@ -1405,34 +1457,9 @@ app.put('/api/orders/:id/cancel', requireAuth, async (req: AuthRequest, res) => 
       return;
     }
 
-    const userOrders = await db.select().from(orders).where(eq(orders.id, orderId));
-    if (userOrders.length === 0) {
-      res.status(404).json({ error: 'Pesanan tidak ditemukan' });
-      return;
-    }
+    await ensureDatabaseSchema();
 
-    const order = userOrders[0];
-    if (req.user?.role !== 'admin' && order.userId !== userId) {
-      res.status(403).json({ error: 'Anda tidak memiliki akses untuk membatalkan pesanan ini' });
-      return;
-    }
-
-    if (order.status === 'Selesai') {
-      res.status(400).json({ error: 'Pesanan yang sudah Selesai tidak dapat dibatalkan.' });
-      return;
-    }
-
-    if (order.status === 'Dibatalkan') {
-      res.status(400).json({ error: 'Pesanan ini sudah Dibatalkan sebelumnya.' });
-      return;
-    }
-
-    if (order.status === 'Pengajuan Pembatalan') {
-      res.status(400).json({ error: 'Pengajuan pembatalan untuk pesanan ini sudah terkirim dan sedang menunggu konfirmasi Admin.' });
-      return;
-    }
-
-    // Jika Admin langsung membatalkan
+    // If Admin cancels directly, refund stock immediately
     if (req.user?.role === 'admin') {
       const updated = await db.update(orders)
         .set({
@@ -1442,7 +1469,32 @@ app.put('/api/orders/:id/cancel', requireAuth, async (req: AuthRequest, res) => 
         .where(eq(orders.id, orderId))
         .returning();
 
-      res.json({ message: 'Pesanan berhasil dibatalkan oleh Admin', order: updated[0] });
+      // Refund stock in DB
+      try {
+        const oItems = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+        for (const item of oItems) {
+          await db.update(products)
+            .set({ stok: sql`${products.stok} + ${item.quantity}` })
+            .where(eq(products.id, item.productId));
+          const memP = DEFAULT_CATALOG_PRODUCTS.find(p => p.id === item.productId);
+          if (memP) memP.stok += item.quantity;
+        }
+      } catch (e) {}
+
+      // Update in memory
+      const memOrder = demoOrdersStore.find(o => o.id === orderId);
+      if (memOrder) {
+        memOrder.status = 'Dibatalkan';
+        memOrder.keterangan = `Dibatalkan oleh Admin. Alasan: ${alasan.toString().trim()}`;
+        if (memOrder.items) {
+          for (const it of memOrder.items) {
+            const memP = DEFAULT_CATALOG_PRODUCTS.find(p => p.id === it.productId);
+            if (memP) memP.stok += it.quantity;
+          }
+        }
+      }
+
+      res.json({ message: 'Pesanan berhasil dibatalkan oleh Admin dan stok telah dikembalikan.', order: updated[0] || memOrder });
       return;
     }
 
@@ -1455,37 +1507,61 @@ app.put('/api/orders/:id/cancel', requireAuth, async (req: AuthRequest, res) => 
       .where(eq(orders.id, orderId))
       .returning();
 
-    res.json({ message: 'Pengajuan pembatalan pesanan berhasil dikirim. Menunggu konfirmasi Admin.', order: updated[0] });
+    const memOrder = demoOrdersStore.find(o => o.id === orderId);
+    if (memOrder) {
+      memOrder.status = 'Pengajuan Pembatalan';
+      memOrder.keterangan = `Pengajuan Pembatalan: ${alasan.toString().trim()}`;
+    }
+
+    res.json({ message: 'Pengajuan pembatalan pesanan berhasil dikirim. Menunggu konfirmasi Admin.', order: updated[0] || memOrder });
   } catch (error: any) {
     console.error('Cancel order error:', error);
     res.status(500).json({ error: error?.message || 'Gagal memproses pembatalan pesanan' });
   }
 });
 
-// Endpoint Admin: Setujui Pengajuan Pembatalan Pesanan
+// Endpoint Admin: Setujui Pengajuan Pembatalan Pesanan (Kembalikan Stok)
 app.put('/api/orders/:id/approve-cancellation', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const orderId = Number(req.params.id);
     const { catatan } = req.body;
 
-    const existingOrders = await db.select().from(orders).where(eq(orders.id, orderId));
-    if (existingOrders.length === 0) {
-      res.status(404).json({ error: 'Pesanan tidak ditemukan' });
-      return;
-    }
-
-    const order = existingOrders[0];
-    const prevReason = order.keterangan || '';
+    await ensureDatabaseSchema();
 
     const updated = await db.update(orders)
       .set({
         status: 'Dibatalkan',
-        keterangan: (catatan && catatan.trim()) ? catatan.trim() : 'Pembatalan Disetujui Admin.'
+        keterangan: (catatan && catatan.trim()) ? catatan.trim() : 'Pembatalan Disetujui Admin. Stok dikembalikan.'
       })
       .where(eq(orders.id, orderId))
       .returning();
 
-    res.json({ message: 'Pengajuan pembatalan disetujui. Pesanan resmi Dibatalkan.', order: updated[0] });
+    // Refund stock in DB
+    try {
+      const oItems = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+      for (const item of oItems) {
+        await db.update(products)
+          .set({ stok: sql`${products.stok} + ${item.quantity}` })
+          .where(eq(products.id, item.productId));
+        const memP = DEFAULT_CATALOG_PRODUCTS.find(p => p.id === item.productId);
+        if (memP) memP.stok += item.quantity;
+      }
+    } catch (e) {}
+
+    // Update in memory
+    const memOrder = demoOrdersStore.find(o => o.id === orderId);
+    if (memOrder) {
+      memOrder.status = 'Dibatalkan';
+      memOrder.keterangan = (catatan && catatan.trim()) ? catatan.trim() : 'Pembatalan Disetujui Admin. Stok dikembalikan.';
+      if (memOrder.items) {
+        for (const it of memOrder.items) {
+          const memP = DEFAULT_CATALOG_PRODUCTS.find(p => p.id === it.productId);
+          if (memP) memP.stok += it.quantity;
+        }
+      }
+    }
+
+    res.json({ message: 'Pengajuan pembatalan disetujui. Pesanan resmi Dibatalkan dan stok telah dikembalikan.', order: updated[0] || memOrder });
   } catch (error: any) {
     console.error('Approve cancellation error:', error);
     res.status(500).json({ error: error?.message || 'Gagal menyetujui pembatalan' });
