@@ -18,20 +18,58 @@ export const DashboardUser = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState('');
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('saza_cart_items');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
   const [addedProductId, setAddedProductId] = useState<number | null>(null);
 
+  // Sync cart to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('saza_cart_items', JSON.stringify(cart));
+    } catch (e) {}
+  }, [cart]);
+
   const fetchCart = async () => {
+    if (!token) return;
     try {
       const res = await fetch('/api/cart', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
-        setCart(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setCart(data);
+        } else {
+          // If backend returns empty array but local cart has items, keep local cart & sync to backend
+          setCart(current => {
+            if (current.length > 0) {
+              current.forEach(item => {
+                fetch('/api/cart', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                  },
+                  body: JSON.stringify({ productId: item.id, quantity: item.quantity })
+                }).catch(() => {});
+              });
+            }
+            return current;
+          });
+        }
       }
     } catch (err) {
       console.error('Error fetching cart:', err);
@@ -221,7 +259,7 @@ export const DashboardUser = () => {
     setQuantities(prev => ({ ...prev, [product.id]: 1 }));
 
     try {
-      const res = await fetch('/api/cart', {
+      await fetch('/api/cart', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -229,9 +267,6 @@ export const DashboardUser = () => {
         },
         body: JSON.stringify({ productId: product.id, quantity: qty })
       });
-      if (res.ok) {
-        fetchCart();
-      }
     } catch (err) {
       console.warn('Network issue saving cart to backend, kept in local state:', err);
     }
@@ -265,7 +300,6 @@ export const DashboardUser = () => {
           body: JSON.stringify({ quantity: newQty })
         });
       }
-      fetchCart();
     } catch (err) {
       console.warn('Cart backend sync note:', err);
     }
@@ -288,6 +322,7 @@ export const DashboardUser = () => {
       if (res.ok) {
         alert('Checkout berhasil! Pesanan Anda telah dikirim ke Admin BelanjaIn Saza.');
         setCart([]);
+        try { localStorage.removeItem('saza_cart_items'); } catch (e) {}
         setIsCartOpen(false);
         navigate('/orders');
       } else {

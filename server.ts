@@ -756,6 +756,27 @@ app.delete('/api/products/:id', requireAuth, requireAdmin, async (req, res) => {
 // In-Memory fallback store for Cart & Orders (ensures 100% uptime even in demo / cold start)
 const memoryCartStore = new Map<number, Array<{ productId: number; quantity: number }>>();
 
+let isCartTableEnsured = false;
+async function ensureCartTable() {
+  if (isCartTableEnsured) return;
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) return;
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS cart_items (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    isCartTableEnsured = true;
+  } catch (err: any) {
+    console.warn('Auto-create cart_items table note:', err?.message || err);
+  }
+}
+
 // --- CART ROUTES ---
 app.get('/api/cart', requireAuth, async (req: AuthRequest, res) => {
   const userId = req.user!.id;
@@ -783,6 +804,8 @@ app.get('/api/cart', requireAuth, async (req: AuthRequest, res) => {
       res.json(formatted);
       return;
     }
+
+    await ensureCartTable();
 
     const items = await db.select({
       cartItem: cartItems,
@@ -828,13 +851,19 @@ app.get('/api/cart', requireAuth, async (req: AuthRequest, res) => {
 
 app.post('/api/cart', requireAuth, async (req: AuthRequest, res) => {
   const userId = req.user!.id;
-  const { productId, quantity } = req.body;
+  const productId = Number(req.body.productId);
+  const quantity = Math.max(1, Number(req.body.quantity) || 1);
+
+  if (!productId || isNaN(productId)) {
+    res.status(400).json({ error: 'ID produk tidak valid' });
+    return;
+  }
 
   // Always update memory store as immediate mirror
   const currentMem = memoryCartStore.get(userId) || [];
   const existingIdx = currentMem.findIndex(i => i.productId === productId);
   if (existingIdx >= 0) {
-    currentMem[existingIdx].quantity = quantity;
+    currentMem[existingIdx].quantity += quantity;
   } else {
     currentMem.push({ productId, quantity });
   }
@@ -847,12 +876,14 @@ app.post('/api/cart', requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
+    await ensureCartTable();
+
     const existing = await db.select().from(cartItems)
       .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, productId)));
 
     if (existing.length > 0) {
       await db.update(cartItems)
-        .set({ quantity })
+        .set({ quantity: existing[0].quantity + quantity })
         .where(eq(cartItems.id, existing[0].id));
     } else {
       await db.insert(cartItems).values({
@@ -871,7 +902,12 @@ app.post('/api/cart', requireAuth, async (req: AuthRequest, res) => {
 app.put('/api/cart/:productId', requireAuth, async (req: AuthRequest, res) => {
   const userId = req.user!.id;
   const productId = Number(req.params.productId);
-  const { quantity } = req.body;
+  const quantity = Number(req.body.quantity);
+
+  if (!productId || isNaN(productId)) {
+    res.status(400).json({ error: 'ID produk tidak valid' });
+    return;
+  }
 
   // Update memory store
   let currentMem = memoryCartStore.get(userId) || [];
@@ -893,6 +929,8 @@ app.put('/api/cart/:productId', requireAuth, async (req: AuthRequest, res) => {
       res.json({ success: true });
       return;
     }
+
+    await ensureCartTable();
 
     if (quantity <= 0) {
       await db.delete(cartItems)
@@ -934,6 +972,8 @@ app.delete('/api/cart/:productId', requireAuth, async (req: AuthRequest, res) =>
       return;
     }
 
+    await ensureCartTable();
+
     await db.delete(cartItems)
       .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, productId)));
     
@@ -952,6 +992,9 @@ app.delete('/api/cart', requireAuth, async (req: AuthRequest, res) => {
       res.json({ success: true });
       return;
     }
+
+    await ensureCartTable();
+
     await db.delete(cartItems).where(eq(cartItems.userId, userId));
     res.json({ success: true });
   } catch (err: any) {
