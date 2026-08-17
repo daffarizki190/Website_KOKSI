@@ -132,11 +132,20 @@ export default function OrderHistory() {
         if (Array.isArray(data)) {
           setOrders(prev => {
             const map = new Map<number, Order>();
-            // Load current cached local orders first
+            // Start with local cache — it always has the freshest post-checkout orders
             prev.forEach(o => map.set(o.id, o));
-            // Apply server orders
-            data.forEach((o: Order) => map.set(o.id, o));
-            const merged = Array.from(map.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            // Merge server data on top (server data may have updated status)
+            data.forEach((o: Order) => {
+              // Only overwrite if server has more recent/different status
+              const existing = map.get(o.id);
+              if (!existing || o.status !== existing.status || (o.items && o.items.length > 0)) {
+                map.set(o.id, o);
+              }
+            });
+            const merged = Array.from(map.values()).sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+            // Persist the merged result back to localStorage
             try {
               localStorage.setItem(storageKey, JSON.stringify(merged));
             } catch (e) {}
@@ -147,6 +156,7 @@ export default function OrderHistory() {
       }
     } catch (err: any) {
       console.warn('Kendala koneksi riwayat pesanan:', err);
+      // On network error, keep showing local cache — don't reset state
     } finally {
       setLoading(false);
     }

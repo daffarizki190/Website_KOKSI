@@ -1038,7 +1038,14 @@ export const DashboardAdmin = () => {
 
       const periodTitle = monthToUse === 0
         ? `Tahun ${yearToUse}`
-        : `${MONTH_NAMES[monthToUse - 1]} ${yearToUse}`;
+        : rabuToUse !== 'Semua'
+          ? `${MONTH_NAMES[monthToUse - 1]} ${yearToUse} - ${(() => {
+              const wedDate = new Date(rabuToUse);
+              const endD = new Date(wedDate); endD.setDate(endD.getDate() - 1);
+              const startD = new Date(wedDate); startD.setDate(startD.getDate() - 7);
+              return `Rabu ${wedDate.getDate()} (${startD.getDate()}-${endD.getDate()})`;
+            })()}`
+          : `${MONTH_NAMES[monthToUse - 1]} ${yearToUse}`;
 
       // Calculate totals
       let totalItemsCount = 0;
@@ -1414,7 +1421,21 @@ export const DashboardAdmin = () => {
       XLSX.utils.book_append_sheet(wb, ws, 'Laporan Penjualan');
 
       const cleanPeriod = periodTitle.replace(/[^a-zA-Z0-9]/g, '_');
-      XLSX.writeFile(wb, `Laporan_Transaksi_BelanjaIn_Saza_${cleanPeriod}.xlsx`);
+      const fileName = `Laporan_Transaksi_BelanjaIn_Saza_${cleanPeriod}.xlsx`;
+
+      // Use Blob-based download for cross-browser compatibility (Vercel / modern browsers)
+      const wbArrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 150);
 
       setIsExportModalOpen(false);
     } catch (err) {

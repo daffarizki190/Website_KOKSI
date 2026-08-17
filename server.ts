@@ -1335,22 +1335,16 @@ app.get('/api/orders/history', requireAuth, async (req: AuthRequest, res) => {
         });
       }
 
-      if (result.length > 0) {
-        res.json(result);
-        return;
-      }
-
-      const userDemoOrders = demoOrdersStore.filter(o => o.userId === userId);
-      res.json(userDemoOrders);
+      // Always return DB result — even if empty, so client localStorage stays authoritative
+      res.json(result);
     } catch (dbErr) {
-      console.warn('DB history query error, fallback to memory:', dbErr);
-      const userDemoOrders = demoOrdersStore.filter(o => o.userId === userId);
-      res.json(userDemoOrders);
+      console.warn('DB history query error:', dbErr);
+      // On DB error, return empty array — client localStorage will preserve local orders
+      res.json([]);
     }
   } catch (error) {
     console.error('Fetch order history error:', error);
-    const userDemoOrders = demoOrdersStore.filter(o => o.userId === req.user?.id);
-    res.json(userDemoOrders);
+    res.json([]);
   }
 });
 
