@@ -34,7 +34,7 @@ export const orders = pgTable('orders', {
 export const orderItems = pgTable('order_items', {
   id: serial('id').primaryKey(),
   orderId: integer('order_id').references(() => orders.id).notNull(),
-  productId: integer('product_id').references(() => products.id).notNull(),
+  productId: integer('product_id').references(() => products.id),  // nullable: product may be deleted but order must survive
   quantity: integer('quantity').notNull(),
   price: integer('price').notNull(),
 });

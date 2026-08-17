@@ -484,6 +484,12 @@ export const DashboardAdmin = () => {
           setOrders(data);
           setLastUpdated(new Date());
         }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        console.error('[Admin] Gagal fetch pesanan:', res.status, errData.error);
+        if (!isBackground) {
+          console.warn('Server gagal mengembalikan data pesanan. Coba refresh halaman.');
+        }
       }
     } catch (err) {
       if (!isBackground) {
