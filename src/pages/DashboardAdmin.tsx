@@ -1091,7 +1091,7 @@ export const DashboardAdmin = () => {
         'NAMA KARYAWAN',
         'DEPARTEMEN',
         'NO HP / KONTAK',
-        'JUMLAH CHECKOUT',
+        'TANGGAL & WAKTU PEMESANAN',
         'NAMA BARANG / PRODUK',
         'QTY',
         'HARGA SATUAN (RP)',
@@ -1113,6 +1113,7 @@ export const DashboardAdmin = () => {
         ordersCount: number;
         itemsMap: Map<number, any>;
         statuses: Record<string, number>;
+        dates: string[];
       }>();
 
       filteredOrders.forEach(order => {
@@ -1122,7 +1123,8 @@ export const DashboardAdmin = () => {
             user: order.user,
             ordersCount: 0,
             itemsMap: new Map(),
-            statuses: {}
+            statuses: {},
+            dates: []
           });
         }
         
@@ -1131,6 +1133,20 @@ export const DashboardAdmin = () => {
         
         const st = order.status || 'Menunggu Konfirmasi';
         group.statuses[st] = (group.statuses[st] || 0) + 1;
+
+        if (order.createdAt) {
+          try {
+            const formattedDate = format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale });
+            if (!group.dates.includes(formattedDate)) {
+              group.dates.push(formattedDate);
+            }
+          } catch (e) {
+            const rawD = String(order.createdAt);
+            if (!group.dates.includes(rawD)) {
+              group.dates.push(rawD);
+            }
+          }
+        }
 
         const items = (order.items && order.items.length > 0) ? order.items : [];
         items.forEach(it => {
@@ -1157,6 +1173,8 @@ export const DashboardAdmin = () => {
         const statusStrs = Object.entries(group.statuses).map(([st, count]) => `${count} ${st}`);
         const statusAgg = statusStrs.join(', ');
 
+        const dateAgg = group.dates.length > 0 ? group.dates.join('\n') : '-';
+
         items.forEach((item, itemIdx) => {
           grandTotalQty += (item.quantity || 0);
           grandTotalSubtotal += (item.subtotal || 0);
@@ -1167,7 +1185,7 @@ export const DashboardAdmin = () => {
               group.user?.nama || '-',
               group.user?.departemen || '-',
               group.user?.no_hp || '-',
-              `${group.ordersCount}x`,
+              dateAgg,
               item.productNama,
               item.quantity || 0,
               item.price || 0,
@@ -1193,7 +1211,7 @@ export const DashboardAdmin = () => {
         const orderEndRow = aoa.length - 1;
 
         if (orderEndRow > orderStartRow) {
-          // Merge user-level columns (NO, NAMA, DEPT, NO HP, JML CHECKOUT)
+          // Merge user-level columns (NO, NAMA, DEPT, NO HP, TANGGAL & WAKTU PEMESANAN)
           for (let c = 0; c <= 4; c++) {
             orderMerges.push({ s: { r: orderStartRow, c }, e: { r: orderEndRow, c } });
           }
@@ -1238,7 +1256,7 @@ export const DashboardAdmin = () => {
         { wch: 26 },  // NAMA KARYAWAN
         { wch: 20 },  // DEPARTEMEN
         { wch: 18 },  // NO HP
-        { wch: 18 },  // JUMLAH CHECKOUT
+        { wch: 26 },  // TANGGAL & WAKTU PEMESANAN
         { wch: 36 },  // NAMA BARANG
         { wch: 10 },  // QTY
         { wch: 22 },  // HARGA SATUAN
