@@ -1092,7 +1092,24 @@ const demoOrdersStore: Array<{
 
 app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
   const { items, total_amount } = req.body;
-  const userId = req.user!.id;
+  let userId = Number(req.user?.id);
+  if (!userId || isNaN(userId)) {
+    if (req.user?.no_hp) {
+      try {
+        const uList = await withDbRetry(() => db.select().from(users).where(eq(users.no_hp, req.user!.no_hp)));
+        if (uList.length > 0) {
+          userId = uList[0].id;
+        }
+      } catch (err) {
+        console.warn('Error fetching user fallback:', err);
+      }
+    }
+  }
+
+  if (!userId || isNaN(userId)) {
+    res.status(401).json({ error: 'Sesi pengguna tidak valid, silakan logout dan login kembali.' });
+    return;
+  }
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: 'Item pesanan tidak boleh kosong' });
