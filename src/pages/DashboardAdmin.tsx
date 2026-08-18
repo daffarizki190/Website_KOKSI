@@ -1116,7 +1116,7 @@ export const DashboardAdmin = () => {
       }>();
 
       filteredOrders.forEach(order => {
-        const userKey = order.user?.no_hp || order.user?.id || 'unknown';
+        const userKey = String(order.user?.no_hp || order.user?.id || 'unknown');
         if (!userOrdersMap.has(userKey)) {
           userOrdersMap.set(userKey, {
             user: order.user,

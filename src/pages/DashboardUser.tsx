@@ -1160,6 +1160,12 @@ export const DashboardUser = () => {
                 </p>
               </div>
             </div>
+            {checkoutError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                <span>{checkoutError}</span>
+              </div>
+            )}
             <div className="pt-3 border-t border-slate-100 flex gap-2">
               <button
                 onClick={() => setIsCheckoutConfirmOpen(false)}
