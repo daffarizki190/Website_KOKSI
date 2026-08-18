@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
@@ -615,6 +615,105 @@ export const DashboardAdmin = () => {
     } catch (err) {
       console.error(err);
       toast.error('Terjadi kesalahan koneksi server');
+    }
+  };
+
+  // State & Handlers: Hapus Transaksi Sesuai Filter & Single
+  const [isDeletingFilteredOrders, setIsDeletingFilteredOrders] = useState(false);
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      const matchStatus = orderStatusFilter === 'Semua' || (order.status || 'Menunggu Konfirmasi').toLowerCase() === orderStatusFilter.toLowerCase();
+      const matchPt = orderPtFilter === 'Semua' || (order.user?.pt || '').toLowerCase() === orderPtFilter.toLowerCase();
+      const query = orderSearch.toLowerCase().trim();
+      const matchQuery = !query ||
+        order.id.toString().includes(query) ||
+        (order.user?.nama || '').toLowerCase().includes(query) ||
+        (order.user?.no_hp || '').toLowerCase().includes(query) ||
+        (order.user?.departemen || '').toLowerCase().includes(query) ||
+        order.items.some(it => (it.product?.nama_barang || '').toLowerCase().includes(query));
+
+      return matchStatus && matchPt && matchQuery;
+    });
+  }, [orders, orderStatusFilter, orderPtFilter, orderSearch]);
+
+  const handleDeleteFilteredOrders = async () => {
+    if (filteredOrders.length === 0) {
+      toast.warning('Tidak ada transaksi pesanan yang sesuai dengan filter saat ini.');
+      return;
+    }
+
+    const totalNominal = filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+    const filterParts: string[] = [];
+    if (orderStatusFilter !== 'Semua') filterParts.push(`Status: "${orderStatusFilter}"`);
+    if (orderPtFilter !== 'Semua') filterParts.push(`PT: "${orderPtFilter}"`);
+    if (orderSearch.trim()) filterParts.push(`Pencarian: "${orderSearch.trim()}"`);
+    const filterDesc = filterParts.length > 0 ? filterParts.join(' | ') : 'Semua Pesanan';
+
+    const confirmed = await confirmModal({
+      title: 'Hapus Transaksi Sesuai Filter?',
+      message: `Apakah Anda yakin ingin menghapus ${filteredOrders.length} transaksi pesanan (${filterDesc}) dengan total nominal Rp ${totalNominal.toLocaleString('id-ID')}? Tindakan ini permanen dan akan menghapus seluruh data item terkait.`,
+      type: 'danger',
+      confirmText: `Ya, Hapus ${filteredOrders.length} Pesanan`,
+      cancelText: 'Batal'
+    });
+
+    if (!confirmed) return;
+
+    try {
+      setIsDeletingFilteredOrders(true);
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch('/api/orders/delete-by-filter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          orderIds: filteredOrders.map(o => o.id),
+          filterDescription: filterDesc
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menghapus transaksi terpilih');
+
+      toast.success(data.message || `Berhasil menghapus ${filteredOrders.length} transaksi.`);
+      await fetchOrders();
+    } catch (err: any) {
+      toast.error(err.message || 'Terjadi kesalahan saat menghapus transaksi.');
+    } finally {
+      setIsDeletingFilteredOrders(false);
+    }
+  };
+
+  const handleDeleteSingleOrder = async (orderId: number) => {
+    const confirmed = await confirmModal({
+      title: 'Hapus Transaksi Pesanan',
+      message: `Apakah Anda yakin ingin menghapus transaksi Pesanan #${orderId}? Seluruh data pesanan dan rincian item ini akan dihapus permanen.`,
+      type: 'danger',
+      confirmText: 'Ya, Hapus Pesanan',
+      cancelText: 'Batal'
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menghapus pesanan');
+
+      toast.success(data.message || `Pesanan #${orderId} berhasil dihapus.`);
+      await fetchOrders();
+    } catch (err: any) {
+      toast.error(err.message || 'Terjadi kesalahan saat menghapus pesanan.');
     }
   };
 
@@ -1664,6 +1763,18 @@ export const DashboardAdmin = () => {
                   <span>Refresh Real-time</span>
                 </button>
 
+                {filteredOrders.length > 0 && (
+                  <button
+                    onClick={handleDeleteFilteredOrders}
+                    disabled={isDeletingFilteredOrders}
+                    className="flex items-center space-x-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border border-rose-200 text-xs font-extrabold rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                    title="Hapus seluruh transaksi yang sedang ditampilkan sesuai filter aktif"
+                  >
+                    <Trash2 className={`w-3.5 h-3.5 ${isDeletingFilteredOrders ? 'animate-spin' : 'text-rose-600'}`} />
+                    <span>Hapus Sesuai Filter ({filteredOrders.length})</span>
+                  </button>
+                )}
+
                 <select
                   value={orderStatusFilter}
                   onChange={(e) => setOrderStatusFilter(e.target.value)}
@@ -1713,19 +1824,7 @@ export const DashboardAdmin = () => {
                   <p className="text-sm font-extrabold text-slate-800">Memuat Permintaan Transaksi Real-Time...</p>
                   <p className="text-xs text-slate-400 mt-1 font-medium">Menghubungkan ke Server BelanjaIn Saza PT. Siemens Indonesia</p>
                 </div>
-              ) : orders.filter(order => {
-                const matchStatus = orderStatusFilter === 'Semua' || (order.status || 'Menunggu Konfirmasi').toLowerCase() === orderStatusFilter.toLowerCase();
-                const matchPt = orderPtFilter === 'Semua' || (order.user?.pt || '').toLowerCase() === orderPtFilter.toLowerCase();
-                const query = orderSearch.toLowerCase();
-                const matchQuery = !query ||
-                  order.id.toString().includes(query) ||
-                  (order.user?.nama || '').toLowerCase().includes(query) ||
-                  (order.user?.no_hp || '').toLowerCase().includes(query) ||
-                  (order.user?.departemen || '').toLowerCase().includes(query) ||
-                  order.items.some(it => (it.product?.nama_barang || '').toLowerCase().includes(query));
-
-                return matchStatus && matchPt && matchQuery;
-              }).length === 0 ? (
+              ) : filteredOrders.length === 0 ? (
                 <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-slate-200/80 shadow-md flex flex-col items-center justify-center relative overflow-hidden">
                   {/* Background Glow */}
                   <div className="absolute top-0 right-0 w-40 h-40 bg-teal-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -1795,21 +1894,7 @@ export const DashboardAdmin = () => {
                   )}
                 </div>
               ) : (
-                orders
-                  .filter(order => {
-                    const matchStatus = orderStatusFilter === 'Semua' || (order.status || 'Menunggu Konfirmasi').toLowerCase() === orderStatusFilter.toLowerCase();
-                    const matchPt = orderPtFilter === 'Semua' || (order.user?.pt || '').toLowerCase() === orderPtFilter.toLowerCase();
-                    const query = orderSearch.toLowerCase();
-                    const matchQuery = !query ||
-                      order.id.toString().includes(query) ||
-                      (order.user?.nama || '').toLowerCase().includes(query) ||
-                      (order.user?.no_hp || '').toLowerCase().includes(query) ||
-                      (order.user?.departemen || '').toLowerCase().includes(query) ||
-                      order.items.some(it => (it.product?.nama_barang || '').toLowerCase().includes(query));
-
-                    return matchStatus && matchPt && matchQuery;
-                  })
-                  .map(order => (
+                filteredOrders.map(order => (
                     <div 
                       key={order.id} 
                       className={`bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col transition-all ${
@@ -1866,6 +1951,14 @@ export const DashboardAdmin = () => {
                           <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border whitespace-nowrap shrink-0 ${getStatusBadgeStyle(order.status)}`}>
                             {order.status || 'Menunggu Konfirmasi'}
                           </span>
+
+                          <button
+                            onClick={() => handleDeleteSingleOrder(order.id)}
+                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-200 cursor-pointer shrink-0"
+                            title={`Hapus Transaksi Pesanan #${order.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
 

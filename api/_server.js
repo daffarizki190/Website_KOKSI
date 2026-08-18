@@ -1486,6 +1486,52 @@ app.put("/api/orders/:id/reject-cancellation", requireAuth, requireAdmin, async 
     res.status(500).json({ error: error?.message || "Gagal menolak pembatalan" });
   }
 });
+app.delete("/api/orders/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const orderId = Number(req.params.id);
+    if (!orderId || isNaN(orderId)) {
+      res.status(400).json({ error: "ID pesanan tidak valid" });
+      return;
+    }
+    await ensureDatabaseSchema();
+    await withDbRetry(() => db.delete(orderItems).where(eq(orderItems.orderId, orderId)));
+    const deleted = await withDbRetry(() => db.delete(orders).where(eq(orders.id, orderId)).returning());
+    const idx = demoOrdersStore.findIndex((o) => o.id === orderId);
+    if (idx >= 0) demoOrdersStore.splice(idx, 1);
+    res.json({ message: `Pesanan #${orderId} berhasil dihapus.`, deleted: deleted[0] });
+  } catch (error) {
+    console.error("Delete order error:", error);
+    res.status(500).json({ error: error?.message || "Gagal menghapus pesanan" });
+  }
+});
+app.post("/api/orders/delete-by-filter", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { orderIds, filterDescription } = req.body;
+    if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+      res.status(400).json({ error: "Daftar ID pesanan yang akan dihapus tidak boleh kosong." });
+      return;
+    }
+    const ids = orderIds.map(Number).filter((n) => !isNaN(n) && n > 0);
+    if (ids.length === 0) {
+      res.status(400).json({ error: "Tidak ada ID pesanan yang valid untuk dihapus." });
+      return;
+    }
+    await ensureDatabaseSchema();
+    await withDbRetry(() => db.delete(orderItems).where(sql`order_id IN (${sql.raw(ids.join(","))})`));
+    const deleted = await withDbRetry(() => db.delete(orders).where(sql`id IN (${sql.raw(ids.join(","))})`).returning());
+    for (const id of ids) {
+      const idx = demoOrdersStore.findIndex((o) => o.id === id);
+      if (idx >= 0) demoOrdersStore.splice(idx, 1);
+    }
+    res.json({
+      message: `Berhasil menghapus ${deleted.length || ids.length} transaksi pesanan.`,
+      deletedCount: deleted.length || ids.length
+    });
+  } catch (error) {
+    console.error("Delete orders by filter error:", error);
+    res.status(500).json({ error: error?.message || "Gagal menghapus transaksi pesanan terpilih" });
+  }
+});
 app.post("/api/orders/verify-barcode", requireAuth, async (req, res) => {
   try {
     const { barcodeToken } = req.body;
