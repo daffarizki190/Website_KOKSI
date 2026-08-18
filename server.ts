@@ -623,6 +623,53 @@ app.put('/api/users/:id', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// Update User Role endpoint (Admin / IT ONLY)
+app.put('/api/users/:id/role', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const isAdminOrIT = req.user?.role === 'admin' || req.user?.role === 'it';
+    if (!isAdminOrIT) {
+      res.status(403).json({ error: 'Akses ditolak: Hanya Admin atau IT yang dapat mengubah role pengguna.' });
+      return;
+    }
+
+    const targetUserId = Number(req.params.id);
+    const newRole = (req.body.newRole || req.body.role || '').toString().toLowerCase().trim();
+
+    if (!['user', 'admin', 'it'].includes(newRole)) {
+      res.status(400).json({ error: 'Role tidak valid! Pilihan: user, admin, it' });
+      return;
+    }
+
+    await ensureDatabaseSchema();
+
+    const updatedUsers = await db.update(users)
+      .set({ role: newRole })
+      .where(eq(users.id, targetUserId))
+      .returning();
+
+    if (updatedUsers.length === 0) {
+      res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+      return;
+    }
+
+    const u = updatedUsers[0];
+    res.json({
+      message: `Role pengguna "${u.nama}" berhasil diubah menjadi "${newRole.toUpperCase()}".`,
+      user: {
+        id: u.id,
+        nama: u.nama,
+        pt: u.pt,
+        departemen: u.departemen,
+        no_hp: u.no_hp,
+        role: u.role
+      }
+    });
+  } catch (error: any) {
+    console.error('Update user role error:', error);
+    res.status(500).json({ error: error?.message || 'Gagal mengubah role pengguna' });
+  }
+});
+
 // Delete user account endpoint with mandatory reason (Admin / IT ONLY)
 app.delete('/api/users/:id', requireAuth, async (req: AuthRequest, res) => {
   try {

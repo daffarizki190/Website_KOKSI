@@ -150,6 +150,19 @@ export const DashboardAdmin = () => {
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [deleteUserError, setDeleteUserError] = useState('');
 
+  // Edit User Profile Modal State
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editUserNama, setEditUserNama] = useState('');
+  const [editUserPt, setEditUserPt] = useState('PT. Siemens Indonesia');
+  const [editUserDepartemen, setEditUserDepartemen] = useState('');
+  const [editUserNoHp, setEditUserNoHp] = useState('');
+  const [editUserRole, setEditUserRole] = useState('user');
+  const [editUserPassword, setEditUserPassword] = useState('');
+  const [editUserError, setEditUserError] = useState('');
+  const [editUserSuccess, setEditUserSuccess] = useState('');
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [updatingRoleId, setUpdatingRoleId] = useState<number | null>(null);
+
   // Cancellation Action Modal State
   const [cancellationConfirmModal, setCancellationConfirmModal] = useState<{
     orderId: number;
@@ -241,75 +254,6 @@ export const DashboardAdmin = () => {
       setEditError(err.message || 'Koneksi gagal saat memperbarui profil');
     } finally {
       setIsSavingProfile(false);
-    }
-  };
-
-  // Edit Any User Profile State
-  const [editingUser, setEditingUser] = useState<any>(null);
-  const [editUserNama, setEditUserNama] = useState('');
-  const [editUserPt, setEditUserPt] = useState('');
-  const [editUserDepartemen, setEditUserDepartemen] = useState('');
-  const [editUserNoHp, setEditUserNoHp] = useState('');
-  const [editUserRole, setEditUserRole] = useState('user');
-  const [editUserPassword, setEditUserPassword] = useState('');
-  const [editUserError, setEditUserError] = useState('');
-  const [editUserSuccess, setEditUserSuccess] = useState('');
-  const [isSavingUser, setIsSavingUser] = useState(false);
-
-  const openEditUserModal = (targetUser: any) => {
-    setEditingUser(targetUser);
-    setEditUserNama(targetUser.nama || '');
-    setEditUserPt(targetUser.pt || 'PT. Siemens Indonesia');
-    setEditUserDepartemen(targetUser.departemen || '');
-    setEditUserNoHp(targetUser.no_hp || '');
-    setEditUserRole(targetUser.role || 'user');
-    setEditUserPassword('');
-    setEditUserError('');
-    setEditUserSuccess('');
-  };
-
-  const handleSaveUserProfile = async () => {
-    if (!editingUser) return;
-    if (!editUserNama.trim() || !editUserPt.trim() || !editUserDepartemen.trim() || !editUserNoHp.trim()) {
-      setEditUserError('Nama, PT, Departemen, dan No HP wajib diisi!');
-      return;
-    }
-
-    setIsSavingUser(true);
-    setEditUserError('');
-    setEditUserSuccess('');
-
-    try {
-      const res = await fetch(`/api/users/${editingUser.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token || localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          nama: editUserNama.trim(),
-          pt: editUserPt.trim(),
-          departemen: editUserDepartemen.trim(),
-          no_hp: editUserNoHp.trim(),
-          role: editUserRole,
-          newPassword: editUserPassword.trim() || undefined
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setEditUserSuccess(`Profil ${editUserNama} berhasil diperbarui!`);
-        fetchUsers();
-        setTimeout(() => {
-          setEditingUser(null);
-        }, 1000);
-      } else {
-        setEditUserError(data.error || 'Gagal memperbarui profil pengguna');
-      }
-    } catch (err: any) {
-      setEditUserError(err.message || 'Terjadi kesalahan jaringan');
-    } finally {
-      setIsSavingUser(false);
     }
   };
 
@@ -864,8 +808,102 @@ export const DashboardAdmin = () => {
     }
   };
 
-  const openDeleteUserModal = (u: { id: number, nama: string, pt: string, no_hp: string }) => {
-    setDeleteTargetUser(u);
+  const openEditUserModal = (u: any) => {
+    setEditingUser(u);
+    setEditUserNama(u.nama || '');
+    setEditUserPt(u.pt || 'PT. Siemens Indonesia');
+    setEditUserDepartemen(u.departemen || '');
+    setEditUserNoHp(u.no_hp || '');
+    setEditUserRole(u.role || 'user');
+    setEditUserPassword('');
+    setEditUserError('');
+    setEditUserSuccess('');
+  };
+
+  const handleSaveUserProfile = async () => {
+    if (!editingUser) return;
+    if (!editUserNama.trim() || !editUserPt.trim() || !editUserDepartemen.trim() || !editUserNoHp.trim()) {
+      setEditUserError('Nama, PT, Departemen, dan No HP wajib diisi!');
+      return;
+    }
+
+    setIsSavingUser(true);
+    setEditUserError('');
+    setEditUserSuccess('');
+
+    try {
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch(`/api/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          nama: editUserNama.trim(),
+          pt: editUserPt.trim(),
+          departemen: editUserDepartemen.trim(),
+          no_hp: editUserNoHp.trim(),
+          role: editUserRole,
+          newPassword: editUserPassword.trim() || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setEditUserSuccess(`Profil "${editUserNama}" berhasil diperbarui!`);
+        toast.success(`Profil "${editUserNama}" berhasil diperbarui!`);
+        if (user && user.id === editingUser.id) {
+          const updatedUser = { ...user, ...data.user };
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+        }
+        fetchUsers();
+        setTimeout(() => {
+          setEditingUser(null);
+        }, 800);
+      } else {
+        setEditUserError(data.error || 'Gagal memperbarui profil pengguna');
+      }
+    } catch (err: any) {
+      setEditUserError(err.message || 'Terjadi kesalahan jaringan');
+    } finally {
+      setIsSavingUser(false);
+    }
+  };
+
+  const handleRoleChange = async (userId: number, newRole: string) => {
+    setUpdatingRoleId(userId);
+    try {
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch(`/api/users/${userId}/role`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ newRole })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal mengubah role pengguna');
+
+      toast.success(data.message || `Role pengguna berhasil diubah ke "${newRole.toUpperCase()}".`);
+      
+      // If Admin changed their own role, update local user object
+      if (user && user.id === userId) {
+        const updatedUser = { ...user, role: newRole };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+      }
+
+      fetchUsers();
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal memperbarui role');
+    } finally {
+      setUpdatingRoleId(null);
+    }
+  };
+
+  const openDeleteUserModal = (user: { id: number, nama: string, pt: string, no_hp: string }) => {
+    setDeleteTargetUser(user);
     setDeleteReasonInput('');
     setDeleteUserError('');
   };
@@ -2422,15 +2460,36 @@ export const DashboardAdmin = () => {
                           <p className="text-xs text-slate-500">{u.departemen}</p>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${
-                            u.role === 'admin' 
-                              ? 'bg-amber-100 text-amber-900 border-amber-200' 
-                              : u.role === 'it' 
-                              ? 'bg-purple-100 text-purple-900 border-purple-200 font-black' 
-                              : 'bg-slate-100 text-slate-700 border-slate-200'
-                          }`}>
-                            {u.role}
-                          </span>
+                          <div className="flex flex-col gap-1.5">
+                            <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-lg border inline-block w-fit ${
+                              u.role === 'admin' 
+                                ? 'bg-amber-100 text-amber-900 border-amber-200 font-black' 
+                                : u.role === 'it' 
+                                ? 'bg-purple-100 text-purple-900 border-purple-200 font-black' 
+                                : 'bg-slate-100 text-slate-700 border-slate-200'
+                            }`}>
+                              {u.role || 'user'}
+                            </span>
+
+                            <div className="flex items-center gap-1">
+                              {(['user', 'admin', 'it'] as const).map((r) => (
+                                <button
+                                  key={r}
+                                  type="button"
+                                  disabled={updatingRoleId === u.id || (u.role || 'user') === r}
+                                  onClick={() => handleRoleChange(u.id, r)}
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase transition-all border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                                    (u.role || 'user') === r
+                                      ? 'bg-slate-900 text-white border-slate-800 shadow-xs'
+                                      : 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200'
+                                  }`}
+                                  title={`Ubah role ke ${r.toUpperCase()}`}
+                                >
+                                  {updatingRoleId === u.id ? '...' : r}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-center">
                           <div className="flex items-center justify-center gap-2 flex-wrap">
@@ -3859,6 +3918,144 @@ export const DashboardAdmin = () => {
               >
                 <Save className="w-4 h-4" />
                 <span>{isSavingProfile ? 'Menyimpan...' : 'Simpan Profil'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* EDIT USER PROFILE MODAL (ADMIN) */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-150">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-50 border border-teal-100 text-teal-700 flex items-center justify-center font-bold">
+                  <UserIcon className="w-5 h-5 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Edit Profil Pengguna</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Perbarui profil dan akses role akun karyawan</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingUser(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Nama Lengkap <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editUserNama}
+                  onChange={(e) => setEditUserNama(e.target.value)}
+                  placeholder="Masukkan Nama Lengkap"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Perusahaan (PT) <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={editUserPt}
+                    onChange={(e) => setEditUserPt(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white cursor-pointer"
+                  >
+                    <option value="PT. Siemens Indonesia">PT. Siemens Indonesia</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Departemen <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editUserDepartemen}
+                    onChange={(e) => setEditUserDepartemen(e.target.value)}
+                    placeholder="Contoh: Digital Industries"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  No. HP (WhatsApp) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editUserNoHp}
+                  onChange={(e) => setEditUserNoHp(e.target.value)}
+                  placeholder="Contoh: 081234567890"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Peran / Akses Role <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={editUserRole}
+                  onChange={(e) => setEditUserRole(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white cursor-pointer"
+                >
+                  <option value="user">USER (Karyawan / Anggota)</option>
+                  <option value="admin">ADMIN (Pengelola Koperasi)</option>
+                  <option value="it">IT (Administrator Sistem / Developer)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Password Baru <span className="text-slate-400 font-normal">(Kosongkan jika tidak diubah)</span>
+                </label>
+                <input
+                  type="password"
+                  value={editUserPassword}
+                  onChange={(e) => setEditUserPassword(e.target.value)}
+                  placeholder="Minimal 6 karakter"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                />
+              </div>
+
+              {editUserError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-1.5">
+                  <X className="w-4 h-4 shrink-0" />
+                  <span>{editUserError}</span>
+                </div>
+              )}
+
+              {editUserSuccess && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{editUserSuccess}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex gap-2">
+              <button
+                onClick={() => setEditingUser(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleSaveUserProfile}
+                disabled={isSavingUser}
+                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-teal-600/30 flex items-center justify-center gap-1.5"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSavingUser ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
               </button>
             </div>
           </div>
