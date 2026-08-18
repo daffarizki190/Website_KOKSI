@@ -62,7 +62,8 @@ var orders = pgTable("orders", {
 var orderItems = pgTable("order_items", {
   id: serial("id").primaryKey(),
   orderId: integer("order_id").references(() => orders.id).notNull(),
-  productId: integer("product_id").references(() => products.id).notNull(),
+  productId: integer("product_id").references(() => products.id),
+  // nullable: product may be deleted but order must survive
   quantity: integer("quantity").notNull(),
   price: integer("price").notNull()
 });
@@ -822,7 +823,7 @@ async function ensureDatabaseSchema() {
       CREATE TABLE IF NOT EXISTS order_items (
         id SERIAL PRIMARY KEY,
         order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-        product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
         quantity INTEGER NOT NULL,
         price INTEGER NOT NULL
       );
@@ -835,6 +836,18 @@ async function ensureDatabaseSchema() {
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
+    try {
+      await db.execute(sql`
+        ALTER TABLE order_items ALTER COLUMN product_id DROP NOT NULL;
+      `);
+    } catch (e) {
+    }
+    try {
+      await db.execute(sql`
+        ALTER TABLE order_items ADD COLUMN IF NOT EXISTS price INTEGER NOT NULL DEFAULT 0;
+      `);
+    } catch (e) {
+    }
     try {
       const existingProds = await db.select().from(products);
       if (existingProds.length === 0) {
@@ -1047,156 +1060,19 @@ app.post("/api/orders", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Item pesanan tidak boleh kosong" });
     return;
   }
-  await ensureDatabaseSchema();
-  try {
-    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
-    if (!isDbConfigured) {
-      const orderId = 1e3 + demoOrdersStore.length + 1;
-      const orderItemsList2 = items.map((item, idx) => {
-        const prod = DEFAULT_CATALOG_PRODUCTS.find((p) => p.id === item.productId) || {
-          nama_barang: `Barang #${item.productId}`
-        };
-        return {
-          id: idx + 1,
-          orderId,
-          productId: item.productId,
-          quantity: item.quantity,
-          price: item.price,
-          product: { id: item.productId, nama_barang: prod.nama_barang }
-        };
-      });
-      const newOrderObj = {
-        id: orderId,
-        userId,
-        total_amount,
-        status: "Proses",
-        keterangan: "Pesanan telah dibuat dan sedang dalam proses",
-        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-        items: orderItemsList2,
-        user: {
-          id: userId,
-          nama: req.user?.nama || "Karyawan",
-          pt: req.user?.pt || "PT. Siemens Indonesia",
-          departemen: req.user?.departemen || "General",
-          no_hp: req.user?.no_hp || ""
-        }
-      };
-      demoOrdersStore.unshift(newOrderObj);
-      memoryCartStore.delete(userId);
-      res.status(201).json({ message: "Order created successfully", orderId, order: newOrderObj });
+  for (const item of items) {
+    if (!item.productId || !item.quantity || item.quantity <= 0) {
+      res.status(400).json({ error: `Item pesanan tidak valid: productId=${item.productId}, qty=${item.quantity}` });
       return;
     }
-    let createdOrderId = 0;
-    try {
-      createdOrderId = await db.transaction(async (tx) => {
-        for (const item of items) {
-          const prodList = await tx.select().from(products).where(eq(products.id, item.productId));
-          if (prodList.length > 0 && prodList[0].stok < item.quantity) {
-            throw new Error(`Stok untuk "${prodList[0].nama_barang}" tidak mencukupi (sisa: ${prodList[0].stok}, diminta: ${item.quantity}).`);
-          }
-        }
-        const newOrder = await tx.insert(orders).values({
-          userId,
-          total_amount,
-          status: "Proses",
-          keterangan: "Pesanan telah dibuat dan sedang dalam proses"
-        }).returning();
-        const oId = newOrder[0].id;
-        const itemsToInsert = items.map((item) => ({
-          orderId: oId,
-          productId: item.productId,
-          quantity: item.quantity,
-          price: item.price
-        }));
-        await tx.insert(orderItems).values(itemsToInsert);
-        for (const item of items) {
-          await tx.update(products).set({ stok: sql`GREATEST(0, ${products.stok} - ${item.quantity})` }).where(and(eq(products.id, item.productId), sql`${products.stok} >= ${item.quantity}`));
-        }
-        await tx.delete(cartItems).where(eq(cartItems.userId, userId));
-        memoryCartStore.delete(userId);
-        return oId;
-      });
-    } catch (txErr) {
-      console.warn("DB transaction note, inserting order directly:", txErr?.message || txErr);
-      const newOrder = await db.insert(orders).values({
-        userId,
-        total_amount,
-        status: "Proses",
-        keterangan: "Pesanan telah dibuat dan sedang dalam proses"
-      }).returning();
-      createdOrderId = newOrder[0].id;
-      const itemsToInsert = items.map((item) => ({
-        orderId: createdOrderId,
-        productId: item.productId,
-        quantity: item.quantity,
-        price: item.price
-      }));
-      await db.insert(orderItems).values(itemsToInsert);
-      for (const item of items) {
-        try {
-          await db.update(products).set({ stok: sql`GREATEST(0, ${products.stok} - ${item.quantity})` }).where(eq(products.id, item.productId));
-        } catch (e) {
-        }
-      }
-    }
-    for (const item of items) {
-      const memProd = DEFAULT_CATALOG_PRODUCTS.find((p) => p.id === item.productId);
-      if (memProd) {
-        memProd.stok = Math.max(0, memProd.stok - item.quantity);
-      }
-    }
-    const orderItemsList = items.map((item, idx) => {
-      const prod = DEFAULT_CATALOG_PRODUCTS.find((p) => p.id === item.productId) || {
-        nama_barang: `Barang #${item.productId}`
-      };
-      return {
-        id: idx + 1,
-        orderId: createdOrderId,
-        productId: item.productId,
-        quantity: item.quantity,
-        price: item.price,
-        product: { id: item.productId, nama_barang: prod.nama_barang }
-      };
-    });
-    const fullCreatedOrder = {
-      id: createdOrderId,
-      userId,
-      total_amount,
-      status: "Proses",
-      keterangan: "Pesanan telah dibuat dan sedang dalam proses",
-      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-      items: orderItemsList,
-      user: {
-        id: userId,
-        nama: req.user?.nama || "Karyawan",
-        pt: req.user?.pt || "PT. Siemens Indonesia",
-        departemen: req.user?.departemen || "General",
-        no_hp: req.user?.no_hp || ""
-      }
-    };
-    demoOrdersStore.unshift(fullCreatedOrder);
-    res.status(201).json({ message: "Order created successfully", orderId: createdOrderId, order: fullCreatedOrder });
-  } catch (error) {
-    console.warn("DB order creation fallback to memory:", error?.message || error);
+  }
+  await ensureDatabaseSchema();
+  const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+  if (!isDbConfigured) {
     const orderId = 1e3 + demoOrdersStore.length + 1;
-    for (const item of items) {
-      const memProd = DEFAULT_CATALOG_PRODUCTS.find((p) => p.id === item.productId);
-      if (memProd) {
-        memProd.stok = Math.max(0, memProd.stok - item.quantity);
-      }
-    }
     const orderItemsList = items.map((item, idx) => {
-      const prod = DEFAULT_CATALOG_PRODUCTS.find((p) => p.id === item.productId) || {
-        nama_barang: `Barang #${item.productId}`
-      };
-      return {
-        id: idx + 1,
-        orderId,
-        productId: item.productId,
-        quantity: item.quantity,
-        price: item.price,
-        product: { id: item.productId, nama_barang: prod.nama_barang }
-      };
+      const prod = DEFAULT_CATALOG_PRODUCTS.find((p) => p.id === item.productId) || { nama_barang: `Barang #${item.productId}` };
+      return { id: idx + 1, orderId, productId: item.productId, quantity: item.quantity, price: item.price, product: { id: item.productId, nama_barang: prod.nama_barang } };
     });
     const newOrderObj = {
       id: orderId,
@@ -1206,6 +1082,70 @@ app.post("/api/orders", requireAuth, async (req, res) => {
       keterangan: "Pesanan telah dibuat dan sedang dalam proses",
       createdAt: (/* @__PURE__ */ new Date()).toISOString(),
       items: orderItemsList,
+      user: { id: userId, nama: req.user?.nama || "Karyawan", pt: req.user?.pt || "PT. Siemens Indonesia", departemen: req.user?.departemen || "General", no_hp: req.user?.no_hp || "" }
+    };
+    demoOrdersStore.unshift(newOrderObj);
+    memoryCartStore.delete(userId);
+    res.status(201).json({ message: "Order created successfully", orderId, order: newOrderObj });
+    return;
+  }
+  try {
+    const createdOrderId = await withDbRetry(() => db.transaction(async (tx) => {
+      for (const item of items) {
+        const prodList = await tx.select().from(products).where(eq(products.id, item.productId));
+        if (prodList.length === 0) {
+          throw new Error(`Produk dengan ID ${item.productId} tidak ditemukan di database.`);
+        }
+        if (prodList[0].stok < item.quantity) {
+          throw new Error(`Stok "${prodList[0].nama_barang}" tidak mencukupi (tersisa: ${prodList[0].stok}, diminta: ${item.quantity}).`);
+        }
+      }
+      const [newOrder] = await tx.insert(orders).values({
+        userId,
+        total_amount,
+        status: "Proses",
+        keterangan: "Pesanan telah dibuat dan sedang dalam proses"
+      }).returning();
+      const oId = newOrder.id;
+      for (const item of items) {
+        await tx.insert(orderItems).values({
+          orderId: oId,
+          productId: item.productId,
+          quantity: item.quantity,
+          price: item.price
+        });
+      }
+      for (const item of items) {
+        await tx.execute(
+          sql`UPDATE products SET stok = GREATEST(0, stok - ${item.quantity}) WHERE id = ${item.productId}`
+        );
+      }
+      await tx.delete(cartItems).where(eq(cartItems.userId, userId));
+      return oId;
+    }));
+    memoryCartStore.delete(userId);
+    for (const item of items) {
+      const memProd = DEFAULT_CATALOG_PRODUCTS.find((p) => p.id === item.productId);
+      if (memProd) memProd.stok = Math.max(0, memProd.stok - item.quantity);
+    }
+    const orderItemsResult = await withDbRetry(
+      () => db.select({ id: orderItems.id, orderId: orderItems.orderId, productId: orderItems.productId, quantity: orderItems.quantity, price: orderItems.price, productNama: products.nama_barang }).from(orderItems).leftJoin(products, eq(orderItems.productId, products.id)).where(eq(orderItems.orderId, createdOrderId))
+    );
+    const fullCreatedOrder = {
+      id: createdOrderId,
+      userId,
+      total_amount,
+      status: "Proses",
+      keterangan: "Pesanan telah dibuat dan sedang dalam proses",
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      items: orderItemsResult.map((it) => ({
+        id: it.id,
+        orderId: it.orderId,
+        productId: it.productId,
+        quantity: it.quantity,
+        price: it.price,
+        product: { id: it.productId, nama_barang: it.productNama || `Produk #${it.productId}` }
+      })),
       user: {
         id: userId,
         nama: req.user?.nama || "Karyawan",
@@ -1214,9 +1154,16 @@ app.post("/api/orders", requireAuth, async (req, res) => {
         no_hp: req.user?.no_hp || ""
       }
     };
-    demoOrdersStore.unshift(newOrderObj);
-    memoryCartStore.delete(userId);
-    res.status(201).json({ message: "Order created successfully", orderId, order: newOrderObj });
+    console.log(`[ORDER] Created order #${createdOrderId} for user ${userId}, total: ${total_amount}`);
+    res.status(201).json({ message: "Order created successfully", orderId: createdOrderId, order: fullCreatedOrder });
+  } catch (error) {
+    const errMsg = error?.message || String(error);
+    console.error("[ORDER] Creation failed:", errMsg);
+    if (errMsg.includes("Stok") || errMsg.includes("tidak mencukupi") || errMsg.includes("tidak ditemukan")) {
+      res.status(400).json({ error: errMsg });
+    } else {
+      res.status(500).json({ error: "Gagal membuat pesanan. Silakan coba beberapa saat lagi." });
+    }
   }
 });
 app.get("/api/orders/history", requireAuth, async (req, res) => {
@@ -1268,27 +1215,22 @@ app.get("/api/orders/history", requireAuth, async (req, res) => {
           }))
         });
       }
-      if (result.length > 0) {
-        res.json(result);
-        return;
-      }
-      const userDemoOrders = demoOrdersStore.filter((o) => o.userId === userId);
-      res.json(userDemoOrders);
+      res.json(result);
     } catch (dbErr) {
-      console.warn("DB history query error, fallback to memory:", dbErr);
-      const userDemoOrders = demoOrdersStore.filter((o) => o.userId === userId);
-      res.json(userDemoOrders);
+      console.warn("DB history query error:", dbErr);
+      res.json([]);
     }
   } catch (error) {
     console.error("Fetch order history error:", error);
-    const userDemoOrders = demoOrdersStore.filter((o) => o.userId === req.user?.id);
-    res.json(userDemoOrders);
+    res.json([]);
   }
 });
 app.get("/api/orders/all", requireAuth, requireAdmin, async (req, res) => {
   try {
     await ensureDatabaseSchema();
-    const allOrdersList = await db.select().from(orders).orderBy(asc(orders.createdAt));
+    const allOrdersList = await withDbRetry(
+      () => db.select().from(orders).orderBy(asc(orders.createdAt))
+    );
     const result = [];
     for (const ord of allOrdersList) {
       const userList = await db.select().from(users).where(eq(users.id, ord.userId));
@@ -1323,14 +1265,10 @@ app.get("/api/orders/all", requireAuth, requireAdmin, async (req, res) => {
         }))
       });
     }
-    if (result.length > 0) {
-      res.json(result);
-      return;
-    }
-    res.json(demoOrdersStore);
+    res.json(result);
   } catch (error) {
     console.error("Fetch all orders error:", error);
-    res.json(demoOrdersStore);
+    res.status(500).json({ error: "Gagal mengambil data pesanan dari database. Silakan refresh." });
   }
 });
 app.put("/api/orders/:id/status", requireAuth, requireAdmin, async (req, res) => {
