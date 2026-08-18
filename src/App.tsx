@@ -5,6 +5,7 @@
 
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { DashboardUser } from './pages/DashboardUser';
@@ -85,7 +86,9 @@ const AppContent = () => {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <NotificationProvider>
+        <AppContent />
+      </NotificationProvider>
     </AuthProvider>
   );
 }

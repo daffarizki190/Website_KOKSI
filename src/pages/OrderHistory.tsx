@@ -4,6 +4,7 @@ import { ShoppingBag, ArrowLeft, Loader2, Package, Search, QrCode, X, CheckCircl
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import QRCode from 'qrcode';
 
 interface OrderItem {
@@ -32,6 +33,7 @@ interface Order {
 
 export default function OrderHistory() {
   const { token, user } = useAuth();
+  const { toast } = useNotification();
   const storageKey = `saza_user_orders_${user?.id || 'guest'}`;
 
   // Initialize from localStorage so orders are immediately visible
@@ -210,9 +212,10 @@ export default function OrderHistory() {
       await fetchOrders();
       setCancelModalOrder(null);
       setCancelReason('');
-      alert(data.message || 'Pengajuan pembatalan pesanan berhasil dikirim. Menunggu konfirmasi Admin.');
+      toast.success(data.message || 'Pengajuan pembatalan pesanan berhasil dikirim. Menunggu konfirmasi Admin.');
     } catch (err: any) {
       setCancelError(err.message || 'Terjadi kesalahan saat mengajukan pembatalan pesanan.');
+      toast.error(err.message || 'Terjadi kesalahan saat mengajukan pembatalan pesanan.');
     } finally {
       setCancelling(false);
     }

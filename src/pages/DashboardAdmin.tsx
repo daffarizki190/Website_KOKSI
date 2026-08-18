@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import { 
   Plus, Edit2, Trash2, LogOut, Upload, Download, FileText, 
@@ -58,6 +59,7 @@ interface Order {
 
 export const DashboardAdmin = () => {
   const { user, token, logout } = useAuth();
+  const { toast, confirm: confirmModal } = useNotification();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -515,13 +517,14 @@ export const DashboardAdmin = () => {
       if (res.ok) {
         fetchOrders(true);
         setSelectedOrderForStatus(null);
+        toast.success(`Status pesanan #${orderId} berhasil diubah ke "${status}"!`);
       } else {
         const data = await res.json().catch(() => ({}));
-        alert(`Gagal memperbarui status: ${data.error || 'Terjadi kesalahan'}`);
+        toast.error(`Gagal memperbarui status: ${data.error || 'Terjadi kesalahan'}`);
       }
     } catch (err) {
       console.error(err);
-      alert('Terjadi kesalahan jaringan saat update status pesanan.');
+      toast.error('Terjadi kesalahan jaringan saat update status pesanan.');
     } finally {
       setUpdatingStatus(false);
     }
@@ -605,11 +608,13 @@ export const DashboardAdmin = () => {
       if (res.ok) {
         fetchProducts();
         setDeleteProductConfirmModal(null);
+        toast.success('Produk berhasil dihapus!');
       } else {
-        alert('Gagal menghapus produk');
+        toast.error('Gagal menghapus produk');
       }
     } catch (err) {
       console.error(err);
+      toast.error('Terjadi kesalahan koneksi server');
     }
   };
 
@@ -654,7 +659,15 @@ export const DashboardAdmin = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Apakah anda yakin ingin menghapus produk ini?')) return;
+    const isConfirmed = await confirmModal({
+      title: 'Hapus Produk',
+      message: 'Apakah Anda yakin ingin menghapus produk ini? Tindakan ini tidak dapat dibatalkan.',
+      type: 'danger',
+      confirmText: 'Hapus Produk',
+      cancelText: 'Batal'
+    });
+    if (!isConfirmed) return;
+
     try {
       const res = await fetch(`/api/products/${id}`, {
         method: 'DELETE',
@@ -662,11 +675,13 @@ export const DashboardAdmin = () => {
       });
       if (res.ok) {
         fetchProducts();
+        toast.success('Produk berhasil dihapus!');
       } else {
-        alert('Gagal menghapus produk');
+        toast.error('Gagal menghapus produk');
       }
     } catch (err) {
       console.error(err);
+      toast.error('Terjadi kesalahan koneksi server');
     }
   };
 
@@ -688,11 +703,13 @@ export const DashboardAdmin = () => {
       if (res.ok) {
         setIsModalOpen(false);
         fetchProducts();
+        toast.success(editingProduct ? 'Produk berhasil diperbarui!' : 'Produk baru berhasil ditambahkan!');
       } else {
-        alert('Gagal menyimpan produk');
+        toast.error('Gagal menyimpan produk');
       }
     } catch (err) {
       console.error(err);
+      toast.error('Terjadi kesalahan saat menyimpan produk');
     }
   };
 
@@ -724,7 +741,7 @@ export const DashboardAdmin = () => {
       });
 
       if (res.ok) {
-        alert(`Password pengguna "${resetPasswordUser.nama}" berhasil direset!`);
+        toast.success(`Password pengguna "${resetPasswordUser.nama}" berhasil direset!`);
         setResetPasswordUser(null);
         setNewPasswordInput('');
       } else {
@@ -768,7 +785,7 @@ export const DashboardAdmin = () => {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
-        alert(data.message || `Akun "${deleteTargetUser.nama}" berhasil dihapus.`);
+        toast.success(data.message || `Akun "${deleteTargetUser.nama}" berhasil dihapus.`);
         setDeleteTargetUser(null);
         setDeleteReasonInput('');
         fetchUsers();
@@ -968,7 +985,7 @@ export const DashboardAdmin = () => {
         }
 
         if (formattedProducts.length === 0) {
-          alert('Tidak ditemukan data produk yang valid di Excel.');
+          toast.warning('Tidak ditemukan data produk yang valid di Excel.');
           return;
         }
 
@@ -984,13 +1001,13 @@ export const DashboardAdmin = () => {
         const resData = await res.json().catch(() => ({}));
         if (res.ok) {
           fetchProducts();
-          alert(resData.message || `Berhasil memproses ${formattedProducts.length} produk!`);
+          toast.success(resData.message || `Berhasil memproses ${formattedProducts.length} produk!`);
         } else {
-          alert(`Gagal import produk: ${resData.error || 'Terjadi kesalahan pada server'}`);
+          toast.error(`Gagal import produk: ${resData.error || 'Terjadi kesalahan pada server'}`);
         }
       } catch (err: any) {
         console.error(err);
-        alert('Terjadi kesalahan saat membaca file Excel.');
+        toast.error('Terjadi kesalahan saat membaca file Excel.');
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
@@ -1014,7 +1031,7 @@ export const DashboardAdmin = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) {
-        alert('Gagal mengambil data penjualan untuk diexport');
+        toast.error('Gagal mengambil data penjualan untuk diexport');
         return;
       }
       const allOrders: Order[] = await res.json();
@@ -1038,7 +1055,7 @@ export const DashboardAdmin = () => {
       });
 
       if (filteredOrders.length === 0) {
-        alert('Tidak ditemukan transaksi penjualan yang cocok dengan kriteria filter tarikan bulanan.');
+        toast.warning('Tidak ditemukan transaksi penjualan yang cocok dengan kriteria filter tarikan bulanan.');
         return;
       }
 
@@ -1091,7 +1108,7 @@ export const DashboardAdmin = () => {
         'NAMA KARYAWAN',
         'DEPARTEMEN',
         'NO HP / KONTAK',
-        'TANGGAL & WAKTU PEMESANAN',
+        'Tanggal pesanan',
         'NAMA BARANG / PRODUK',
         'QTY',
         'HARGA SATUAN (RP)',
@@ -1106,6 +1123,37 @@ export const DashboardAdmin = () => {
       let grandTotalSubtotal = 0;
 
       const orderMerges: { s: { r: number, c: number }, e: { r: number, c: number } }[] = [];
+      const userGroupRanges: { start: number; end: number; groupIdx: number; statusText: string }[] = [];
+
+      // Helper for status badge color in Excel
+      const getExcelStatusStyle = (statusText: string) => {
+        const s = (statusText || '').toLowerCase();
+        if (s.includes('selesai') || s.includes('completed')) {
+          return { fgColor: 'D1FAE5', fontColor: '065F46' }; // Emerald Green
+        }
+        if (s.includes('siap')) {
+          return { fgColor: 'E0E7FF', fontColor: '3730A3' }; // Indigo
+        }
+        if (s.includes('pengiriman')) {
+          return { fgColor: 'E0F2FE', fontColor: '0369A1' }; // Sky Blue
+        }
+        if (s.includes('menyiapkan')) {
+          return { fgColor: 'FEF3C7', fontColor: '92400E' }; // Amber
+        }
+        if (s.includes('proses')) {
+          return { fgColor: 'DBEAFE', fontColor: '1E40AF' }; // Royal Blue
+        }
+        if (s.includes('pengajuan')) {
+          return { fgColor: 'FFEDD5', fontColor: '9A3412' }; // Orange
+        }
+        if (s.includes('batal') || s.includes('cancelled')) {
+          return { fgColor: 'FEE2E2', fontColor: '991B1B' }; // Rose Red
+        }
+        if (s.includes('menunggu')) {
+          return { fgColor: 'FEF9C3', fontColor: '854D0E' }; // Yellow
+        }
+        return { fgColor: 'F1F5F9', fontColor: '334155' }; // Slate
+      };
 
       // Grouping logic
       const userOrdersMap = new Map<string, {
@@ -1161,7 +1209,7 @@ export const DashboardAdmin = () => {
         });
       });
 
-      Array.from(userOrdersMap.values()).forEach(group => {
+      Array.from(userOrdersMap.values()).forEach((group, groupIdx) => {
         const items = Array.from(group.itemsMap.values());
         if (items.length === 0) {
           items.push({ productNama: 'Tidak ada barang', quantity: 0, price: 0, subtotal: 0 });
@@ -1209,9 +1257,10 @@ export const DashboardAdmin = () => {
         });
 
         const orderEndRow = aoa.length - 1;
+        userGroupRanges.push({ start: orderStartRow, end: orderEndRow, groupIdx, statusText: statusAgg });
 
         if (orderEndRow > orderStartRow) {
-          // Merge user-level columns (NO, NAMA, DEPT, NO HP, TANGGAL & WAKTU PEMESANAN)
+          // Merge user-level columns (NO, NAMA, DEPT, NO HP, Tanggal pesanan)
           for (let c = 0; c <= 4; c++) {
             orderMerges.push({ s: { r: orderStartRow, c }, e: { r: orderEndRow, c } });
           }
@@ -1256,12 +1305,12 @@ export const DashboardAdmin = () => {
         { wch: 26 },  // NAMA KARYAWAN
         { wch: 20 },  // DEPARTEMEN
         { wch: 18 },  // NO HP
-        { wch: 26 },  // TANGGAL & WAKTU PEMESANAN
+        { wch: 22 },  // Tanggal pesanan
         { wch: 36 },  // NAMA BARANG
         { wch: 10 },  // QTY
         { wch: 22 },  // HARGA SATUAN
         { wch: 22 },  // TOTAL HARGA
-        { wch: 25 }   // STATUS PESANAN
+        { wch: 26 }   // STATUS PESANAN
       ];
 
       // Row heights
@@ -1276,10 +1325,10 @@ export const DashboardAdmin = () => {
       ws['!rows'][9] = { hpt: 28 };
 
       const borderThin = {
-        top: { style: 'thin', color: { rgb: 'D1D5DB' } },
-        bottom: { style: 'thin', color: { rgb: 'D1D5DB' } },
-        left: { style: 'thin', color: { rgb: 'D1D5DB' } },
-        right: { style: 'thin', color: { rgb: 'D1D5DB' } }
+        top: { style: 'thin', color: { rgb: '94A3B8' } },
+        bottom: { style: 'thin', color: { rgb: '94A3B8' } },
+        left: { style: 'thin', color: { rgb: '94A3B8' } },
+        right: { style: 'thin', color: { rgb: '94A3B8' } }
       };
 
       // Styling Cells
@@ -1384,10 +1433,16 @@ export const DashboardAdmin = () => {
         }
       }
 
+      // Distinct visible borders
+      const borderCellColor = '94A3B8';       // Slate-400 for standard inner borders (clear & crisp)
+      const borderUserDividerColor = '334155'; // Slate-700 for distinct separator between user orders
+
       // Data Rows (10 to footerRowIdx - 1)
       for (let r = 10; r < footerRowIdx; r++) {
-        const isEven = r % 2 === 0;
-        const rowBg = isEven ? 'FFFFFF' : 'F8FAFC';
+        const userGroup = userGroupRanges.find(ug => r >= ug.start && r <= ug.end);
+        const isEvenUser = (userGroup ? userGroup.groupIdx : r) % 2 === 0;
+        const rowBg = isEvenUser ? 'FFFFFF' : 'F8FAFC';
+        const isUserLastRow = userGroup ? r === userGroup.end : false;
 
         for (let c = 0; c <= 9; c++) {
           const addr = XLSX.utils.encode_cell({ r, c });
@@ -1395,14 +1450,25 @@ export const DashboardAdmin = () => {
           if (!cell) continue;
 
           let align: 'left' | 'center' | 'right' = 'left';
+          // Kolom NO (0), NO HP (3), Tanggal pesanan (4), QTY (6) selalu di tengah (center)
           if (c === 0 || c === 3 || c === 4 || c === 6) align = 'center';
           if (c === 7 || c === 8) align = 'right';
+
+          // Garis pemisah antar user dibuat lebih tegas (medium) pada baris terakhir setiap user
+          const cellBorder = {
+            top: { style: 'thin', color: { rgb: borderCellColor } },
+            bottom: isUserLastRow 
+              ? { style: 'medium', color: { rgb: borderUserDividerColor } } 
+              : { style: 'thin', color: { rgb: borderCellColor } },
+            left: { style: 'thin', color: { rgb: borderCellColor } },
+            right: { style: 'thin', color: { rgb: borderCellColor } }
+          };
 
           cell.s = {
             font: { name: 'Arial', sz: 9.5, color: { rgb: '1E293B' } },
             fill: { fgColor: { rgb: rowBg } },
             alignment: { horizontal: align, vertical: 'center', wrapText: true },
-            border: borderThin
+            border: cellBorder
           };
 
           if (c === 7 || c === 8) {
@@ -1416,12 +1482,20 @@ export const DashboardAdmin = () => {
             cell.s.font.bold = true;
           }
 
+          // Tanggal Pesanan harus di tengah
+          if (c === 4) {
+            cell.s.alignment = { horizontal: 'center', vertical: 'center', wrapText: true };
+          }
+
+          // Pewarnaan status pesanan spesifik & jelas
           if (c === 9) {
+            const statusText = userGroup ? userGroup.statusText : String(cell.v || '');
+            const stStyle = getExcelStatusStyle(statusText);
             cell.s = {
-              font: { name: 'Arial', sz: 9.5, bold: true, color: { rgb: '1E40AF' } },
-              fill: { fgColor: { rgb: 'DBEAFE' } },
+              font: { name: 'Arial', sz: 9.5, bold: true, color: { rgb: stStyle.fontColor } },
+              fill: { fgColor: { rgb: stStyle.fgColor } },
               alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-              border: borderThin
+              border: cellBorder
             };
           }
         }
@@ -1463,9 +1537,10 @@ export const DashboardAdmin = () => {
 
       XLSX.writeFile(wb, fileName);
       setIsExportModalOpen(false);
+      toast.success('Laporan transaksi bulanan Excel berhasil diunduh!');
     } catch (err) {
       console.error(err);
-      alert('Terjadi kesalahan saat mengunduh laporan transaksi Excel.');
+      toast.error('Terjadi kesalahan saat mengunduh laporan transaksi Excel.');
     }
   };
 
@@ -1473,6 +1548,8 @@ export const DashboardAdmin = () => {
     const s = (status || '').toLowerCase();
     if (s.includes('selesai') || s === 'completed') return 'bg-teal-100 text-teal-800 border-teal-200';
     if (s.includes('siap')) return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+    if (s.includes('pengiriman')) return 'bg-sky-100 text-sky-800 border-sky-200';
+    if (s.includes('menyiapkan')) return 'bg-amber-100 text-amber-900 border-amber-300';
     if (s.includes('pengajuan')) return 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold';
     if (s.includes('proses')) return 'bg-blue-100 text-blue-800 border-blue-200';
     if (s.includes('batal') || s === 'cancelled') return 'bg-red-100 text-red-800 border-red-200';

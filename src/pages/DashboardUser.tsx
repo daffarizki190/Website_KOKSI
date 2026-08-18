@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import { 
   ShoppingCart, User as UserIcon, X, Plus, Minus, LogOut, ShoppingBag, Search, 
   Trash2, AlertTriangle, Edit3, Save, Check, UtensilsCrossed, HeartPulse, Home, 
@@ -13,6 +14,7 @@ import { Product, CartItem } from '../types';
 
 export const DashboardUser = () => {
   const { user, token, logout } = useAuth();
+  const { toast } = useNotification();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
@@ -196,7 +198,7 @@ export const DashboardUser = () => {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
-        alert('Akun Anda telah berhasil dihapus.');
+        toast.info('Akun Anda telah berhasil dihapus.');
         logout();
         navigate('/login');
       } else {

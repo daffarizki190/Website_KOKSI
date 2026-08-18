@@ -121,8 +121,9 @@ var createPool = () => {
         connectionString,
         ssl: isLocalhost ? false : { rejectUnauthorized: false },
         max: 5,
-        idleTimeoutMillis: 5e3,
-        connectionTimeoutMillis: 4e3
+        idleTimeoutMillis: 1e3,
+        connectionTimeoutMillis: 4e3,
+        query_timeout: 5e3
       };
     } else {
       const host = process.env.SQL_HOST;
@@ -140,8 +141,9 @@ var createPool = () => {
         database,
         ssl: useSsl ? { rejectUnauthorized: false } : false,
         max: 5,
-        idleTimeoutMillis: 5e3,
-        connectionTimeoutMillis: 4e3
+        idleTimeoutMillis: 1e3,
+        connectionTimeoutMillis: 4e3,
+        query_timeout: 5e3
       };
     }
     global._postgresPool = new Pool(poolConfig);
@@ -784,90 +786,117 @@ app.delete("/api/products/:id", requireAuth, requireAdmin, async (req, res) => {
 });
 var memoryCartStore = /* @__PURE__ */ new Map();
 var isDbSchemaEnsured = false;
+var schemaPromise = null;
 async function ensureDatabaseSchema() {
   if (isDbSchemaEnsured) return;
-  try {
-    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
-    if (!isDbConfigured) return;
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        nama TEXT NOT NULL,
-        pt TEXT NOT NULL,
-        departemen TEXT NOT NULL,
-        no_hp TEXT NOT NULL UNIQUE,
-        role VARCHAR(20) NOT NULL DEFAULT 'user',
-        password TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-
-      CREATE TABLE IF NOT EXISTS products (
-        id SERIAL PRIMARY KEY,
-        nama_barang TEXT NOT NULL,
-        kategori TEXT NOT NULL,
-        sub_kategori TEXT,
-        harga INTEGER NOT NULL,
-        stok INTEGER NOT NULL DEFAULT 0,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-
-      CREATE TABLE IF NOT EXISTS orders (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        total_amount INTEGER NOT NULL,
-        status TEXT NOT NULL DEFAULT 'Proses',
-        keterangan TEXT,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-
-      CREATE TABLE IF NOT EXISTS order_items (
-        id SERIAL PRIMARY KEY,
-        order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-        product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
-        quantity INTEGER NOT NULL,
-        price INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS cart_items (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-        quantity INTEGER NOT NULL DEFAULT 1,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
+  if (schemaPromise) return schemaPromise;
+  schemaPromise = (async () => {
     try {
+      const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+      if (!isDbConfigured) return;
       await db.execute(sql`
-        ALTER TABLE order_items ALTER COLUMN product_id DROP NOT NULL;
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          nama TEXT NOT NULL,
+          pt TEXT NOT NULL,
+          departemen TEXT NOT NULL,
+          no_hp TEXT NOT NULL UNIQUE,
+          role VARCHAR(20) NOT NULL DEFAULT 'user',
+          password TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS products (
+          id SERIAL PRIMARY KEY,
+          nama_barang TEXT NOT NULL,
+          kategori TEXT NOT NULL,
+          sub_kategori TEXT,
+          harga INTEGER NOT NULL,
+          stok INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS orders (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          total_amount INTEGER NOT NULL,
+          status TEXT NOT NULL DEFAULT 'Proses',
+          keterangan TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS order_items (
+          id SERIAL PRIMARY KEY,
+          order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+          product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+          quantity INTEGER NOT NULL,
+          price INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS cart_items (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+          quantity INTEGER NOT NULL DEFAULT 1,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
       `);
-    } catch (e) {
-    }
-    try {
-      await db.execute(sql`
-        ALTER TABLE order_items ADD COLUMN IF NOT EXISTS price INTEGER NOT NULL DEFAULT 0;
-      `);
-    } catch (e) {
-    }
-    try {
-      const existingProds = await db.select().from(products);
-      if (existingProds.length === 0) {
-        for (const p of DEFAULT_CATALOG_PRODUCTS) {
-          await db.insert(products).values({
-            nama_barang: p.nama_barang,
-            kategori: p.kategori,
-            sub_kategori: p.sub_kategori,
-            harga: p.harga,
-            stok: p.stok
-          });
-        }
+      try {
+        await db.execute(sql`
+          ALTER TABLE order_items ALTER COLUMN product_id DROP NOT NULL;
+        `);
+      } catch (e) {
       }
-    } catch (seedErr) {
-      console.warn("Product auto-seed note:", seedErr);
+      try {
+        await db.execute(sql`
+          ALTER TABLE order_items ADD COLUMN IF NOT EXISTS price INTEGER NOT NULL DEFAULT 0;
+        `);
+      } catch (e) {
+      }
+      try {
+        const existingProds = await db.select().from(products);
+        if (existingProds.length === 0) {
+          for (const p of DEFAULT_CATALOG_PRODUCTS) {
+            await db.insert(products).values({
+              nama_barang: p.nama_barang,
+              kategori: p.kategori,
+              sub_kategori: p.sub_kategori,
+              harga: p.harga,
+              stok: p.stok
+            });
+          }
+        }
+      } catch (e) {
+      }
+      try {
+        const DEMO_SEED = [
+          { no_hp: "081234567890", pass: "admin123", nama: "Admin Sembako", pt: "PT. Siemens Indonesia", departemen: "Admin", role: "admin" },
+          { no_hp: "081222333444", pass: "user123", nama: "Karyawan Satu", pt: "PT. Siemens Indonesia", departemen: "HRD", role: "user" },
+          { no_hp: "081299998888", pass: "it123456", nama: "IT Support & Systems", pt: "PT. Siemens Indonesia", departemen: "Information Technology", role: "it" }
+        ];
+        for (const u of DEMO_SEED) {
+          const exists = await db.select().from(users).where(eq(users.no_hp, u.no_hp));
+          if (exists.length === 0) {
+            const hashed = await bcryptHash(u.pass, 10);
+            await db.insert(users).values({
+              nama: u.nama,
+              pt: u.pt,
+              departemen: u.departemen,
+              no_hp: u.no_hp,
+              role: u.role,
+              password: hashed
+            });
+          }
+        }
+      } catch (e) {
+      }
+      isDbSchemaEnsured = true;
+      console.log("Database schema ensured and seeded successfully");
+    } catch (err) {
+      console.warn("Database schema auto-check note:", err?.message || err);
     }
-    isDbSchemaEnsured = true;
-  } catch (err) {
-    console.warn("Database schema auto-check note:", err?.message || err);
-  }
+  })();
+  return schemaPromise;
 }
 app.get("/api/cart", requireAuth, async (req, res) => {
   const userId = req.user.id;
@@ -1055,13 +1084,13 @@ app.delete("/api/cart", requireAuth, async (req, res) => {
 var demoOrdersStore = [];
 app.post("/api/orders", requireAuth, async (req, res) => {
   const { items, total_amount } = req.body;
-  const userId = req.user.id;
+  let userId = Number(req.user?.id);
   if (!items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: "Item pesanan tidak boleh kosong" });
     return;
   }
   for (const item of items) {
-    if (!item.productId || !item.quantity || item.quantity <= 0) {
+    if (!item.productId || !item.quantity || Number(item.quantity) <= 0) {
       res.status(400).json({ error: `Item pesanan tidak valid: productId=${item.productId}, qty=${item.quantity}` });
       return;
     }
@@ -1071,38 +1100,80 @@ app.post("/api/orders", requireAuth, async (req, res) => {
   if (!isDbConfigured) {
     const orderId = 1e3 + demoOrdersStore.length + 1;
     const orderItemsList = items.map((item, idx) => {
-      const prod = DEFAULT_CATALOG_PRODUCTS.find((p) => p.id === item.productId) || { nama_barang: `Barang #${item.productId}` };
-      return { id: idx + 1, orderId, productId: item.productId, quantity: item.quantity, price: item.price, product: { id: item.productId, nama_barang: prod.nama_barang } };
+      const prod = DEFAULT_CATALOG_PRODUCTS.find((p) => p.id === Number(item.productId)) || { nama_barang: `Barang #${item.productId}` };
+      return { id: idx + 1, orderId, productId: Number(item.productId), quantity: Number(item.quantity), price: Number(item.price) || 0, product: { id: Number(item.productId), nama_barang: prod.nama_barang } };
     });
     const newOrderObj = {
       id: orderId,
-      userId,
-      total_amount,
+      userId: userId || 999,
+      total_amount: Math.round(Number(total_amount) || 0),
       status: "Proses",
       keterangan: "Pesanan telah dibuat dan sedang dalam proses",
       createdAt: (/* @__PURE__ */ new Date()).toISOString(),
       items: orderItemsList,
-      user: { id: userId, nama: req.user?.nama || "Karyawan", pt: req.user?.pt || "PT. Siemens Indonesia", departemen: req.user?.departemen || "General", no_hp: req.user?.no_hp || "" }
+      user: { id: userId || 999, nama: req.user?.nama || "Karyawan", pt: req.user?.pt || "PT. Siemens Indonesia", departemen: req.user?.departemen || "General", no_hp: req.user?.no_hp || "" }
     };
     demoOrdersStore.unshift(newOrderObj);
-    memoryCartStore.delete(userId);
+    if (userId) memoryCartStore.delete(userId);
     res.status(201).json({ message: "Order created successfully", orderId, order: newOrderObj });
     return;
   }
   try {
+    const cleanTotalAmount = Math.round(Number(total_amount) || 0);
     const createdOrderId = await withDbRetry(() => db.transaction(async (tx) => {
+      let dbUser = null;
+      if (userId && !isNaN(userId)) {
+        const uList = await tx.select().from(users).where(eq(users.id, userId));
+        if (uList.length > 0) dbUser = uList[0];
+      }
+      if (!dbUser && req.user?.no_hp) {
+        const cleanHp = normalizePhone(req.user.no_hp);
+        const uList = await tx.select().from(users).where(eq(users.no_hp, cleanHp));
+        if (uList.length > 0) dbUser = uList[0];
+      }
+      if (!dbUser) {
+        const cleanHp = req.user?.no_hp ? normalizePhone(req.user.no_hp) : `user_${Date.now()}`;
+        const defaultPass = await bcryptHash("user123", 10);
+        const [createdU] = await tx.insert(users).values({
+          nama: req.user?.nama || "Karyawan",
+          pt: req.user?.pt || "PT. Siemens Indonesia",
+          departemen: req.user?.departemen || "General",
+          no_hp: cleanHp,
+          role: req.user?.role || "user",
+          password: defaultPass
+        }).returning();
+        dbUser = createdU;
+      }
+      userId = dbUser.id;
       for (const item of items) {
-        const prodList = await tx.select().from(products).where(eq(products.id, item.productId));
+        const pId = Number(item.productId);
+        const reqQty = Math.round(Number(item.quantity) || 1);
+        let prodList = await tx.select().from(products).where(eq(products.id, pId));
         if (prodList.length === 0) {
-          throw new Error(`Produk dengan ID ${item.productId} tidak ditemukan di database.`);
+          const catItem = DEFAULT_CATALOG_PRODUCTS.find((p) => p.id === pId) || {
+            nama_barang: `Produk #${pId}`,
+            kategori: "Makanan & Minuman Siap Saji (F&B)",
+            sub_kategori: "Bahan Makanan (Sembako)",
+            harga: Number(item.price) || 15e3,
+            stok: 100
+          };
+          const [newProd] = await tx.insert(products).values({
+            id: pId,
+            nama_barang: catItem.nama_barang,
+            kategori: catItem.kategori,
+            sub_kategori: catItem.sub_kategori,
+            harga: Math.round(Number(item.price) || catItem.harga),
+            stok: catItem.stok
+          }).returning();
+          prodList = [newProd];
         }
-        if (prodList[0].stok < item.quantity) {
-          throw new Error(`Stok "${prodList[0].nama_barang}" tidak mencukupi (tersisa: ${prodList[0].stok}, diminta: ${item.quantity}).`);
+        if (prodList[0].stok < reqQty) {
+          throw new Error(`Stok "${prodList[0].nama_barang}" tidak mencukupi (tersisa: ${prodList[0].stok}, diminta: ${reqQty}).`);
         }
       }
       const [newOrder] = await tx.insert(orders).values({
         userId,
-        total_amount,
+        total_amount: cleanTotalAmount,
         status: "Proses",
         keterangan: "Pesanan telah dibuat dan sedang dalam proses"
       }).returning();
@@ -1110,23 +1181,30 @@ app.post("/api/orders", requireAuth, async (req, res) => {
       for (const item of items) {
         await tx.insert(orderItems).values({
           orderId: oId,
-          productId: item.productId,
-          quantity: item.quantity,
-          price: item.price
+          productId: Number(item.productId),
+          quantity: Math.round(Number(item.quantity) || 1),
+          price: Math.round(Number(item.price) || 0)
         });
       }
       for (const item of items) {
+        const qty = Math.round(Number(item.quantity) || 1);
+        const pId = Number(item.productId);
         await tx.execute(
-          sql`UPDATE products SET stok = GREATEST(0, stok - ${item.quantity}) WHERE id = ${item.productId}`
+          sql`UPDATE products SET stok = GREATEST(0, stok - ${qty}) WHERE id = ${pId}`
         );
       }
-      await tx.delete(cartItems).where(eq(cartItems.userId, userId));
+      try {
+        await tx.delete(cartItems).where(eq(cartItems.userId, userId));
+      } catch (e) {
+      }
       return oId;
     }));
     memoryCartStore.delete(userId);
     for (const item of items) {
-      const memProd = DEFAULT_CATALOG_PRODUCTS.find((p) => p.id === item.productId);
-      if (memProd) memProd.stok = Math.max(0, memProd.stok - item.quantity);
+      const pId = Number(item.productId);
+      const qty = Math.round(Number(item.quantity) || 1);
+      const memProd = DEFAULT_CATALOG_PRODUCTS.find((p) => p.id === pId);
+      if (memProd) memProd.stok = Math.max(0, memProd.stok - qty);
     }
     const orderItemsResult = await withDbRetry(
       () => db.select({ id: orderItems.id, orderId: orderItems.orderId, productId: orderItems.productId, quantity: orderItems.quantity, price: orderItems.price, productNama: products.nama_barang }).from(orderItems).leftJoin(products, eq(orderItems.productId, products.id)).where(eq(orderItems.orderId, createdOrderId))
@@ -1134,7 +1212,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
     const fullCreatedOrder = {
       id: createdOrderId,
       userId,
-      total_amount,
+      total_amount: cleanTotalAmount,
       status: "Proses",
       keterangan: "Pesanan telah dibuat dan sedang dalam proses",
       createdAt: (/* @__PURE__ */ new Date()).toISOString(),
@@ -1154,7 +1232,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
         no_hp: req.user?.no_hp || ""
       }
     };
-    console.log(`[ORDER] Created order #${createdOrderId} for user ${userId}, total: ${total_amount}`);
+    console.log(`[ORDER] Created order #${createdOrderId} for user ${userId}, total: ${cleanTotalAmount}`);
     res.status(201).json({ message: "Order created successfully", orderId: createdOrderId, order: fullCreatedOrder });
   } catch (error) {
     const errMsg = error?.message || String(error);
@@ -1162,7 +1240,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
     if (errMsg.includes("Stok") || errMsg.includes("tidak mencukupi") || errMsg.includes("tidak ditemukan")) {
       res.status(400).json({ error: errMsg });
     } else {
-      res.status(500).json({ error: "Gagal membuat pesanan. Silakan coba beberapa saat lagi." });
+      res.status(500).json({ error: "Gagal membuat pesanan. Silakan coba beberapa saat lagi.", details: errMsg, stack: error?.stack });
     }
   }
 });

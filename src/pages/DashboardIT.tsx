@@ -9,6 +9,7 @@ import {
   MessageSquare, Phone, ExternalLink, Send, Trash2, X, User as UserIcon, Edit3, Save
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 
 interface ServerHealth {
   uptimeSeconds: number;
@@ -135,6 +136,7 @@ interface UserItem {
 
 export function DashboardIT() {
   const { user, token, logout } = useAuth();
+  const { toast, confirm: confirmModal } = useNotification();
   const navigate = useNavigate();
 
   const [metrics, setMetrics] = useState<ITMetricsData | null>(null);
@@ -341,13 +343,22 @@ export function DashboardIT() {
   };
 
   const handleClearErrorLogs = async () => {
-    if (!window.confirm('Apakah Anda yakin ingin membersihkan seluruh Log Error server?')) return;
+    const ok = await confirmModal({
+      title: 'Bersihkan Log Error',
+      message: 'Apakah Anda yakin ingin membersihkan seluruh Log Error server?',
+      type: 'warning',
+      confirmText: 'Ya, Bersihkan',
+      cancelText: 'Batal'
+    });
+    if (!ok) return;
+
     try {
       const res = await fetch('/api/it/logs/clear', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
+        toast.success('Log error & counter berhasil dibersihkan!');
         setActionSuccessMsg('Log error & counter berhasil dibersihkan!');
         setTimeout(() => setActionSuccessMsg(''), 4000);
         
@@ -366,10 +377,11 @@ export function DashboardIT() {
 
         fetchITData();
       } else {
-        alert('Gagal membersihkan log error.');
+        toast.error('Gagal membersihkan log error.');
       }
     } catch (err) {
       console.error('Clear logs error:', err);
+      toast.error('Terjadi kesalahan saat membersihkan log');
     }
   };
 
@@ -387,11 +399,12 @@ export function DashboardIT() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal mengubah role pengguna');
 
+      toast.success(data.message || 'Role pengguna berhasil diperbarui!');
       setActionSuccessMsg(data.message || 'Role pengguna berhasil diperbarui!');
       setTimeout(() => setActionSuccessMsg(''), 4000);
       fetchITData();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Gagal memperbarui role');
     } finally {
       setUpdatingRoleId(null);
     }
