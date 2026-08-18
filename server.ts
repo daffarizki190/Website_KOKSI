@@ -309,7 +309,51 @@ app.post('/api/auth/login', async (req, res) => {
     }
     const cleanNoHp = normalizePhone(no_hp);
 
-    // 1. Instant Demo Accounts Handler (Guaranteed 100% login even if database is in cold-start/not yet configured)
+    // 1. Database Lookup for All Users (Live PostgreSQL / Neon DB)
+    let user: any = null;
+    try {
+      const userList = await withDbRetry(() => db.select().from(users).where(eq(users.no_hp, cleanNoHp)));
+      user = userList[0];
+
+      if (!user) {
+        const allUsers = await withDbRetry(() => db.select().from(users));
+        user = allUsers.find(u => normalizePhone(u.no_hp) === cleanNoHp);
+      }
+    } catch (dbErr: any) {
+      console.warn('Database query during login:', dbErr?.message || dbErr);
+    }
+
+    if (user) {
+      const isPassValid = await bcryptCompare(password, user.password).catch(() => false);
+      const isDemoPresetPass = (cleanNoHp === '081234567890' && password === 'admin123') ||
+                               (cleanNoHp === '081222333444' && password === 'user123') ||
+                               (cleanNoHp === '081299998888' && password === 'it123456');
+
+      if (isPassValid || isDemoPresetPass) {
+        const token = jwtSign(
+          { id: user.id, role: user.role, no_hp: user.no_hp, nama: user.nama },
+          JWT_SECRET,
+          { expiresIn: '7d' }
+        );
+        res.json({
+          token,
+          user: {
+            id: user.id,
+            nama: user.nama,
+            role: user.role,
+            pt: user.pt,
+            departemen: user.departemen,
+            no_hp: user.no_hp
+          }
+        });
+        return;
+      } else {
+        res.status(401).json({ error: 'Password yang Anda masukkan salah' });
+        return;
+      }
+    }
+
+    // 2. Offline / Cold-start Demo Accounts Fallback
     const DEMO_USERS: Record<string, { pass: string; id: number; nama: string; pt: string; departemen: string; role: string }> = {
       '081234567890': { pass: 'admin123', id: 991, nama: 'Admin Sembako', pt: 'PT. Siemens Indonesia', departemen: 'Admin', role: 'admin' },
       '081222333444': { pass: 'user123', id: 992, nama: 'Karyawan Satu', pt: 'PT. Siemens Indonesia', departemen: 'HRD', role: 'user' },
@@ -327,40 +371,65 @@ app.post('/api/auth/login', async (req, res) => {
       return;
     }
 
-    // 2. Database Lookup for Custom Registered Users
-    let user: any = null;
-    try {
-      const userList = await withDbRetry(() => db.select().from(users).where(eq(users.no_hp, cleanNoHp)));
-      user = userList[0];
-
-      if (!user) {
-        const allUsers = await withDbRetry(() => db.select().from(users));
-        user = allUsers.find(u => normalizePhone(u.no_hp) === cleanNoHp);
-      }
-    } catch (dbErr: any) {
-      console.warn('Database query during login:', dbErr?.message || dbErr);
-    }
-
-    if (!user) {
-      res.status(401).json({ error: 'Nomor HP tidak ditemukan. Silakan periksa kembali atau daftar akun baru.' });
-      return;
-    }
-
-    const isValid = await bcryptCompare(password, user.password);
-    if (!isValid) {
-      res.status(401).json({ error: 'Password yang Anda masukkan salah' });
-      return;
-    }
-
-    const token = jwtSign(
-      { id: user.id, role: user.role, no_hp: user.no_hp, nama: user.nama },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-    res.json({ token, user: { id: user.id, nama: user.nama, role: user.role, pt: user.pt, departemen: user.departemen, no_hp: user.no_hp } });
+    res.status(401).json({ error: 'Nomor HP tidak ditemukan. Silakan periksa kembali atau daftar akun baru.' });
   } catch (error: any) {
     console.error('Login error:', error?.message || error);
     res.status(401).json({ error: 'Gagal masuk. Silakan periksa nomor HP dan password Anda.' });
+  }
+});
+
+// Real-time Auth Profile Verification Endpoint
+app.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = Number(req.user?.id);
+    const userNoHp = req.user?.no_hp;
+
+    let u: any = null;
+    if (userId) {
+      const list = await withDbRetry(() => db.select().from(users).where(eq(users.id, userId)));
+      u = list[0];
+    }
+    if (!u && userNoHp) {
+      const cleanPhone = normalizePhone(userNoHp);
+      const list = await withDbRetry(() => db.select().from(users).where(eq(users.no_hp, cleanPhone)));
+      u = list[0];
+    }
+
+    if (u) {
+      res.json({
+        user: {
+          id: u.id,
+          nama: u.nama,
+          role: u.role,
+          pt: u.pt,
+          departemen: u.departemen,
+          no_hp: u.no_hp
+        }
+      });
+      return;
+    }
+
+    res.json({
+      user: {
+        id: req.user?.id,
+        nama: req.user?.nama,
+        role: req.user?.role || 'user',
+        no_hp: req.user?.no_hp,
+        pt: 'PT. Siemens Indonesia',
+        departemen: '-'
+      }
+    });
+  } catch (err: any) {
+    res.json({
+      user: {
+        id: req.user?.id,
+        nama: req.user?.nama,
+        role: req.user?.role || 'user',
+        no_hp: req.user?.no_hp,
+        pt: 'PT. Siemens Indonesia',
+        departemen: '-'
+      }
+    });
   }
 });
 
@@ -596,10 +665,10 @@ app.put('/api/users/:id', requireAuth, async (req: AuthRequest, res) => {
       updateData.password = await bcryptHash(newPassword.trim(), 10);
     }
 
-    const updatedUsers = await db.update(users)
+    const updatedUsers = await withDbRetry(() => db.update(users)
       .set(updateData)
       .where(eq(users.id, targetUserId))
-      .returning();
+      .returning());
 
     if (updatedUsers.length === 0) {
       res.status(404).json({ error: 'Pengguna tidak ditemukan' });
@@ -640,12 +709,10 @@ app.put('/api/users/:id/role', requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    await ensureDatabaseSchema();
-
-    const updatedUsers = await db.update(users)
+    const updatedUsers = await withDbRetry(() => db.update(users)
       .set({ role: newRole })
       .where(eq(users.id, targetUserId))
-      .returning();
+      .returning());
 
     if (updatedUsers.length === 0) {
       res.status(404).json({ error: 'Pengguna tidak ditemukan' });

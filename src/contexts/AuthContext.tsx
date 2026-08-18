@@ -14,6 +14,7 @@ interface AuthContextType {
   token: string | null;
   login: (token: string, user: User) => void;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,12 +24,46 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const refreshUser = async () => {
+    const currentToken = token || localStorage.getItem('token');
+    if (!currentToken) return;
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.user) {
+          setUser(data.user);
+          localStorage.setItem('user', JSON.stringify(data.user));
+        }
+      }
+    } catch (e) {
+      // Ignore network errors on background sync
+    }
+  };
+
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
     if (storedToken && storedUser) {
       setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {}
+
+      // Fetch live user role & data from server to keep in sync
+      fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${storedToken}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.user) {
+            setUser(data.user);
+            localStorage.setItem('user', JSON.stringify(data.user));
+          }
+        })
+        .catch(() => {});
     }
     setLoading(false);
   }, []);
