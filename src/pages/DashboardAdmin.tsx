@@ -79,6 +79,7 @@ export const DashboardAdmin = () => {
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('Semua');
   const [orderPtFilter, setOrderPtFilter] = useState('Semua');
+  const [orderDateFilter, setOrderDateFilter] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   
   // Order status modal state
@@ -625,6 +626,13 @@ export const DashboardAdmin = () => {
     return orders.filter(order => {
       const matchStatus = orderStatusFilter === 'Semua' || (order.status || 'Menunggu Konfirmasi').toLowerCase() === orderStatusFilter.toLowerCase();
       const matchPt = orderPtFilter === 'Semua' || (order.user?.pt || '').toLowerCase() === orderPtFilter.toLowerCase();
+      const matchDate = !orderDateFilter || (() => {
+        try {
+          return format(new Date(order.createdAt), 'yyyy-MM-dd') === orderDateFilter;
+        } catch (e) {
+          return true;
+        }
+      })();
       const query = orderSearch.toLowerCase().trim();
       const matchQuery = !query ||
         order.id.toString().includes(query) ||
@@ -633,9 +641,9 @@ export const DashboardAdmin = () => {
         (order.user?.departemen || '').toLowerCase().includes(query) ||
         order.items.some(it => (it.product?.nama_barang || '').toLowerCase().includes(query));
 
-      return matchStatus && matchPt && matchQuery;
+      return matchStatus && matchPt && matchDate && matchQuery;
     });
-  }, [orders, orderStatusFilter, orderPtFilter, orderSearch]);
+  }, [orders, orderStatusFilter, orderPtFilter, orderDateFilter, orderSearch]);
 
   const handleDeleteFilteredOrders = async () => {
     if (filteredOrders.length === 0) {
@@ -645,6 +653,7 @@ export const DashboardAdmin = () => {
 
     const totalNominal = filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
     const filterParts: string[] = [];
+    if (orderDateFilter) filterParts.push(`Tanggal: "${orderDateFilter.split('-').reverse().join('/')}"`);
     if (orderStatusFilter !== 'Semua') filterParts.push(`Status: "${orderStatusFilter}"`);
     if (orderPtFilter !== 'Semua') filterParts.push(`PT: "${orderPtFilter}"`);
     if (orderSearch.trim()) filterParts.push(`Pencarian: "${orderSearch.trim()}"`);
@@ -1775,6 +1784,26 @@ export const DashboardAdmin = () => {
                   </button>
                 )}
 
+                {/* Filter Tanggal */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl shadow-sm" title="Filter berdasarkan tanggal transaksi">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <input
+                    type="date"
+                    value={orderDateFilter}
+                    onChange={(e) => setOrderDateFilter(e.target.value)}
+                    className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+                  />
+                  {orderDateFilter && (
+                    <button
+                      onClick={() => setOrderDateFilter('')}
+                      className="text-slate-400 hover:text-rose-600 p-0.5 transition-colors cursor-pointer"
+                      title="Hapus filter tanggal"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
                 <select
                   value={orderStatusFilter}
                   onChange={(e) => setOrderStatusFilter(e.target.value)}
@@ -1862,6 +1891,11 @@ export const DashboardAdmin = () => {
 
                       {/* Filter Badges Display */}
                       <div className="flex items-center justify-center gap-2 flex-wrap mb-6">
+                        {orderDateFilter && (
+                          <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-lg border border-slate-200">
+                            Tanggal: <span className="text-teal-700">{orderDateFilter.split('-').reverse().join('/')}</span>
+                          </span>
+                        )}
                         {orderStatusFilter !== 'Semua' && (
                           <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-lg border border-slate-200">
                             Status: <span className="text-teal-700">{orderStatusFilter}</span>
@@ -1881,6 +1915,7 @@ export const DashboardAdmin = () => {
 
                       <button
                         onClick={() => {
+                          setOrderDateFilter('');
                           setOrderStatusFilter('Semua');
                           setOrderPtFilter('Semua');
                           setOrderSearch('');
