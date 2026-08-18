@@ -58,12 +58,6 @@ export default function OrderHistory() {
   const [userScanning, setUserScanning] = useState(false);
   const [userScanResult, setUserScanResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // States for Cancel Order Modal
-  const [cancelModalOrder, setCancelModalOrder] = useState<Order | null>(null);
-  const [cancelReason, setCancelReason] = useState('');
-  const [cancelError, setCancelError] = useState<string | null>(null);
-  const [cancelling, setCancelling] = useState(false);
-
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -183,42 +177,6 @@ export default function OrderHistory() {
     if (s.includes('menyiapkan') || s.includes('dikemas')) return 2;
     if (s.includes('batal') || s === 'cancelled') return -1;
     return 1; // Default: 'Proses' / 'Menunggu Konfirmasi'
-  };
-
-  const handleConfirmCancel = async () => {
-    if (!cancelModalOrder) return;
-    if (!cancelReason.trim()) {
-      setCancelError('Alasan pembatalan pesanan wajib diisi!');
-      return;
-    }
-
-    try {
-      setCancelling(true);
-      setCancelError(null);
-      const res = await fetch(`/api/orders/${cancelModalOrder.id}/cancel`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ alasan: cancelReason.trim() })
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Gagal mengajukan pembatalan pesanan');
-      }
-
-      await fetchOrders();
-      setCancelModalOrder(null);
-      setCancelReason('');
-      toast.success(data.message || 'Pengajuan pembatalan pesanan berhasil dikirim. Menunggu konfirmasi Admin.');
-    } catch (err: any) {
-      setCancelError(err.message || 'Terjadi kesalahan saat mengajukan pembatalan pesanan.');
-      toast.error(err.message || 'Terjadi kesalahan saat mengajukan pembatalan pesanan.');
-    } finally {
-      setCancelling(false);
-    }
   };
 
   return (
