@@ -1155,13 +1155,10 @@ export const DashboardAdmin = () => {
         return { fgColor: 'F1F5F9', fontColor: '334155' }; // Slate
       };
 
-      // Grouping logic
+      // Grouping orders by user, maintaining distinct checkout orders
       const userOrdersMap = new Map<string, {
         user: any;
-        ordersCount: number;
-        itemsMap: Map<number, any>;
-        statuses: Record<string, number>;
-        dates: string[];
+        orders: Order[];
       }>();
 
       filteredOrders.forEach(order => {
@@ -1169,103 +1166,73 @@ export const DashboardAdmin = () => {
         if (!userOrdersMap.has(userKey)) {
           userOrdersMap.set(userKey, {
             user: order.user,
-            ordersCount: 0,
-            itemsMap: new Map(),
-            statuses: {},
-            dates: []
+            orders: []
           });
         }
-        
-        const group = userOrdersMap.get(userKey)!;
-        group.ordersCount++;
-        
-        const st = order.status || 'Menunggu Konfirmasi';
-        group.statuses[st] = (group.statuses[st] || 0) + 1;
-
-        if (order.createdAt) {
-          try {
-            const formattedDate = format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale });
-            if (!group.dates.includes(formattedDate)) {
-              group.dates.push(formattedDate);
-            }
-          } catch (e) {
-            const rawD = String(order.createdAt);
-            if (!group.dates.includes(rawD)) {
-              group.dates.push(rawD);
-            }
-          }
-        }
-
-        const items = (order.items && order.items.length > 0) ? order.items : [];
-        items.forEach(it => {
-          const pId = it.productId || 0;
-          if (!group.itemsMap.has(pId)) {
-            group.itemsMap.set(pId, { ...it, quantity: 0, subtotal: 0, productNama: it.product?.nama_barang || 'Barang Dihapus' });
-          }
-          const aggItem = group.itemsMap.get(pId)!;
-          aggItem.quantity += (it.quantity || 0);
-          aggItem.subtotal += ((it.quantity || 0) * (it.price || 0));
-          aggItem.price = it.price || aggItem.price;
-        });
+        userOrdersMap.get(userKey)!.orders.push(order);
       });
 
-      Array.from(userOrdersMap.values()).forEach((group, groupIdx) => {
-        const items = Array.from(group.itemsMap.values());
-        if (items.length === 0) {
-          items.push({ productNama: 'Tidak ada barang', quantity: 0, price: 0, subtotal: 0 });
-        }
-        
-        const orderStartRow = aoa.length;
+      Array.from(userOrdersMap.values()).forEach((userGroup, groupIdx) => {
+        const userStartRow = aoa.length;
 
-        // Aggregate statuses into a readable string
-        const statusStrs = Object.entries(group.statuses).map(([st, count]) => `${count} ${st}`);
-        const statusAgg = statusStrs.join(', ');
+        userGroup.orders.forEach(order => {
+          const orderStartRow = aoa.length;
+          let formattedDate = '-';
+          if (order.createdAt) {
+            try {
+              // Hanya tanggal tanpa waktu
+              formattedDate = format(new Date(order.createdAt), 'dd/MM/yyyy', { locale: idLocale });
+            } catch (e) {
+              formattedDate = String(order.createdAt).split('T')[0] || String(order.createdAt);
+            }
+          }
 
-        const dateAgg = group.dates.length > 0 ? group.dates.join('\n') : '-';
+          const orderStatus = order.status || 'Menunggu Konfirmasi';
+          const items = (order.items && order.items.length > 0) ? order.items : [
+            { id: 0, productId: 0, quantity: 0, price: 0, product: { nama_barang: 'Tidak ada barang' } }
+          ];
 
-        items.forEach((item, itemIdx) => {
-          grandTotalQty += (item.quantity || 0);
-          grandTotalSubtotal += (item.subtotal || 0);
+          items.forEach((item, itemIdx) => {
+            const qty = item.quantity || 0;
+            const price = item.price || 0;
+            const subtotal = qty * price;
+            grandTotalQty += qty;
+            grandTotalSubtotal += subtotal;
 
-          if (itemIdx === 0) {
+            const isFirstRowOfUser = (aoa.length === userStartRow);
+            const isFirstRowOfOrder = (itemIdx === 0);
+
             aoa.push([
-              orderCounter,
-              group.user?.nama || '-',
-              group.user?.departemen || '-',
-              group.user?.no_hp || '-',
-              dateAgg,
-              item.productNama,
-              item.quantity || 0,
-              item.price || 0,
-              item.subtotal || 0,
-              statusAgg
+              isFirstRowOfUser ? orderCounter : '',
+              isFirstRowOfUser ? (userGroup.user?.nama || '-') : '',
+              isFirstRowOfUser ? (userGroup.user?.departemen || '-') : '',
+              isFirstRowOfUser ? (userGroup.user?.no_hp || '-') : '',
+              isFirstRowOfOrder ? formattedDate : '',
+              item.product?.nama_barang || 'Barang Dihapus',
+              qty,
+              price,
+              subtotal,
+              isFirstRowOfOrder ? orderStatus : ''
             ]);
-          } else {
-            aoa.push([
-              '',
-              '',
-              '',
-              '',
-              '',
-              item.productNama,
-              item.quantity || 0,
-              item.price || 0,
-              item.subtotal || 0,
-              ''
-            ]);
+          });
+
+          const orderEndRow = aoa.length - 1;
+
+          // Merge order-level columns (Tanggal pesanan, Status pesanan) jika order checkout memiliki > 1 item
+          if (orderEndRow > orderStartRow) {
+            orderMerges.push({ s: { r: orderStartRow, c: 4 }, e: { r: orderEndRow, c: 4 } });
+            orderMerges.push({ s: { r: orderStartRow, c: 9 }, e: { r: orderEndRow, c: 9 } });
           }
         });
 
-        const orderEndRow = aoa.length - 1;
-        userGroupRanges.push({ start: orderStartRow, end: orderEndRow, groupIdx, statusText: statusAgg });
+        const userEndRow = aoa.length - 1;
+        userGroupRanges.push({ start: userStartRow, end: userEndRow, groupIdx, statusText: '' });
 
-        if (orderEndRow > orderStartRow) {
-          // Merge user-level columns (NO, NAMA, DEPT, NO HP, Tanggal pesanan)
-          for (let c = 0; c <= 4; c++) {
-            orderMerges.push({ s: { r: orderStartRow, c }, e: { r: orderEndRow, c } });
+        // Merge user-level columns (NO, NAMA, DEPT, NO HP) jika user memiliki > 1 baris
+        if (userEndRow > userStartRow) {
+          for (let c = 0; c <= 3; c++) {
+            orderMerges.push({ s: { r: userStartRow, c }, e: { r: userEndRow, c } });
           }
-          // Merge STATUS PESANAN
-          orderMerges.push({ s: { r: orderStartRow, c: 9 }, e: { r: orderEndRow, c: 9 } });
         }
 
         orderCounter++;
@@ -1305,12 +1272,12 @@ export const DashboardAdmin = () => {
         { wch: 26 },  // NAMA KARYAWAN
         { wch: 20 },  // DEPARTEMEN
         { wch: 18 },  // NO HP
-        { wch: 22 },  // Tanggal pesanan
+        { wch: 18 },  // Tanggal pesanan (dd/MM/yyyy)
         { wch: 36 },  // NAMA BARANG
         { wch: 10 },  // QTY
         { wch: 22 },  // HARGA SATUAN
         { wch: 22 },  // TOTAL HARGA
-        { wch: 26 }   // STATUS PESANAN
+        { wch: 24 }   // STATUS PESANAN
       ];
 
       // Row heights
@@ -1489,14 +1456,16 @@ export const DashboardAdmin = () => {
 
           // Pewarnaan status pesanan spesifik & jelas
           if (c === 9) {
-            const statusText = userGroup ? userGroup.statusText : String(cell.v || '');
-            const stStyle = getExcelStatusStyle(statusText);
-            cell.s = {
-              font: { name: 'Arial', sz: 9.5, bold: true, color: { rgb: stStyle.fontColor } },
-              fill: { fgColor: { rgb: stStyle.fgColor } },
-              alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-              border: cellBorder
-            };
+            const statusVal = String(cell.v || '');
+            if (statusVal) {
+              const stStyle = getExcelStatusStyle(statusVal);
+              cell.s = {
+                font: { name: 'Arial', sz: 9.5, bold: true, color: { rgb: stStyle.fontColor } },
+                fill: { fgColor: { rgb: stStyle.fgColor } },
+                alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                border: cellBorder
+              };
+            }
           }
         }
       }
