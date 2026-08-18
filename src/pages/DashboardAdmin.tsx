@@ -1429,19 +1429,8 @@ export const DashboardAdmin = () => {
       const cleanPeriod = periodTitle.replace(/[^a-zA-Z0-9]/g, '_');
       const fileName = `Laporan_Transaksi_BelanjaIn_Saza_${cleanPeriod}.xlsx`;
 
-      // Use Blob-based download for cross-browser compatibility (Vercel / modern browsers)
-      const wbArrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      const blob = new Blob([wbArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }, 150);
+      // Use simple writeFile for Excel export, replacing manual Blob handling
+      XLSX.writeFile(wb, fileName);
 
       setIsExportModalOpen(false);
     } catch (err) {

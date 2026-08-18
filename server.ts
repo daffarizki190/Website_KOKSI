@@ -817,6 +817,13 @@ async function ensureDatabaseSchema() {
       `);
     } catch (e) { /* column might already be nullable */ }
 
+    // ALTER existing order_items to add price column if it doesn't exist
+    try {
+      await db.execute(sql`
+        ALTER TABLE order_items ADD COLUMN IF NOT EXISTS price INTEGER NOT NULL DEFAULT 0;
+      `);
+    } catch (e) { /* column might already exist */ }
+
     // Auto-seed default products if products table is empty
     try {
       const existingProds = await db.select().from(products);
