@@ -757,95 +757,101 @@ app.delete('/api/products/:id', requireAuth, requireAdmin, async (req, res) => {
 const memoryCartStore = new Map<number, Array<{ productId: number; quantity: number }>>();
 
 let isDbSchemaEnsured = false;
+let schemaPromise: Promise<void> | null = null;
 async function ensureDatabaseSchema() {
   if (isDbSchemaEnsured) return;
-  try {
-    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
-    if (!isDbConfigured) return;
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        nama TEXT NOT NULL,
-        pt TEXT NOT NULL,
-        departemen TEXT NOT NULL,
-        no_hp TEXT NOT NULL UNIQUE,
-        role VARCHAR(20) NOT NULL DEFAULT 'user',
-        password TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
+  if (schemaPromise) return schemaPromise;
 
-      CREATE TABLE IF NOT EXISTS products (
-        id SERIAL PRIMARY KEY,
-        nama_barang TEXT NOT NULL,
-        kategori TEXT NOT NULL,
-        sub_kategori TEXT,
-        harga INTEGER NOT NULL,
-        stok INTEGER NOT NULL DEFAULT 0,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-
-      CREATE TABLE IF NOT EXISTS orders (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        total_amount INTEGER NOT NULL,
-        status TEXT NOT NULL DEFAULT 'Proses',
-        keterangan TEXT,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-
-      CREATE TABLE IF NOT EXISTS order_items (
-        id SERIAL PRIMARY KEY,
-        order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-        product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
-        quantity INTEGER NOT NULL,
-        price INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS cart_items (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-        quantity INTEGER NOT NULL DEFAULT 1,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
-    // ALTER existing order_items table if the FK is still NOT NULL (for existing DBs)
+  schemaPromise = (async () => {
     try {
+      const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+      if (!isDbConfigured) return;
       await db.execute(sql`
-        ALTER TABLE order_items ALTER COLUMN product_id DROP NOT NULL;
-      `);
-    } catch (e) { /* column might already be nullable */ }
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          nama TEXT NOT NULL,
+          pt TEXT NOT NULL,
+          departemen TEXT NOT NULL,
+          no_hp TEXT NOT NULL UNIQUE,
+          role VARCHAR(20) NOT NULL DEFAULT 'user',
+          password TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
 
-    // ALTER existing order_items to add price column if it doesn't exist
-    try {
-      await db.execute(sql`
-        ALTER TABLE order_items ADD COLUMN IF NOT EXISTS price INTEGER NOT NULL DEFAULT 0;
-      `);
-    } catch (e) { /* column might already exist */ }
+        CREATE TABLE IF NOT EXISTS products (
+          id SERIAL PRIMARY KEY,
+          nama_barang TEXT NOT NULL,
+          kategori TEXT NOT NULL,
+          sub_kategori TEXT,
+          harga INTEGER NOT NULL,
+          stok INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
 
-    // Auto-seed default products if products table is empty
-    try {
-      const existingProds = await db.select().from(products);
-      if (existingProds.length === 0) {
-        for (const p of DEFAULT_CATALOG_PRODUCTS) {
-          await db.insert(products).values({
-            nama_barang: p.nama_barang,
-            kategori: p.kategori,
-            sub_kategori: p.sub_kategori,
-            harga: p.harga,
-            stok: p.stok
-          });
+        CREATE TABLE IF NOT EXISTS orders (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          total_amount INTEGER NOT NULL,
+          status TEXT NOT NULL DEFAULT 'Proses',
+          keterangan TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS order_items (
+          id SERIAL PRIMARY KEY,
+          order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+          product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+          quantity INTEGER NOT NULL,
+          price INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS cart_items (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+          quantity INTEGER NOT NULL DEFAULT 1,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+
+      // ALTER existing order_items table if the FK is still NOT NULL (for existing DBs)
+      try {
+        await db.execute(sql`
+          ALTER TABLE order_items ALTER COLUMN product_id DROP NOT NULL;
+        `);
+      } catch (e) { /* column might already be nullable */ }
+
+      // ALTER existing order_items to add price column if it doesn't exist
+      try {
+        await db.execute(sql`
+          ALTER TABLE order_items ADD COLUMN IF NOT EXISTS price INTEGER NOT NULL DEFAULT 0;
+        `);
+      } catch (e) { /* column might already exist */ }
+
+      // Auto-seed default products if products table is empty
+      try {
+        const existingProds = await db.select().from(products);
+        if (existingProds.length === 0) {
+          for (const p of DEFAULT_CATALOG_PRODUCTS) {
+            await db.insert(products).values({
+              nama_barang: p.nama_barang,
+              kategori: p.kategori,
+              sub_kategori: p.sub_kategori,
+              harga: p.harga,
+              stok: p.stok
+            });
+          }
         }
-      }
-    } catch (seedErr) {
-      console.warn('Product auto-seed note:', seedErr);
-    }
+      } catch (e) { /* silent fail on seed */ }
 
-    isDbSchemaEnsured = true;
-  } catch (err: any) {
-    console.warn('Database schema auto-check note:', err?.message || err);
-  }
+      isDbSchemaEnsured = true;
+      console.log('Database schema ensured and seeded successfully');
+    } catch (err: any) {
+      console.warn('Database schema auto-check note:', err?.message || err);
+    }
+  })();
+
+  return schemaPromise;
 }
 
 // --- CART ROUTES ---

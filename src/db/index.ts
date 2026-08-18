@@ -20,8 +20,9 @@ export const createPool = () => {
         connectionString,
         ssl: isLocalhost ? false : { rejectUnauthorized: false },
         max: 5,
-        idleTimeoutMillis: 5000,
+        idleTimeoutMillis: 1000,
         connectionTimeoutMillis: 4000,
+        query_timeout: 5000,
       };
     } else {
       const host = process.env.SQL_HOST;
@@ -40,8 +41,9 @@ export const createPool = () => {
         database,
         ssl: useSsl ? { rejectUnauthorized: false } : false,
         max: 5,
-        idleTimeoutMillis: 5000,
+        idleTimeoutMillis: 1000,
         connectionTimeoutMillis: 4000,
+        query_timeout: 5000,
       };
     }
 
