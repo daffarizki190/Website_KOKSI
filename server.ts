@@ -1228,7 +1228,7 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
     if (errMsg.includes('Stok') || errMsg.includes('tidak mencukupi') || errMsg.includes('tidak ditemukan')) {
       res.status(400).json({ error: errMsg });
     } else {
-      res.status(500).json({ error: 'Gagal membuat pesanan. Silakan coba beberapa saat lagi.', details: errMsg, stack: err?.stack });
+      res.status(500).json({ error: 'Gagal membuat pesanan. Silakan coba beberapa saat lagi.', details: errMsg, stack: error?.stack });
     }
   }
 });
