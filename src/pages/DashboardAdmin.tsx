@@ -1056,11 +1056,8 @@ export const DashboardAdmin = () => {
       // Calculate totals
       let totalItemsCount = 0;
       let totalRevenue = 0;
-      let totalCompletedCount = 0;
 
       filteredOrders.forEach(ord => {
-        const st = (ord.status || '').toLowerCase();
-        if (st.includes('selesai') || st === 'completed') totalCompletedCount++;
         ord.items?.forEach(it => {
           totalItemsCount += (it.quantity || 0);
           totalRevenue += ((it.quantity || 0) * (it.price || 0));
@@ -1068,43 +1065,38 @@ export const DashboardAdmin = () => {
       });
 
       // Construct AOA Matrix
-      const r0 = ['BELANJAIN SAZA - PT. SIEMENS INDONESIA', '', '', '', '', '', '', '', '', '', '', '', ''];
-      const r1 = ['LAPORAN REKAPITULASI TARIKAN DATA TRANSAKSI PENJUALAN BULANAN', '', '', '', '', '', '', '', '', '', '', '', ''];
-      const r2 = [`Periode Laporan: ${periodTitle}   |   Tanggal Cetak: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale: idLocale })} WIB   |   PT: ${ptToUse}   |   Status: ${statusToUse}`, '', '', '', '', '', '', '', '', '', '', '', ''];
-      const r3 = ['', '', '', '', '', '', '', '', '', '', '', '', ''];
-      const r4 = ['RINGKASAN REKAPITULASI EKSEKUTIF', '', '', '', '', '', '', '', '', '', '', '', ''];
+      const r0 = ['BELANJAIN SAZA - PT. SIEMENS INDONESIA', '', '', '', '', '', '', '', '', ''];
+      const r1 = ['LAPORAN REKAPITULASI TARIKAN DATA TRANSAKSI PENJUALAN BULANAN', '', '', '', '', '', '', '', '', ''];
+      const r2 = [`Periode Laporan: ${periodTitle}   |   Tanggal Cetak: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale: idLocale })} WIB`, '', '', '', '', '', '', '', '', ''];
+      const r3 = ['', '', '', '', '', '', '', '', '', ''];
+      const r4 = ['RINGKASAN REKAPITULASI EKSEKUTIF', '', '', '', '', '', '', '', '', ''];
 
       const r5 = [
         'TOTAL PESANAN', '', '',
         'TOTAL ITEM TERJUAL', '', '',
-        'TOTAL OMZET PENJUALAN', '', '',
-        'PESANAN SELESAI', '', '', ''
+        'TOTAL OMZET PENJUALAN', '', '', ''
       ];
 
       const r6 = [
         `${filteredOrders.length} Transaksi`, '', '',
         `${totalItemsCount.toLocaleString('id-ID')} Pcs`, '', '',
-        totalRevenue, '', '',
-        `${totalCompletedCount} Transaksi`, '', '', ''
+        totalRevenue, '', '', ''
       ];
 
-      const r7 = ['', '', '', '', '', '', '', '', '', '', '', '', ''];
-      const r8 = ['RINCIAN DETAIL TRANSAKSI PENJUALAN', '', '', '', '', '', '', '', '', '', '', '', ''];
+      const r7 = ['', '', '', '', '', '', '', '', '', ''];
+      const r8 = ['RINCIAN DETAIL TRANSAKSI PENJUALAN (DIGABUNG PER USER)', '', '', '', '', '', '', '', '', ''];
 
       const r9 = [
         'NO',
-        'ID PESANAN',
-        'TANGGAL & WAKTU',
         'NAMA KARYAWAN',
-        'PERUSAHAAN (PT)',
         'DEPARTEMEN',
         'NO HP / KONTAK',
+        'JUMLAH CHECKOUT',
         'NAMA BARANG / PRODUK',
         'QTY',
         'HARGA SATUAN (RP)',
         'TOTAL HARGA (RP)',
-        'STATUS PESANAN',
-        'CATATAN STATUS'
+        'STATUS PESANAN'
       ];
 
       const aoa: any[][] = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9];
@@ -1115,32 +1107,72 @@ export const DashboardAdmin = () => {
 
       const orderMerges: { s: { r: number, c: number }, e: { r: number, c: number } }[] = [];
 
+      // Grouping logic
+      const userOrdersMap = new Map<string, {
+        user: any;
+        ordersCount: number;
+        itemsMap: Map<number, any>;
+        statuses: Record<string, number>;
+      }>();
+
       filteredOrders.forEach(order => {
-        const items = (order.items && order.items.length > 0) ? order.items : [{ product: { nama_barang: 'Barang Dihapus' }, quantity: 0, price: 0 }];
+        const userKey = order.user?.no_hp || order.user?.id || 'unknown';
+        if (!userOrdersMap.has(userKey)) {
+          userOrdersMap.set(userKey, {
+            user: order.user,
+            ordersCount: 0,
+            itemsMap: new Map(),
+            statuses: {}
+          });
+        }
+        
+        const group = userOrdersMap.get(userKey)!;
+        group.ordersCount++;
+        
+        const st = order.status || 'Menunggu Konfirmasi';
+        group.statuses[st] = (group.statuses[st] || 0) + 1;
+
+        const items = (order.items && order.items.length > 0) ? order.items : [];
+        items.forEach(it => {
+          const pId = it.productId || 0;
+          if (!group.itemsMap.has(pId)) {
+            group.itemsMap.set(pId, { ...it, quantity: 0, subtotal: 0, productNama: it.product?.nama_barang || 'Barang Dihapus' });
+          }
+          const aggItem = group.itemsMap.get(pId)!;
+          aggItem.quantity += (it.quantity || 0);
+          aggItem.subtotal += ((it.quantity || 0) * (it.price || 0));
+          aggItem.price = it.price || aggItem.price;
+        });
+      });
+
+      Array.from(userOrdersMap.values()).forEach(group => {
+        const items = Array.from(group.itemsMap.values());
+        if (items.length === 0) {
+          items.push({ productNama: 'Tidak ada barang', quantity: 0, price: 0, subtotal: 0 });
+        }
+        
         const orderStartRow = aoa.length;
 
-        items.forEach((item, itemIdx) => {
-          const subtotal = (item.quantity || 0) * (item.price || 0);
-          grandTotalQty += (item.quantity || 0);
-          grandTotalSubtotal += subtotal;
+        // Aggregate statuses into a readable string
+        const statusStrs = Object.entries(group.statuses).map(([st, count]) => `${count} ${st}`);
+        const statusAgg = statusStrs.join(', ');
 
-          const dateStr = order.createdAt ? format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm') : '-';
+        items.forEach((item, itemIdx) => {
+          grandTotalQty += (item.quantity || 0);
+          grandTotalSubtotal += (item.subtotal || 0);
 
           if (itemIdx === 0) {
             aoa.push([
               orderCounter,
-              `#SAZA-PKP-${order.id}`,
-              dateStr,
-              order.user?.nama || '-',
-              order.user?.pt || '-',
-              order.user?.departemen || '-',
-              order.user?.no_hp || '-',
-              item.product?.nama_barang || 'Barang Dihapus',
+              group.user?.nama || '-',
+              group.user?.departemen || '-',
+              group.user?.no_hp || '-',
+              `${group.ordersCount}x`,
+              item.productNama,
               item.quantity || 0,
               item.price || 0,
-              subtotal,
-              order.status || 'Menunggu Konfirmasi',
-              order.keterangan || '-'
+              item.subtotal || 0,
+              statusAgg
             ]);
           } else {
             aoa.push([
@@ -1149,13 +1181,10 @@ export const DashboardAdmin = () => {
               '',
               '',
               '',
-              '',
-              '',
-              item.product?.nama_barang || 'Barang Dihapus',
+              item.productNama,
               item.quantity || 0,
               item.price || 0,
-              subtotal,
-              '',
+              item.subtotal || 0,
               ''
             ]);
           }
@@ -1164,14 +1193,12 @@ export const DashboardAdmin = () => {
         const orderEndRow = aoa.length - 1;
 
         if (orderEndRow > orderStartRow) {
-          // Merge order-level columns (NO, ID PESANAN, TANGGAL, NAMA, PT, DEPT, NO HP)
-          for (let c = 0; c <= 6; c++) {
+          // Merge user-level columns (NO, NAMA, DEPT, NO HP, JML CHECKOUT)
+          for (let c = 0; c <= 4; c++) {
             orderMerges.push({ s: { r: orderStartRow, c }, e: { r: orderEndRow, c } });
           }
-          // Merge STATUS PESANAN, CATATAN STATUS
-          for (let c = 11; c <= 12; c++) {
-            orderMerges.push({ s: { r: orderStartRow, c }, e: { r: orderEndRow, c } });
-          }
+          // Merge STATUS PESANAN
+          orderMerges.push({ s: { r: orderStartRow, c: 9 }, e: { r: orderEndRow, c: 9 } });
         }
 
         orderCounter++;
@@ -1179,11 +1206,10 @@ export const DashboardAdmin = () => {
 
       const footerRowIdx = aoa.length;
       aoa.push([
-        'TOTAL KESELURUHAN (PERIODE BULAN INI)', '', '', '', '', '', '', '',
+        'TOTAL KESELURUHAN (PERIODE BULAN INI)', '', '', '', '', '',
         grandTotalQty,
         '',
         grandTotalSubtotal,
-        '',
         ''
       ]);
 
@@ -1191,38 +1217,33 @@ export const DashboardAdmin = () => {
 
       // Merges
       ws['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } },
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 12 } },
-        { s: { r: 4, c: 0 }, e: { r: 4, c: 12 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 9 } },
+        { s: { r: 4, c: 0 }, e: { r: 4, c: 9 } },
         { s: { r: 5, c: 0 }, e: { r: 5, c: 2 } },
         { s: { r: 6, c: 0 }, e: { r: 6, c: 2 } },
         { s: { r: 5, c: 3 }, e: { r: 5, c: 5 } },
         { s: { r: 6, c: 3 }, e: { r: 6, c: 5 } },
         { s: { r: 5, c: 6 }, e: { r: 5, c: 8 } },
         { s: { r: 6, c: 6 }, e: { r: 6, c: 8 } },
-        { s: { r: 5, c: 9 }, e: { r: 5, c: 12 } },
-        { s: { r: 6, c: 9 }, e: { r: 6, c: 12 } },
-        { s: { r: 8, c: 0 }, e: { r: 8, c: 12 } },
-        { s: { r: footerRowIdx, c: 0 }, e: { r: footerRowIdx, c: 7 } },
+        { s: { r: 8, c: 0 }, e: { r: 8, c: 9 } },
+        { s: { r: footerRowIdx, c: 0 }, e: { r: footerRowIdx, c: 5 } },
         ...orderMerges
       ];
 
       // Column widths
       ws['!cols'] = [
         { wch: 6 },   // NO
-        { wch: 18 },  // ID PESANAN
-        { wch: 20 },  // TANGGAL
         { wch: 26 },  // NAMA KARYAWAN
-        { wch: 28 },  // PERUSAHAAN (PT)
         { wch: 20 },  // DEPARTEMEN
         { wch: 18 },  // NO HP
+        { wch: 18 },  // JUMLAH CHECKOUT
         { wch: 36 },  // NAMA BARANG
         { wch: 10 },  // QTY
         { wch: 22 },  // HARGA SATUAN
         { wch: 22 },  // TOTAL HARGA
-        { wch: 22 },  // STATUS
-        { wch: 45 }   // CATATAN STATUS
+        { wch: 25 }   // STATUS PESANAN
       ];
 
       // Row heights
@@ -1245,7 +1266,7 @@ export const DashboardAdmin = () => {
 
       // Styling Cells
       // Row 0
-      for (let c = 0; c <= 12; c++) {
+      for (let c = 0; c <= 9; c++) {
         const addr = XLSX.utils.encode_cell({ r: 0, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
         ws[addr].s = {
@@ -1256,7 +1277,7 @@ export const DashboardAdmin = () => {
       }
 
       // Row 1
-      for (let c = 0; c <= 12; c++) {
+      for (let c = 0; c <= 9; c++) {
         const addr = XLSX.utils.encode_cell({ r: 1, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
         ws[addr].s = {
@@ -1267,7 +1288,7 @@ export const DashboardAdmin = () => {
       }
 
       // Row 2
-      for (let c = 0; c <= 12; c++) {
+      for (let c = 0; c <= 9; c++) {
         const addr = XLSX.utils.encode_cell({ r: 2, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
         ws[addr].s = {
@@ -1279,7 +1300,7 @@ export const DashboardAdmin = () => {
 
       // Section Headers (Rows 4 & 8)
       [4, 8].forEach(r => {
-        for (let c = 0; c <= 12; c++) {
+        for (let c = 0; c <= 9; c++) {
           const addr = XLSX.utils.encode_cell({ r, c });
           if (!ws[addr]) ws[addr] = { v: '', t: 's' };
           ws[addr].s = {
@@ -1292,7 +1313,7 @@ export const DashboardAdmin = () => {
       });
 
       // KPI Boxes (Rows 5 & 6)
-      for (let c = 0; c <= 12; c++) {
+      for (let c = 0; c <= 8; c++) {
         const lAddr = XLSX.utils.encode_cell({ r: 5, c });
         const vAddr = XLSX.utils.encode_cell({ r: 6, c });
 
@@ -1318,9 +1339,17 @@ export const DashboardAdmin = () => {
           ws[vAddr].z = '"Rp "#,##0';
         }
       }
+      
+      // Rightmost column of KPI box (fix style)
+      const c9_lAddr = XLSX.utils.encode_cell({ r: 5, c: 9 });
+      const c9_vAddr = XLSX.utils.encode_cell({ r: 6, c: 9 });
+      if (!ws[c9_lAddr]) ws[c9_lAddr] = { v: '', t: 's' };
+      if (!ws[c9_vAddr]) ws[c9_vAddr] = { v: '', t: 's' };
+      ws[c9_lAddr].s = ws[XLSX.utils.encode_cell({ r: 5, c: 8 })].s;
+      ws[c9_vAddr].s = ws[XLSX.utils.encode_cell({ r: 6, c: 8 })].s;
 
       // Table Headers (Row 9)
-      for (let c = 0; c <= 12; c++) {
+      for (let c = 0; c <= 9; c++) {
         const addr = XLSX.utils.encode_cell({ r: 9, c });
         if (ws[addr]) {
           ws[addr].s = {
@@ -1342,14 +1371,14 @@ export const DashboardAdmin = () => {
         const isEven = r % 2 === 0;
         const rowBg = isEven ? 'FFFFFF' : 'F8FAFC';
 
-        for (let c = 0; c <= 12; c++) {
+        for (let c = 0; c <= 9; c++) {
           const addr = XLSX.utils.encode_cell({ r, c });
           const cell = ws[addr];
           if (!cell) continue;
 
           let align: 'left' | 'center' | 'right' = 'left';
-          if (c === 0 || c === 1 || c === 2 || c === 6 || c === 8) align = 'center';
-          if (c === 9 || c === 10) align = 'right';
+          if (c === 0 || c === 3 || c === 4 || c === 6) align = 'center';
+          if (c === 7 || c === 8) align = 'right';
 
           cell.s = {
             font: { name: 'Arial', sz: 9.5, color: { rgb: '1E293B' } },
@@ -1358,37 +1387,22 @@ export const DashboardAdmin = () => {
             border: borderThin
           };
 
-          if (c === 9 || c === 10) {
+          if (c === 7 || c === 8) {
             if (typeof cell.v === 'number') {
               cell.z = '"Rp "#,##0';
             }
           }
 
-          if (c === 8 && typeof cell.v === 'number') {
+          if (c === 6 && typeof cell.v === 'number') {
             cell.z = '#,##0';
             cell.s.font.bold = true;
           }
 
-          if (c === 11) {
-            const st = String(cell.v || '').toLowerCase();
-            let stBg = 'FEF3C7';
-            let stFont = '92400E';
-
-            if (st.includes('selesai') || st === 'completed') {
-              stBg = 'DCFCE7';
-              stFont = '166534';
-            } else if (st.includes('proses') || st.includes('siap')) {
-              stBg = 'DBEAFE';
-              stFont = '1E40AF';
-            } else if (st.includes('batal') || st === 'cancelled') {
-              stBg = 'FEE2E2';
-              stFont = '991B1B';
-            }
-
+          if (c === 9) {
             cell.s = {
-              font: { name: 'Arial', sz: 9.5, bold: true, color: { rgb: stFont } },
-              fill: { fgColor: { rgb: stBg } },
-              alignment: { horizontal: 'center', vertical: 'center' },
+              font: { name: 'Arial', sz: 9.5, bold: true, color: { rgb: '1E40AF' } },
+              fill: { fgColor: { rgb: 'DBEAFE' } },
+              alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
               border: borderThin
             };
           }
@@ -1397,7 +1411,7 @@ export const DashboardAdmin = () => {
 
       // Footer Row
       ws['!rows'][footerRowIdx] = { hpt: 26 };
-      for (let c = 0; c <= 12; c++) {
+      for (let c = 0; c <= 9; c++) {
         const addr = XLSX.utils.encode_cell({ r: footerRowIdx, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
 
@@ -1405,7 +1419,7 @@ export const DashboardAdmin = () => {
         curCell.s = {
           font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '0F172A' } },
           fill: { fgColor: { rgb: 'E2E8F0' } },
-          alignment: { horizontal: c === 8 || c === 10 ? 'right' : 'left', vertical: 'center' },
+          alignment: { horizontal: c === 6 || c === 8 ? 'right' : 'left', vertical: 'center' },
           border: {
             top: { style: 'medium', color: { rgb: '0F172A' } },
             bottom: { style: 'double', color: { rgb: '0F172A' } },
@@ -1414,11 +1428,11 @@ export const DashboardAdmin = () => {
           }
         };
 
-        if (c === 8 && typeof curCell.v === 'number') {
+        if (c === 6 && typeof curCell.v === 'number') {
           curCell.z = '#,##0';
           curCell.s.alignment.horizontal = 'center';
         }
-        if (c === 10 && typeof curCell.v === 'number') {
+        if (c === 8 && typeof curCell.v === 'number') {
           curCell.z = '"Rp "#,##0';
         }
       }
@@ -1429,9 +1443,7 @@ export const DashboardAdmin = () => {
       const cleanPeriod = periodTitle.replace(/[^a-zA-Z0-9]/g, '_');
       const fileName = `Laporan_Transaksi_BelanjaIn_Saza_${cleanPeriod}.xlsx`;
 
-      // Use simple writeFile for Excel export, replacing manual Blob handling
       XLSX.writeFile(wb, fileName);
-
       setIsExportModalOpen(false);
     } catch (err) {
       console.error(err);
