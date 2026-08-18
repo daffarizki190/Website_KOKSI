@@ -1081,29 +1081,24 @@ export const DashboardAdmin = () => {
         });
       });
 
-      // Construct AOA Matrix
+      // Construct AOA Matrix without blank gap rows
       const r0 = ['BELANJAIN SAZA - PT. SIEMENS INDONESIA', '', '', '', '', '', '', '', '', ''];
-      const r1 = ['LAPORAN REKAPITULASI TARIKAN DATA TRANSAKSI PENJUALAN BULANAN', '', '', '', '', '', '', '', '', ''];
-      const r2 = [`Periode Laporan: ${periodTitle}   |   Tanggal Cetak: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale: idLocale })} WIB`, '', '', '', '', '', '', '', '', ''];
-      const r3 = ['', '', '', '', '', '', '', '', '', ''];
-      const r4 = ['RINGKASAN REKAPITULASI EKSEKUTIF', '', '', '', '', '', '', '', '', ''];
+      const r1 = ['LAPORAN REKAPITULASI DATA TRANSAKSI PENJUALAN', '', '', '', '', '', '', '', '', ''];
+      const r2 = [`Periode: ${periodTitle}   |   Dicetak: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale: idLocale })} WIB`, '', '', '', '', '', '', '', '', ''];
 
-      const r5 = [
-        'TOTAL PESANAN', '', '',
+      const r3 = [
+        'TOTAL TRANSAKSI', '', '',
         'TOTAL ITEM TERJUAL', '', '',
         'TOTAL OMZET PENJUALAN', '', '', ''
       ];
 
-      const r6 = [
+      const r4 = [
         `${filteredOrders.length} Transaksi`, '', '',
         `${totalItemsCount.toLocaleString('id-ID')} Pcs`, '', '',
         totalRevenue, '', '', ''
       ];
 
-      const r7 = ['', '', '', '', '', '', '', '', '', ''];
-      const r8 = ['RINCIAN DETAIL TRANSAKSI PENJUALAN (DIGABUNG PER USER)', '', '', '', '', '', '', '', '', ''];
-
-      const r9 = [
+      const r5 = [
         'NO',
         'NAMA KARYAWAN',
         'DEPARTEMEN',
@@ -1116,7 +1111,7 @@ export const DashboardAdmin = () => {
         'STATUS PESANAN'
       ];
 
-      const aoa: any[][] = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9];
+      const aoa: any[][] = [r0, r1, r2, r3, r4, r5];
 
       let orderCounter = 1;
       let grandTotalQty = 0;
@@ -1254,42 +1249,38 @@ export const DashboardAdmin = () => {
         { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
         { s: { r: 2, c: 0 }, e: { r: 2, c: 9 } },
-        { s: { r: 4, c: 0 }, e: { r: 4, c: 9 } },
-        { s: { r: 5, c: 0 }, e: { r: 5, c: 2 } },
-        { s: { r: 6, c: 0 }, e: { r: 6, c: 2 } },
-        { s: { r: 5, c: 3 }, e: { r: 5, c: 5 } },
-        { s: { r: 6, c: 3 }, e: { r: 6, c: 5 } },
-        { s: { r: 5, c: 6 }, e: { r: 5, c: 8 } },
-        { s: { r: 6, c: 6 }, e: { r: 6, c: 8 } },
-        { s: { r: 8, c: 0 }, e: { r: 8, c: 9 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 2 } },
+        { s: { r: 4, c: 0 }, e: { r: 4, c: 2 } },
+        { s: { r: 3, c: 3 }, e: { r: 3, c: 5 } },
+        { s: { r: 4, c: 3 }, e: { r: 4, c: 5 } },
+        { s: { r: 3, c: 6 }, e: { r: 3, c: 9 } },
+        { s: { r: 4, c: 6 }, e: { r: 4, c: 9 } },
         { s: { r: footerRowIdx, c: 0 }, e: { r: footerRowIdx, c: 5 } },
         ...orderMerges
       ];
 
-      // Column widths
+      // Column widths dibuat pas dan proporsional
       ws['!cols'] = [
         { wch: 6 },   // NO
-        { wch: 26 },  // NAMA KARYAWAN
-        { wch: 20 },  // DEPARTEMEN
-        { wch: 18 },  // NO HP
-        { wch: 18 },  // Tanggal pesanan (dd/MM/yyyy)
-        { wch: 36 },  // NAMA BARANG
-        { wch: 10 },  // QTY
-        { wch: 22 },  // HARGA SATUAN
-        { wch: 22 },  // TOTAL HARGA
-        { wch: 24 }   // STATUS PESANAN
+        { wch: 24 },  // NAMA KARYAWAN
+        { wch: 18 },  // DEPARTEMEN
+        { wch: 16 },  // NO HP / KONTAK
+        { wch: 16 },  // Tanggal pesanan (dd/MM/yyyy)
+        { wch: 32 },  // NAMA BARANG / PRODUK
+        { wch: 8 },   // QTY
+        { wch: 18 },  // HARGA SATUAN (RP)
+        { wch: 18 },  // TOTAL HARGA (RP)
+        { wch: 22 }   // STATUS PESANAN
       ];
 
       // Row heights
       ws['!rows'] = [];
-      ws['!rows'][0] = { hpt: 32 };
-      ws['!rows'][1] = { hpt: 24 };
-      ws['!rows'][2] = { hpt: 20 };
-      ws['!rows'][4] = { hpt: 22 };
-      ws['!rows'][5] = { hpt: 18 };
-      ws['!rows'][6] = { hpt: 28 };
-      ws['!rows'][8] = { hpt: 22 };
-      ws['!rows'][9] = { hpt: 28 };
+      ws['!rows'][0] = { hpt: 28 };
+      ws['!rows'][1] = { hpt: 22 };
+      ws['!rows'][2] = { hpt: 18 };
+      ws['!rows'][3] = { hpt: 18 };
+      ws['!rows'][4] = { hpt: 26 };
+      ws['!rows'][5] = { hpt: 26 };
 
       const borderThin = {
         top: { style: 'thin', color: { rgb: '94A3B8' } },
@@ -1304,7 +1295,7 @@ export const DashboardAdmin = () => {
         const addr = XLSX.utils.encode_cell({ r: 0, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
         ws[addr].s = {
-          font: { name: 'Arial', sz: 13, bold: true, color: { rgb: 'FFFFFF' } },
+          font: { name: 'Arial', sz: 12, bold: true, color: { rgb: 'FFFFFF' } },
           fill: { fgColor: { rgb: '004B49' } },
           alignment: { horizontal: 'center', vertical: 'center' }
         };
@@ -1332,80 +1323,57 @@ export const DashboardAdmin = () => {
         };
       }
 
-      // Section Headers (Rows 4 & 8)
-      [4, 8].forEach(r => {
-        for (let c = 0; c <= 9; c++) {
-          const addr = XLSX.utils.encode_cell({ r, c });
-          if (!ws[addr]) ws[addr] = { v: '', t: 's' };
-          ws[addr].s = {
-            font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '005B5C' } },
-            fill: { fgColor: { rgb: 'E2E8F0' } },
-            alignment: { horizontal: 'left', vertical: 'center' },
-            border: borderThin
-          };
-        }
-      });
-
-      // KPI Boxes (Rows 5 & 6)
-      for (let c = 0; c <= 8; c++) {
-        const lAddr = XLSX.utils.encode_cell({ r: 5, c });
-        const vAddr = XLSX.utils.encode_cell({ r: 6, c });
+      // KPI Boxes (Rows 3 & 4)
+      for (let c = 0; c <= 9; c++) {
+        const lAddr = XLSX.utils.encode_cell({ r: 3, c });
+        const vAddr = XLSX.utils.encode_cell({ r: 4, c });
 
         if (!ws[lAddr]) ws[lAddr] = { v: '', t: 's' };
         if (!ws[vAddr]) ws[vAddr] = { v: '', t: 's' };
 
+        const isOmzet = c >= 6;
         ws[lAddr].s = {
-          font: { name: 'Arial', sz: 9, bold: true, color: { rgb: '475569' } },
-          fill: { fgColor: { rgb: 'F1F5F9' } },
+          font: { name: 'Arial', sz: 9, bold: true, color: { rgb: isOmzet ? '065F46' : '334155' } },
+          fill: { fgColor: { rgb: isOmzet ? 'DCFCE7' : 'F1F5F9' } },
           alignment: { horizontal: 'center', vertical: 'center' },
           border: borderThin
         };
 
-        const isOmzetBox = c >= 6 && c <= 8;
         ws[vAddr].s = {
-          font: { name: 'Arial', sz: 12, bold: true, color: isOmzetBox ? { rgb: '047857' } : { rgb: '0F172A' } },
-          fill: { fgColor: isOmzetBox ? { rgb: 'ECFDF5' } : { rgb: 'FFFFFF' } },
+          font: { name: 'Arial', sz: 12, bold: true, color: { rgb: isOmzet ? '047857' : '0F172A' } },
+          fill: { fgColor: { rgb: isOmzet ? 'ECFDF5' : 'FFFFFF' } },
           alignment: { horizontal: 'center', vertical: 'center' },
           border: borderThin
         };
 
-        if (isOmzetBox && typeof ws[vAddr].v === 'number') {
+        if (isOmzet && typeof ws[vAddr].v === 'number') {
           ws[vAddr].z = '"Rp "#,##0';
         }
       }
-      
-      // Rightmost column of KPI box (fix style)
-      const c9_lAddr = XLSX.utils.encode_cell({ r: 5, c: 9 });
-      const c9_vAddr = XLSX.utils.encode_cell({ r: 6, c: 9 });
-      if (!ws[c9_lAddr]) ws[c9_lAddr] = { v: '', t: 's' };
-      if (!ws[c9_vAddr]) ws[c9_vAddr] = { v: '', t: 's' };
-      ws[c9_lAddr].s = ws[XLSX.utils.encode_cell({ r: 5, c: 8 })].s;
-      ws[c9_vAddr].s = ws[XLSX.utils.encode_cell({ r: 6, c: 8 })].s;
 
-      // Table Headers (Row 9)
+      // Table Headers (Row 5)
       for (let c = 0; c <= 9; c++) {
-        const addr = XLSX.utils.encode_cell({ r: 9, c });
-        if (ws[addr]) {
-          ws[addr].s = {
-            font: { name: 'Arial', sz: 10, bold: true, color: { rgb: 'FFFFFF' } },
-            fill: { fgColor: { rgb: '0F172A' } },
-            alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-            border: {
-              top: { style: 'medium', color: { rgb: '000000' } },
-              bottom: { style: 'medium', color: { rgb: '000000' } },
-              left: { style: 'thin', color: { rgb: '334155' } },
-              right: { style: 'thin', color: { rgb: '334155' } }
-            }
-          };
-        }
+        const addr = XLSX.utils.encode_cell({ r: 5, c });
+        if (!ws[addr]) ws[addr] = { v: '', t: 's' };
+        ws[addr].s = {
+          font: { name: 'Arial', sz: 10, bold: true, color: { rgb: 'FFFFFF' } },
+          fill: { fgColor: { rgb: '0F172A' } },
+          alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+          border: {
+            top: { style: 'medium', color: { rgb: '0F172A' } },
+            bottom: { style: 'medium', color: { rgb: '0F172A' } },
+            left: { style: 'thin', color: { rgb: '475569' } },
+            right: { style: 'thin', color: { rgb: '475569' } }
+          }
+        };
       }
 
       // Distinct visible borders
       const borderCellColor = '94A3B8';       // Slate-400 for standard inner borders (clear & crisp)
       const borderUserDividerColor = '334155'; // Slate-700 for distinct separator between user orders
 
-      // Data Rows (10 to footerRowIdx - 1)
-      for (let r = 10; r < footerRowIdx; r++) {
+      // Data Rows (6 to footerRowIdx - 1)
+      for (let r = 6; r < footerRowIdx; r++) {
         const userGroup = userGroupRanges.find(ug => r >= ug.start && r <= ug.end);
         const isEvenUser = (userGroup ? userGroup.groupIdx : r) % 2 === 0;
         const rowBg = isEvenUser ? 'FFFFFF' : 'F8FAFC';
@@ -1413,8 +1381,8 @@ export const DashboardAdmin = () => {
 
         for (let c = 0; c <= 9; c++) {
           const addr = XLSX.utils.encode_cell({ r, c });
+          if (!ws[addr]) ws[addr] = { v: '', t: 's' };
           const cell = ws[addr];
-          if (!cell) continue;
 
           let align: 'left' | 'center' | 'right' = 'left';
           // Kolom NO (0), NO HP (3), Tanggal pesanan (4), QTY (6) selalu di tengah (center)
@@ -1484,17 +1452,16 @@ export const DashboardAdmin = () => {
           border: {
             top: { style: 'medium', color: { rgb: '0F172A' } },
             bottom: { style: 'double', color: { rgb: '0F172A' } },
-            left: { style: 'thin', color: { rgb: 'CBD5E1' } },
-            right: { style: 'thin', color: { rgb: 'CBD5E1' } }
+            left: { style: 'thin', color: { rgb: '94A3B8' } },
+            right: { style: 'thin', color: { rgb: '94A3B8' } }
           }
         };
 
-        if (c === 6 && typeof curCell.v === 'number') {
-          curCell.z = '#,##0';
-          curCell.s.alignment.horizontal = 'center';
-        }
         if (c === 8 && typeof curCell.v === 'number') {
           curCell.z = '"Rp "#,##0';
+        }
+        if (c === 6 && typeof curCell.v === 'number') {
+          curCell.z = '#,##0';
         }
       }
 
