@@ -627,84 +627,98 @@ ${testsMarkdown}
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-teal-500 selection:text-slate-950">
-      {/* HEADER SECTION */}
-      <header className="bg-slate-900/90 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-teal-500 selection:text-slate-950 relative overflow-x-hidden">
+      {/* Background Ambient Glow Accents */}
+      <div className="fixed top-0 left-1/4 w-96 h-96 bg-teal-500/5 rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="fixed top-20 right-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="fixed bottom-0 right-10 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none -z-10" />
+
+      {/* HEADER SECTION (CYBER MISSION CONTROL HUD) */}
+      <header className="bg-slate-900/80 border-b border-slate-800/80 sticky top-0 z-40 backdrop-blur-xl shadow-2xl shadow-slate-950/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-emerald-400 p-0.5 shadow-lg shadow-teal-500/20">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                <Server className="w-5 h-5 text-teal-400" />
+          <div className="flex items-center gap-3.5">
+            <div className="relative">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-teal-500 via-cyan-400 to-emerald-400 p-0.5 shadow-lg shadow-teal-500/25">
+                <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+                  <Server className="w-5 h-5 text-teal-400" />
+                </div>
               </div>
+              <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base font-extrabold text-white tracking-tight">
-                  Pusat Pemantauan Infrastruktur IT
+                <h1 className="text-base font-black text-white tracking-tight flex items-center gap-2">
+                  <span>Pusat Operasi & Infrastruktur IT</span>
                 </h1>
-                <span className="px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-md bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black tracking-widest uppercase">
+                  <span>LIVE HUD</span>
+                </div>
+                <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-teal-500/15 text-teal-300 border border-teal-500/30">
                   Role IT
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-medium">
-                Pemantauan Server, Traffic, Database, Log Error, Keamanan & Akses Peran
+              <p className="text-xs text-slate-400 font-medium mt-0.5">
+                Sistem Telemetri Server, Traffic, Database, Diagnostik API, Keamanan & Pengelolaan Akses
               </p>
             </div>
           </div>
 
-          {/* Quick Controls */}
-          <div className="flex items-center flex-wrap gap-2.5 w-full md:w-auto justify-end">
+          {/* Quick Controls Toolbar */}
+          <div className="flex items-center flex-wrap gap-2 w-full md:w-auto justify-end">
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 cursor-pointer ${
                 autoRefresh 
-                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-xs' 
-                  : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-300'
+                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-sm shadow-emerald-500/10' 
+                  : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700/80 text-slate-300'
               }`}
             >
-              <Radio className={`w-3.5 h-3.5 ${autoRefresh ? 'text-emerald-400' : 'text-slate-400'}`} />
-              <span>Auto-Refresh (5s): {autoRefresh ? 'AKTIF' : 'NONAKTIF'}</span>
+              <Radio className={`w-3.5 h-3.5 ${autoRefresh ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
+              <span>Auto-Sync: {autoRefresh ? 'AKTIF (5s)' : 'NONAKTIF'}</span>
             </button>
 
             <button
               onClick={fetchITData}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 border border-slate-700/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
               title="Refresh manual data metrik IT"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+              <RefreshCw className="w-3.5 h-3.5 text-teal-400" />
               <span>Refresh</span>
             </button>
 
             <button
               onClick={handleFetchSummaryReport}
-              className="px-3.5 py-1.5 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 font-extrabold rounded-xl text-xs shadow-md shadow-teal-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-1.5 bg-gradient-to-r from-teal-500 via-emerald-400 to-cyan-400 hover:opacity-95 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-teal-500/20 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
             >
               <FileText className="w-3.5 h-3.5 text-slate-950" />
-              <span>Rangkuman Berkala</span>
+              <span>Rangkuman IT</span>
             </button>
 
             {user?.role === 'admin' && (
               <button
                 onClick={() => navigate('/admin')}
-                className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Dashboard Admin</span>
+                <span>Admin Portal</span>
               </button>
             )}
 
             <button
               onClick={handleOpenProfileModal}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-teal-400 border border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 bg-slate-800/90 hover:bg-slate-700/90 text-teal-300 border border-slate-700/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
               title="Edit Profil Saya"
             >
-              <UserIcon className="w-3.5 h-3.5" />
-              <span>Edit Profil</span>
+              <UserIcon className="w-3.5 h-3.5 text-teal-400" />
+              <span>Profil IT</span>
             </button>
 
             <button
               onClick={() => { logout(); navigate('/login'); }}
-              className="p-1.5 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-500/30 rounded-xl transition-all cursor-pointer"
+              className="p-1.5 bg-slate-800/90 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-slate-700/80 hover:border-red-500/30 rounded-xl transition-all cursor-pointer"
               title="Keluar / Logout"
             >
               <LogOut className="w-4 h-4" />
@@ -715,14 +729,14 @@ ${testsMarkdown}
 
       {/* ACTION MESSAGES */}
       {actionSuccessMsg && (
-        <div className="bg-emerald-500/20 border-b border-emerald-500/30 px-4 py-2 text-center text-xs font-bold text-emerald-300 flex items-center justify-center gap-2">
+        <div className="bg-emerald-500/15 border-b border-emerald-500/30 px-4 py-2 text-center text-xs font-bold text-emerald-300 flex items-center justify-center gap-2 backdrop-blur-md">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           <span>{actionSuccessMsg}</span>
         </div>
       )}
 
       {errorMsg && (
-        <div className="bg-rose-500/20 border-b border-rose-500/30 px-4 py-2 text-center text-xs font-bold text-rose-300 flex items-center justify-center gap-2">
+        <div className="bg-rose-500/15 border-b border-rose-500/30 px-4 py-2 text-center text-xs font-bold text-rose-300 flex items-center justify-center gap-2 backdrop-blur-md">
           <AlertTriangle className="w-4 h-4 text-rose-400" />
           <span>{errorMsg}</span>
         </div>
@@ -731,187 +745,146 @@ ${testsMarkdown}
       {/* MAIN CONTAINER */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 flex flex-col gap-6">
 
-        {/* HIGHLIGHT KPI OVERVIEW CARDS */}
+        {/* ULTRA-MODERN 5-COLUMN KPI OVERVIEW HUD */}
         {metrics && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-            {/* Server Status & Uptime */}
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between">
+            {/* Card 1: Server Status & Uptime */}
+            <div className="p-4 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-slate-800/80 hover:border-teal-500/40 transition-all duration-300 shadow-xl flex flex-col justify-between group">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Uptime Server</span>
-                <Server className="w-4 h-4 text-teal-400" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Uptime Server</span>
+                <div className="w-7 h-7 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 group-hover:scale-110 transition-transform">
+                  <Server className="w-3.5 h-3.5" />
+                </div>
               </div>
               <div>
-                <p className="text-base font-extrabold text-white">{metrics.serverHealth.uptimeFormatted}</p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="text-[11px] text-emerald-400 font-semibold">{metrics.serverHealth.containerStatus}</span>
+                <p className="text-lg font-black text-white tracking-tight">{metrics.serverHealth.uptimeFormatted}</p>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/80">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-xs shadow-emerald-400" />
+                    <span className="text-[10px] text-emerald-400 font-bold">{metrics.serverHealth.containerStatus}</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-500">Node {metrics.serverHealth.nodeVersion}</span>
                 </div>
               </div>
             </div>
 
-            {/* Traffic & Latency */}
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between">
+            {/* Card 2: Traffic & Latency */}
+            <div className="p-4 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-slate-800/80 hover:border-emerald-500/40 transition-all duration-300 shadow-xl flex flex-col justify-between group">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Traffic & Latensi</span>
-                <Activity className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-base font-extrabold text-white">{metrics.trafficAnalytics.totalRequests} Request</p>
-                <p className="text-[11px] text-slate-400 mt-1 font-medium">
-                  Latensi Avg: <span className="text-emerald-400 font-bold">{metrics.trafficAnalytics.avgResponseTimeMs} ms</span>
-                </p>
-              </div>
-            </div>
-
-            {/* Error Logs */}
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Log Exception / Error</span>
-                <AlertCircle className={`w-4 h-4 ${metrics.errorLogs.length > 0 ? 'text-amber-400' : 'text-slate-500'}`} />
-              </div>
-              <div>
-                <p className="text-base font-extrabold text-white">{metrics.errorLogs.length} Terdeteksi</p>
-                <p className="text-[11px] text-slate-400 mt-1 font-medium">
-                  500-599 (Server): <span className="text-rose-400 font-bold">{metrics.trafficAnalytics.statusCodes['5xx']}</span> | 400-499 (Klien): <span className="text-amber-400 font-bold">{metrics.trafficAnalytics.statusCodes['4xx']}</span>
-                </p>
-              </div>
-            </div>
-
-            {/* Database Health */}
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Performa DB</span>
-                <Database className="w-4 h-4 text-cyan-400" />
-              </div>
-              <div>
-                <p className="text-base font-extrabold text-white">{metrics.databasePerformance.dbPingMs} ms Ping</p>
-                <p className="text-[11px] text-cyan-400 font-medium mt-1">
-                  {metrics.databasePerformance.status} ({metrics.databasePerformance.engine})
-                </p>
-              </div>
-            </div>
-
-            {/* Security Score */}
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between col-span-2 md:col-span-1">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Skor Keamanan</span>
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-base font-extrabold text-emerald-400">{metrics.securityMonitoring.securityScore}/100</p>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">SANGAT AMAN</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Traffic & Latensi</span>
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                  <Activity className="w-3.5 h-3.5" />
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1 font-medium">
-                  SSL: {metrics.securityMonitoring.sslStatus.split(' ')[0]} | Bcrypt 10
-                </p>
+              </div>
+              <div>
+                <p className="text-lg font-black text-white tracking-tight">{metrics.trafficAnalytics.totalRequests.toLocaleString()} <span className="text-xs font-normal text-slate-400">Req</span></p>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/80">
+                  <span className="text-[10px] text-slate-400 font-medium">Latensi Avg:</span>
+                  <span className="text-[10px] font-mono font-bold text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                    ⚡ {metrics.trafficAnalytics.avgResponseTimeMs} ms
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Error Logs */}
+            <div className="p-4 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-slate-800/80 hover:border-amber-500/40 transition-all duration-300 shadow-xl flex flex-col justify-between group">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status Log Exception</span>
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform ${metrics.errorLogs.length > 0 ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400' : 'bg-slate-800 border border-slate-700 text-slate-400'}`}>
+                  <AlertCircle className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-baseline gap-2">
+                  <p className={`text-lg font-black tracking-tight ${metrics.errorLogs.length > 0 ? 'text-amber-400' : 'text-slate-200'}`}>
+                    {metrics.errorLogs.length}
+                  </p>
+                  <span className="text-xs text-slate-400 font-medium">Insiden Aktif</span>
+                </div>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/80 text-[10px] font-mono">
+                  <span className="text-amber-400 font-bold">4xx: {metrics.trafficAnalytics.statusCodes['4xx']}</span>
+                  <span className="text-rose-400 font-bold">5xx: {metrics.trafficAnalytics.statusCodes['5xx']}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4: Database Health */}
+            <div className="p-4 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-slate-800/80 hover:border-cyan-500/40 transition-all duration-300 shadow-xl flex flex-col justify-between group">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Koneksi Database</span>
+                <div className="w-7 h-7 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform">
+                  <Database className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div>
+                <p className="text-lg font-black text-white tracking-tight">{metrics.databasePerformance.dbPingMs} <span className="text-xs font-normal text-slate-400">ms Ping</span></p>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/80">
+                  <span className="text-[10px] text-cyan-400 font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                    {metrics.databasePerformance.status}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500">{metrics.databasePerformance.engine.split(' ')[0]}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 5: Security Score */}
+            <div className="p-4 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-slate-800/80 hover:border-emerald-500/40 transition-all duration-300 shadow-xl flex flex-col justify-between col-span-2 md:col-span-1 group">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Skor Keamanan</span>
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-lg font-black text-emerald-400 tracking-tight">{metrics.securityMonitoring.securityScore}<span className="text-xs font-normal text-slate-400">/100</span></p>
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">AMAN</span>
+                </div>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/80 text-[10px] text-slate-400">
+                  <span>SSL: {metrics.securityMonitoring.sslStatus.split(' ')[0]}</span>
+                  <span className="font-mono text-slate-400">Bcrypt 10</span>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB NAVIGATION BAR */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-800 no-scrollbar">
-          <button
-            onClick={() => setActiveTab('summary')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'summary'
-                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                : 'bg-slate-900/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800/80'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>Rangkuman Berkala Sistem</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('health')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'health'
-                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                : 'bg-slate-900/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800/80'
-            }`}
-          >
-            <Server className="w-4 h-4" />
-            <span>Kesehatan Server & Traffic</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('errors')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'errors'
-                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                : 'bg-slate-900/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800/80'
-            }`}
-          >
-            <AlertTriangle className="w-4 h-4" />
-            <span>Log Error ({metrics?.errorLogs.length || 0})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('database')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'database'
-                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                : 'bg-slate-900/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800/80'
-            }`}
-          >
-            <Database className="w-4 h-4" />
-            <span>Database & API Pihak Ketiga</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('security')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'security'
-                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                : 'bg-slate-900/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800/80'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span>Keamanan & Rilis Kode</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'users'
-                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                : 'bg-slate-900/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800/80'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>Kelola Akses Peran IT</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('wa_otp')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'wa_otp'
-                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                : 'bg-slate-900/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800/80'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4 text-emerald-400" />
-            <span>Verifikasi WhatsApp & SMS</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('api_testing')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'api_testing'
-                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                : 'bg-slate-900/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800/80'
-            }`}
-          >
-            <Zap className="w-4 h-4 text-amber-400" />
-            <span>Pengetesan API & Health</span>
-            {apiOverallStatus && (
-              <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase ${apiOverallStatus === 'HEALTHY' ? 'bg-emerald-400 text-slate-950' : 'bg-amber-400 text-slate-950'}`}>
-                {apiPassRate}
-              </span>
-            )}
-          </button>
+        {/* HIGH-TECH TAB NAVIGATION RAIL */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 border-b border-slate-800/80 no-scrollbar">
+          {[
+            { id: 'summary', label: 'Rangkuman Sistem', icon: FileText, color: 'text-teal-400' },
+            { id: 'health', label: 'Kesehatan Server', icon: Server, color: 'text-cyan-400' },
+            { id: 'errors', label: `Log Error (${metrics?.errorLogs.length || 0})`, icon: AlertTriangle, color: 'text-amber-400' },
+            { id: 'database', label: 'Database & APIs', icon: Database, color: 'text-blue-400' },
+            { id: 'security', label: 'Keamanan & Rilis', icon: ShieldCheck, color: 'text-emerald-400' },
+            { id: 'users', label: 'Akses Peran IT', icon: Users, color: 'text-purple-400' },
+            { id: 'wa_otp', label: 'WhatsApp & SMS OTP', icon: MessageSquare, color: 'text-emerald-400' },
+            { id: 'api_testing', label: 'Pengetesan API & Health', icon: Zap, color: 'text-amber-400', badge: apiPassRate }
+          ].map((tab) => {
+            const IconComp = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                  isActive
+                    ? 'bg-gradient-to-r from-teal-500 via-cyan-400 to-emerald-400 text-slate-950 shadow-lg shadow-teal-500/25 scale-[1.02]'
+                    : 'bg-slate-900/70 hover:bg-slate-800/90 text-slate-400 hover:text-slate-200 border border-slate-800/80 hover:border-slate-700'
+                }`}
+              >
+                <IconComp className={`w-4 h-4 ${isActive ? 'text-slate-950' : tab.color}`} />
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase ${isActive ? 'bg-slate-950 text-emerald-400' : 'bg-amber-400 text-slate-950'}`}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* TAB CONTENTS */}
