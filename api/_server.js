@@ -2139,14 +2139,25 @@ app.get(["/api/telegram/setup", "/api/telegram/set-webhook"], async (req, res) =
   }
 });
 app.all(["/api/telegram/webhook", "/telegram/webhook", "/api/telegram/webhook/", "/telegram/webhook/"], async (req, res) => {
-  const body = req.body;
-  if (!body || !body.message || !body.message.text) {
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch (e) {
+    }
+  }
+  const msgObj = body?.message || body?.edited_message || body?.channel_post;
+  if (!msgObj || !msgObj.text) {
     res.status(200).json({ ok: true });
     return;
   }
-  const chatId = body.message.chat.id;
-  const userText = (body.message.text || "").trim();
-  const senderName = body.message.from?.first_name || "Admin";
+  const chatId = msgObj.chat?.id;
+  if (!chatId) {
+    res.status(200).json({ ok: true });
+    return;
+  }
+  const userText = (msgObj.text || "").trim();
+  const senderName = msgObj.from?.first_name || "Admin";
   const adminChatIds = (process.env.TELEGRAM_ADMIN_CHAT_ID || TELEGRAM_ADMIN_CHAT_ID || "").split(",").map((id) => id.trim()).filter(Boolean);
   const isAuthorized = adminChatIds.length === 0 || adminChatIds.includes(String(chatId));
   if (!isAuthorized) {
