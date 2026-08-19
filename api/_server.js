@@ -2087,13 +2087,14 @@ app.post("/api/it/test-apis", requireAuth, requireIT, async (req, res) => {
     tests
   });
 });
-var TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-var TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || "";
+var TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY";
+var TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || "8445262546";
 async function sendTelegramMessage(chatId, text2, parseMode = "Markdown") {
-  if (!TELEGRAM_BOT_TOKEN) return;
+  const token = process.env.TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN || "8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY";
+  if (!token) return;
   try {
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-    await fetch(url, {
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2102,6 +2103,18 @@ async function sendTelegramMessage(chatId, text2, parseMode = "Markdown") {
         parse_mode: parseMode
       })
     });
+    const data = await res.json();
+    if (!data.ok) {
+      console.warn("Telegram send warning (retrying plain text):", data);
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: text2.replace(/[*_`\[\]]/g, "")
+        })
+      });
+    }
   } catch (err) {
     console.error("Failed to send Telegram message:", err);
   }
