@@ -1237,7 +1237,7 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
   const dayOfWeek = new Date(jakartaTime).getDay(); // 0=Minggu, 1=Senin, 2=Selasa, dst.
   
   if (dayOfWeek !== 1 && dayOfWeek !== 2) {
-    res.status(403).json({ error: 'Sistem ditutup: Pemesanan hanya dapat dilakukan pada hari Senin dan Selasa. Hari Rabu digunakan untuk penarikan data.' });
+    res.status(403).json({ error: 'Mohon maaf, waktu operasional pemesanan saat ini ditutup. Pemesanan hanya dapat dilakukan pada hari Senin dan Selasa.' });
     return;
   }
 
