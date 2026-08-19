@@ -2138,34 +2138,19 @@ app.get(["/api/telegram/setup", "/api/telegram/set-webhook"], async (req, res) =
     res.status(500).json({ error: err?.message || "Gagal mengatur webhook Telegram" });
   }
 });
-app.all(["/api/telegram/webhook", "/telegram/webhook", "/api/telegram/webhook/", "/telegram/webhook/"], async (req, res) => {
-  let body = req.body;
-  if (typeof body === "string") {
-    try {
-      body = JSON.parse(body);
-    } catch (e) {
-    }
-  }
-  const msgObj = body?.message || body?.edited_message || body?.channel_post;
-  if (!msgObj || !msgObj.text) {
-    res.status(200).json({ ok: true });
-    return;
-  }
+async function handleTelegramIncomingMessage(msgObj) {
+  if (!msgObj || !msgObj.text) return;
   const chatId = msgObj.chat?.id;
-  if (!chatId) {
-    res.status(200).json({ ok: true });
-    return;
-  }
+  if (!chatId) return;
   const userText = (msgObj.text || "").trim();
   const senderName = msgObj.from?.first_name || "Admin";
-  const adminChatIds = (process.env.TELEGRAM_ADMIN_CHAT_ID || TELEGRAM_ADMIN_CHAT_ID || "").split(",").map((id) => id.trim()).filter(Boolean);
+  const adminChatIds = (process.env.TELEGRAM_ADMIN_CHAT_ID || TELEGRAM_ADMIN_CHAT_ID || "8445262546").split(",").map((id) => id.trim()).filter(Boolean);
   const isAuthorized = adminChatIds.length === 0 || adminChatIds.includes(String(chatId));
   if (!isAuthorized) {
     await sendTelegramMessage(chatId, `\u{1F6AB} *Akses Ditolak*
 Chat ID Anda (*${chatId}*) belum terdaftar sebagai Admin IT BelanjaIn Saza.
 
 Silakan daftarkan ID ini di variabel \`TELEGRAM_ADMIN_CHAT_ID\` pada Vercel/Environment Variables.`);
-    res.status(200).json({ ok: true });
     return;
   }
   const parts = userText.split(" ");
@@ -2239,7 +2224,7 @@ Halo *${senderName}*! Berikut daftar perintah kontrol sistem yang tersedia:
         }
         const t1 = Date.now();
         try {
-          await db.select().from(products).limit(1);
+          const prods = await db.select().from(products).limit(1);
           tests.push(`\u2705 *Products API:* PASS (${Date.now() - t1}ms)`);
         } catch (e) {
           tests.push(`\u274C *Products API:* FAIL`);
@@ -2391,10 +2376,54 @@ Contoh: \`/batal 1024 Stok kosong\``);
     }
   } catch (err) {
     await sendTelegramMessage(chatId, `\u26A0\uFE0F Terjadi kesalahan saat memproses perintah: ${err?.message || err}`);
-  } finally {
-    res.status(200).json({ ok: true });
   }
+}
+app.all(["/api/telegram/webhook", "/telegram/webhook", "/api/telegram/webhook/", "/telegram/webhook/"], async (req, res) => {
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch (e) {
+    }
+  }
+  const msgObj = body?.message || body?.edited_message || body?.channel_post;
+  if (msgObj) {
+    await handleTelegramIncomingMessage(msgObj);
+  }
+  res.status(200).json({ ok: true });
 });
+var isPollingStarted = false;
+async function startTelegramBotPolling() {
+  if (isPollingStarted) return;
+  const token = process.env.TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN || "8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY";
+  if (!token) return;
+  isPollingStarted = true;
+  console.log("\u{1F916} Telegram Bot Long Polling Engine started.");
+  let offset = 0;
+  (async () => {
+    while (true) {
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${offset}&timeout=15`);
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.result)) {
+          for (const update of data.result) {
+            offset = update.update_id + 1;
+            const msg = update.message || update.edited_message || update.channel_post;
+            if (msg) {
+              await handleTelegramIncomingMessage(msg);
+            }
+          }
+        } else if (!data.ok && data.error_code === 409) {
+          await fetch(`https://api.telegram.org/bot${token}/deleteWebhook`);
+          await new Promise((r) => setTimeout(r, 2e3));
+        }
+      } catch (err) {
+        await new Promise((r) => setTimeout(r, 3e3));
+      }
+    }
+  })().catch((e) => console.error("Polling worker error:", e));
+}
+startTelegramBotPolling();
 async function seedDefaultUsers() {
   try {
     const adminPass = await bcryptHash("admin123", 10);
