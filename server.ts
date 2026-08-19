@@ -2690,43 +2690,7 @@ app.all(['/api/telegram/webhook', '/telegram/webhook', '/api/telegram/webhook/',
   res.status(200).json({ ok: true });
 });
 
-// Background Long Polling Engine for Telegram Bot
-let isPollingStarted = false;
-async function startTelegramBotPolling() {
-  if (isPollingStarted) return;
-  const token = process.env.TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN || '8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY';
-  if (!token) return;
-
-  isPollingStarted = true;
-  console.log('🤖 Telegram Bot Long Polling Engine started.');
-
-  let offset = 0;
-  (async () => {
-    while (true) {
-      try {
-        const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${offset}&timeout=15`);
-        const data = await res.json();
-        if (data.ok && Array.isArray(data.result)) {
-          for (const update of data.result) {
-            offset = update.update_id + 1;
-            const msg = update.message || update.edited_message || update.channel_post;
-            if (msg) {
-              await handleTelegramIncomingMessage(msg);
-            }
-          }
-        } else if (!data.ok && data.error_code === 409) {
-          await fetch(`https://api.telegram.org/bot${token}/deleteWebhook`);
-          await new Promise(r => setTimeout(r, 2000));
-        }
-      } catch (err) {
-        await new Promise(r => setTimeout(r, 3000));
-      }
-    }
-  })().catch(e => console.error('Polling worker error:', e));
-}
-
-// Auto-start polling on module load
-startTelegramBotPolling();
+// Polling daemon removed for Vercel Serverless compatibility
 
 // --- SEED DEFAULT ACCOUNTS ---
 async function seedDefaultUsers() {
