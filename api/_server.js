@@ -2145,12 +2145,15 @@ Silakan daftarkan ID ini di variabel \`TELEGRAM_ADMIN_CHAT_ID\` pada Vercel/Envi
     return;
   }
   const parts = userText.split(" ");
-  const command = parts[0].toLowerCase();
+  const rawCommand = parts[0].toLowerCase();
+  const command = rawCommand.replace(/^[\\\/]+/, "").toLowerCase();
   const args = parts.slice(1);
   try {
     switch (command) {
-      case "/start":
-      case "/help": {
+      case "start":
+      case "help":
+      case "menu":
+      case "bantuan": {
         const helpMsg = `\u{1F916} *BelanjaIn Saza - IT & System Controller Bot*
 Halo *${senderName}*! Berikut daftar perintah kontrol sistem yang tersedia:
 
@@ -2173,8 +2176,8 @@ Halo *${senderName}*! Berikut daftar perintah kontrol sistem yang tersedia:
         await sendTelegramMessage(chatId, helpMsg);
         break;
       }
-      case "/status":
-      case "/health": {
+      case "status":
+      case "health": {
         const mem = process.memoryUsage();
         const heapMB = Math.round(mem.heapUsed / (1024 * 1024));
         const uptimeMin = Math.floor(process.uptime() / 60);
@@ -2199,7 +2202,8 @@ Halo *${senderName}*! Berikut daftar perintah kontrol sistem yang tersedia:
         await sendTelegramMessage(chatId, msg);
         break;
       }
-      case "/testapi": {
+      case "testapi":
+      case "tesapi": {
         await sendTelegramMessage(chatId, `\u23F3 *Menjalankan 6 Pengujian API Sistem...*`);
         const tests = [];
         const t0 = Date.now();
@@ -2242,7 +2246,8 @@ ${tests.join("\n")}
         await sendTelegramMessage(chatId, msg);
         break;
       }
-      case "/report": {
+      case "report":
+      case "laporan": {
         const mem = process.memoryUsage();
         const heapMB = Math.round(mem.heapUsed / (1024 * 1024));
         const userCount = await db.select({ count: sql`count(*)` }).from(users);
@@ -2268,7 +2273,8 @@ Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB
         await sendTelegramMessage(chatId, msg);
         break;
       }
-      case "/db": {
+      case "db":
+      case "database": {
         const t0 = Date.now();
         const userCount = await db.select({ count: sql`count(*)` }).from(users);
         const prodCount = await db.select({ count: sql`count(*)` }).from(products);
@@ -2282,7 +2288,8 @@ Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB
         await sendTelegramMessage(chatId, msg);
         break;
       }
-      case "/stok": {
+      case "stok":
+      case "stock": {
         const lowStock = await db.select().from(products).where(sql`stok < 5`).limit(15);
         if (lowStock.length === 0) {
           await sendTelegramMessage(chatId, `\u2705 *Semua Stok Aman!* Tidak ada produk dengan stok < 5 pcs.`);
@@ -2294,7 +2301,8 @@ ${list}`);
         }
         break;
       }
-      case "/pesanan": {
+      case "pesanan":
+      case "orders": {
         const activeOrders = await db.select().from(orders).where(sql`status IN ('Proses', 'Sedang Menyiapkan', 'Menunggu Konfirmasi')`).limit(5);
         if (activeOrders.length === 0) {
           await sendTelegramMessage(chatId, `\u{1F4E6} *Tidak Ada Pesanan Tertunda.*
@@ -2309,7 +2317,7 @@ Ketik \`/selesai [id]\` untuk menyelesaikan.`);
         }
         break;
       }
-      case "/selesai": {
+      case "selesai": {
         const orderId = Number(args[0]);
         if (!orderId || isNaN(orderId)) {
           await sendTelegramMessage(chatId, `\u26A0\uFE0F *Format Salah.* Gunakan: \`/selesai [id_pesanan]\`
@@ -2324,7 +2332,7 @@ Contoh: \`/selesai 1024\``);
         }
         break;
       }
-      case "/batal": {
+      case "batal": {
         const orderId = Number(args[0]);
         const alasan = args.slice(1).join(" ") || "Dibatalkan via Telegram Admin";
         if (!orderId || isNaN(orderId)) {
@@ -2347,7 +2355,7 @@ Contoh: \`/batal 1024 Stok kosong\``);
         }
         break;
       }
-      case "/clearexceptions": {
+      case "clearexceptions": {
         errorLogsQueue.length = 0;
         await sendTelegramMessage(chatId, `\u{1F9F9} *Log Exception & Error Berhasil Dibersihkan!*`);
         break;

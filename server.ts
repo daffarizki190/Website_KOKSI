@@ -2426,13 +2426,16 @@ app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
   }
 
   const parts = userText.split(' ');
-  const command = parts[0].toLowerCase();
+  const rawCommand = parts[0].toLowerCase();
+  const command = rawCommand.replace(/^[\\\/]+/, '').toLowerCase();
   const args = parts.slice(1);
 
   try {
     switch (command) {
-      case '/start':
-      case '/help': {
+      case 'start':
+      case 'help':
+      case 'menu':
+      case 'bantuan': {
         const helpMsg = `🤖 *BelanjaIn Saza - IT & System Controller Bot*
 Halo *${senderName}*! Berikut daftar perintah kontrol sistem yang tersedia:
 
@@ -2456,8 +2459,8 @@ Halo *${senderName}*! Berikut daftar perintah kontrol sistem yang tersedia:
         break;
       }
 
-      case '/status':
-      case '/health': {
+      case 'status':
+      case 'health': {
         const mem = process.memoryUsage();
         const heapMB = Math.round(mem.heapUsed / (1024 * 1024));
         const uptimeMin = Math.floor(process.uptime() / 60);
@@ -2484,7 +2487,8 @@ Halo *${senderName}*! Berikut daftar perintah kontrol sistem yang tersedia:
         break;
       }
 
-      case '/testapi': {
+      case 'testapi':
+      case 'tesapi': {
         await sendTelegramMessage(chatId, `⏳ *Menjalankan 6 Pengujian API Sistem...*`);
         const tests = [];
         const t0 = Date.now();
@@ -2530,7 +2534,8 @@ Halo *${senderName}*! Berikut daftar perintah kontrol sistem yang tersedia:
         break;
       }
 
-      case '/report': {
+      case 'report':
+      case 'laporan': {
         const mem = process.memoryUsage();
         const heapMB = Math.round(mem.heapUsed / (1024 * 1024));
         const userCount = await db.select({ count: sql<number>`count(*)` }).from(users);
@@ -2558,7 +2563,8 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
         break;
       }
 
-      case '/db': {
+      case 'db':
+      case 'database': {
         const t0 = Date.now();
         const userCount = await db.select({ count: sql<number>`count(*)` }).from(users);
         const prodCount = await db.select({ count: sql<number>`count(*)` }).from(products);
@@ -2574,7 +2580,8 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
         break;
       }
 
-      case '/stok': {
+      case 'stok':
+      case 'stock': {
         const lowStock = await db.select().from(products).where(sql`stok < 5`).limit(15);
         if (lowStock.length === 0) {
           await sendTelegramMessage(chatId, `✅ *Semua Stok Aman!* Tidak ada produk dengan stok < 5 pcs.`);
@@ -2585,7 +2592,8 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
         break;
       }
 
-      case '/pesanan': {
+      case 'pesanan':
+      case 'orders': {
         const activeOrders = await db.select().from(orders).where(sql`status IN ('Proses', 'Sedang Menyiapkan', 'Menunggu Konfirmasi')`).limit(5);
         if (activeOrders.length === 0) {
           await sendTelegramMessage(chatId, `📦 *Tidak Ada Pesanan Tertunda.*\nSemua transaksi dalam status selesai atau siap.`);
@@ -2596,7 +2604,7 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
         break;
       }
 
-      case '/selesai': {
+      case 'selesai': {
         const orderId = Number(args[0]);
         if (!orderId || isNaN(orderId)) {
           await sendTelegramMessage(chatId, `⚠️ *Format Salah.* Gunakan: \`/selesai [id_pesanan]\`\nContoh: \`/selesai 1024\``);
@@ -2615,7 +2623,7 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
         break;
       }
 
-      case '/batal': {
+      case 'batal': {
         const orderId = Number(args[0]);
         const alasan = args.slice(1).join(' ') || 'Dibatalkan via Telegram Admin';
         if (!orderId || isNaN(orderId)) {
@@ -2644,7 +2652,7 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
         break;
       }
 
-      case '/clearexceptions': {
+      case 'clearexceptions': {
         errorLogsQueue.length = 0;
         await sendTelegramMessage(chatId, `🧹 *Log Exception & Error Berhasil Dibersihkan!*`);
         break;
