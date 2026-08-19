@@ -20,9 +20,14 @@ export const DashboardUser = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState('');
+  const getCartKey = (userId?: number) => userId ? `saza_cart_items_${userId}` : 'saza_cart_items';
+
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem('saza_cart_items');
+      const storedUser = localStorage.getItem('user');
+      const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+      const key = getCartKey(parsedUser?.id);
+      const saved = localStorage.getItem(key) || localStorage.getItem('saza_cart_items');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -42,12 +47,14 @@ export const DashboardUser = () => {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
-  // Sync cart to localStorage whenever it changes
+  // Sync cart to user-scoped localStorage whenever cart or user changes
   useEffect(() => {
     try {
+      const key = getCartKey(user?.id);
+      localStorage.setItem(key, JSON.stringify(cart));
       localStorage.setItem('saza_cart_items', JSON.stringify(cart));
     } catch (e) {}
-  }, [cart]);
+  }, [cart, user?.id]);
 
   const fetchCart = async () => {
     if (!token) return;
@@ -57,25 +64,15 @@ export const DashboardUser = () => {
       });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
+          // Backend is the single source of truth for logged-in user.
+          // If DB cart is empty (e.g. checked out from another device), update state and local cache immediately.
           setCart(data);
-        } else {
-          // If backend returns empty array but local cart has items, keep local cart & sync to backend
-          setCart(current => {
-            if (current.length > 0) {
-              current.forEach(item => {
-                fetch('/api/cart', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                  },
-                  body: JSON.stringify({ productId: item.id, quantity: item.quantity })
-                }).catch(() => {});
-              });
-            }
-            return current;
-          });
+          try {
+            const key = getCartKey(user?.id);
+            localStorage.setItem(key, JSON.stringify(data));
+            localStorage.setItem('saza_cart_items', JSON.stringify(data));
+          } catch (e) {}
         }
       }
     } catch (err) {
@@ -87,7 +84,22 @@ export const DashboardUser = () => {
     if (token) {
       fetchCart();
     }
-  }, [token]);
+  }, [token, user?.id]);
+
+  // Re-sync cart on window focus or visibility change to immediately reflect checkouts from other devices
+  useEffect(() => {
+    const handleSync = () => {
+      if (token && document.visibilityState !== 'hidden') {
+        fetchCart();
+      }
+    };
+    window.addEventListener('focus', handleSync);
+    document.addEventListener('visibilitychange', handleSync);
+    return () => {
+      window.removeEventListener('focus', handleSync);
+      document.removeEventListener('visibilitychange', handleSync);
+    };
+  }, [token, user?.id]);
 
   // Edit Profile State
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
@@ -378,7 +390,11 @@ export const DashboardUser = () => {
         fetchProducts();
 
         setCart([]);
-        try { localStorage.removeItem('saza_cart_items'); } catch (e) {}
+        try { 
+          const key = getCartKey(user?.id);
+          localStorage.removeItem(key);
+          localStorage.removeItem('saza_cart_items'); 
+        } catch (e) {}
         setIsCartOpen(false);
         setIsCheckoutConfirmOpen(false);
         setCheckoutSuccessOrder(createdOrderObj);
