@@ -48,6 +48,10 @@ export const DashboardUser = () => {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const isOrderingClosed = useMemo(() => {
+    // Cek apakah Mode Demo aktif (hanya berlaku di browser yang sama)
+    const isDemo = localStorage.getItem('demo_ordering_enabled') === 'true';
+    if (isDemo) return false;
+
     const jakartaTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
     const dayOfWeek = new Date(jakartaTime).getDay();
     return dayOfWeek !== 1 && dayOfWeek !== 2;
@@ -372,7 +376,8 @@ export const DashboardUser = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token || localStorage.getItem('token')}`
+          Authorization: `Bearer ${token || localStorage.getItem('token')}`,
+          'X-Demo-Mode': localStorage.getItem('demo_ordering_enabled') === 'true' ? 'true' : 'false'
         },
         body: JSON.stringify({ items, total_amount })
       });

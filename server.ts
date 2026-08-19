@@ -1231,12 +1231,12 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
   const { items, total_amount } = req.body;
   let userId = Number(req.user?.id);
 
-  // Cek Hari Pemesanan (Hanya Senin dan Selasa)
-  // Konversi waktu saat ini ke zona waktu WIB (Asia/Jakarta)
+  // Cek Hari Pemesanan (Hanya Senin dan Selasa), kecuali dalam Mode Demo
+  const isDemoMode = req.headers['x-demo-mode'] === 'true';
   const jakartaTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
   const dayOfWeek = new Date(jakartaTime).getDay(); // 0=Minggu, 1=Senin, 2=Selasa, dst.
   
-  if (dayOfWeek !== 1 && dayOfWeek !== 2) {
+  if (!isDemoMode && dayOfWeek !== 1 && dayOfWeek !== 2) {
     res.status(403).json({ error: 'Mohon maaf, waktu operasional pemesanan saat ini ditutup. Pemesanan hanya dapat dilakukan pada hari Senin dan Selasa.' });
     return;
   }
