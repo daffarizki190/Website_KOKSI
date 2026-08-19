@@ -54,11 +54,10 @@ export const DashboardUser = () => {
   }, []);
 
   const [showClosedModal, setShowClosedModal] = useState(() => {
-    return isOrderingClosed && !sessionStorage.getItem('saza_closed_modal_dismissed');
+    return isOrderingClosed;
   });
 
   const handleDismissClosedModal = () => {
-    sessionStorage.setItem('saza_closed_modal_dismissed', 'true');
     setShowClosedModal(false);
   };
 
