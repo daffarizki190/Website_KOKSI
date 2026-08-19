@@ -47,6 +47,12 @@ export const DashboardUser = () => {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
+  const isOrderingClosed = useMemo(() => {
+    const jakartaTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
+    const dayOfWeek = new Date(jakartaTime).getDay();
+    return dayOfWeek !== 1 && dayOfWeek !== 2;
+  }, []);
+
   // Sync cart to user-scoped localStorage whenever cart or user changes
   useEffect(() => {
     try {
@@ -528,6 +534,17 @@ export const DashboardUser = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-5 w-full flex-1 flex flex-col overflow-hidden">
         
+        {/* Global Ordering Closed Banner */}
+        {isOrderingClosed && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 shadow-sm">
+            <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
+            <div>
+              <h3 className="text-sm font-bold text-red-800">Sistem Pemesanan Ditutup</h3>
+              <p className="text-xs text-red-700 mt-0.5">Mohon maaf, waktu operasional pemesanan saat ini ditutup. Pemesanan hanya dapat dilakukan pada hari Senin dan Selasa.</p>
+            </div>
+          </div>
+        )}
+
         {/* Search Bar */}
         <div className="flex items-center gap-2 mb-3 shrink-0">
           <div className="relative flex-1">
