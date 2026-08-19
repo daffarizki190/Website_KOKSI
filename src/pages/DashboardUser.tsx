@@ -54,10 +54,30 @@ export const DashboardUser = () => {
   }, []);
 
   const [showClosedModal, setShowClosedModal] = useState(() => {
-    return isOrderingClosed;
+    if (!isOrderingClosed) return false;
+    
+    // Deteksi apakah user melakukan refresh (reload) halaman
+    let isReload = false;
+    try {
+      const navEntries = performance.getEntriesByType('navigation');
+      if (navEntries.length > 0 && (navEntries[0] as PerformanceNavigationTiming).type === 'reload') {
+        isReload = true;
+      } else if (performance.navigation && performance.navigation.type === 1) {
+        isReload = true;
+      }
+    } catch (e) {}
+
+    // Jika reload, paksa modal muncul dan hapus flag dismissed
+    if (isReload) {
+      localStorage.removeItem('saza_closed_modal_dismissed');
+      return true;
+    }
+
+    return !localStorage.getItem('saza_closed_modal_dismissed');
   });
 
   const handleDismissClosedModal = () => {
+    localStorage.setItem('saza_closed_modal_dismissed', 'true');
     setShowClosedModal(false);
   };
 
@@ -424,6 +444,7 @@ export const DashboardUser = () => {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('saza_closed_modal_dismissed');
     logout();
     navigate('/login');
   };
