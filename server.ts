@@ -1231,6 +1231,16 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
   const { items, total_amount } = req.body;
   let userId = Number(req.user?.id);
 
+  // Cek Hari Pemesanan (Hanya Senin dan Selasa)
+  // Konversi waktu saat ini ke zona waktu WIB (Asia/Jakarta)
+  const jakartaTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
+  const dayOfWeek = new Date(jakartaTime).getDay(); // 0=Minggu, 1=Senin, 2=Selasa, dst.
+  
+  if (dayOfWeek !== 1 && dayOfWeek !== 2) {
+    res.status(403).json({ error: 'Sistem ditutup: Pemesanan hanya dapat dilakukan pada hari Senin dan Selasa. Hari Rabu digunakan untuk penarikan data.' });
+    return;
+  }
+
   if (!items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: 'Item pesanan tidak boleh kosong' });
     return;
