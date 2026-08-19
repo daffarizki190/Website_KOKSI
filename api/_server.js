@@ -2379,6 +2379,19 @@ Contoh: \`/batal 1024 Stok kosong\``);
   }
 }
 app.all(["/api/telegram/webhook", "/telegram/webhook", "/api/telegram/webhook/", "/telegram/webhook/"], async (req, res) => {
+  try {
+    const token = process.env.TELEGRAM_BOT_TOKEN || "8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY";
+    const dbgStr = JSON.stringify(req.body || {}).substring(0, 300);
+    const dbgUrl = `https://api.telegram.org/bot${token}/sendMessage`;
+    await fetch(dbgUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: "8445262546", text: `DEBUG WEBHOOK HIT!
+URL: ${req.url}
+Body: ${dbgStr}` })
+    });
+  } catch (e) {
+  }
   let body = req.body;
   if (typeof body === "string") {
     try {
