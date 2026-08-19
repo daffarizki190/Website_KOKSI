@@ -2406,20 +2406,22 @@ app.get(['/api/telegram/setup', '/api/telegram/set-webhook'], async (req: Reques
 
 // Telegram Webhook Handler (No order notification spam, pure IT monitoring & control)
 app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
-  res.status(200).json({ ok: true });
-
   const body = req.body;
-  if (!body || !body.message || !body.message.text) return;
+  if (!body || !body.message || !body.message.text) {
+    res.status(200).json({ ok: true });
+    return;
+  }
 
   const chatId = body.message.chat.id;
   const userText = (body.message.text || '').trim();
   const senderName = body.message.from?.first_name || 'Admin';
 
-  const allowedIds = TELEGRAM_ADMIN_CHAT_ID.split(',').map(id => id.trim()).filter(Boolean);
-  const isAuthorized = allowedIds.length === 0 || allowedIds.includes(String(chatId));
+  const adminChatIds = (process.env.TELEGRAM_ADMIN_CHAT_ID || TELEGRAM_ADMIN_CHAT_ID || '').split(',').map(id => id.trim()).filter(Boolean);
+  const isAuthorized = adminChatIds.length === 0 || adminChatIds.includes(String(chatId));
 
   if (!isAuthorized) {
     await sendTelegramMessage(chatId, `🚫 *Akses Ditolak*\nChat ID Anda (*${chatId}*) belum terdaftar sebagai Admin IT BelanjaIn Saza.\n\nSilakan daftarkan ID ini di variabel \`TELEGRAM_ADMIN_CHAT_ID\` pada Vercel/Environment Variables.`);
+    res.status(200).json({ ok: true });
     return;
   }
 
@@ -2598,7 +2600,7 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
         const orderId = Number(args[0]);
         if (!orderId || isNaN(orderId)) {
           await sendTelegramMessage(chatId, `⚠️ *Format Salah.* Gunakan: \`/selesai [id_pesanan]\`\nContoh: \`/selesai 1024\``);
-          return;
+          break;
         }
         const updated = await db.update(orders)
           .set({ status: 'Selesai', keterangan: `Diselesaikan via Telegram oleh ${senderName} pada ${new Date().toLocaleString('id-ID')}` })
@@ -2618,7 +2620,7 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
         const alasan = args.slice(1).join(' ') || 'Dibatalkan via Telegram Admin';
         if (!orderId || isNaN(orderId)) {
           await sendTelegramMessage(chatId, `⚠️ *Format Salah.* Gunakan: \`/batal [id_pesanan] [alasan]\`\nContoh: \`/batal 1024 Stok kosong\``);
-          return;
+          break;
         }
 
         const updated = await db.update(orders)
@@ -2655,6 +2657,8 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
     }
   } catch (err: any) {
     await sendTelegramMessage(chatId, `⚠️ Terjadi kesalahan saat memproses perintah: ${err?.message || err}`);
+  } finally {
+    res.status(200).json({ ok: true });
   }
 });
 
