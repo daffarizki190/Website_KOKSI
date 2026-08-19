@@ -534,31 +534,22 @@ export const DashboardUser = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-5 w-full flex-1 flex flex-col overflow-hidden">
         
-        {/* Global Ordering Closed Banner - Premium UI */}
+        {/* Global Ordering Closed Banner - Centered UI */}
         {isOrderingClosed && (
-          <div className="mb-5 relative overflow-hidden bg-gradient-to-r from-rose-50 to-red-50/50 border border-red-200/60 rounded-2xl p-4 sm:p-5 shadow-sm group">
-            {/* Decorative background blur shape */}
-            <div className="absolute -right-4 -top-4 w-32 h-32 bg-red-200/40 rounded-full blur-3xl group-hover:bg-red-300/40 transition-colors duration-700"></div>
+          <div className="mb-6 relative overflow-hidden bg-white border border-red-200/80 rounded-2xl p-6 sm:p-8 shadow-sm flex flex-col items-center text-center">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-gradient-to-b from-red-50/50 to-transparent -z-10"></div>
             
-            <div className="relative flex items-start sm:items-center gap-3.5 sm:gap-4">
-              <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white shadow-sm border border-red-100 shrink-0 relative">
-                <div className="absolute inset-0 rounded-full border border-red-400 animate-ping opacity-20"></div>
-                <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-600 drop-shadow-sm" />
-              </div>
-              
-              <div className="flex-1">
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <h3 className="text-sm sm:text-base font-extrabold text-slate-800 tracking-tight">Status: Luar Jam Operasional</h3>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-100 border border-red-200/60 text-[10px] sm:text-xs font-bold text-red-700 shadow-inner">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse shadow-[0_0_4px_rgba(220,38,38,0.8)]"></span>
-                    Sistem Terkunci
-                  </span>
-                </div>
-                <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed max-w-2xl">
-                  Sistem saat ini sedang ditutup. Mohon maaf atas ketidaknyamanan ini, Anda dapat mulai melakukan pemesanan kembali pada hari <span className="font-bold text-slate-800 bg-red-100/50 px-1 rounded">Senin</span> dan <span className="font-bold text-slate-800 bg-red-100/50 px-1 rounded">Selasa</span> minggu depan.
-                </p>
-              </div>
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-50 border border-red-100 mb-4">
+              <AlertTriangle className="w-7 h-7 text-red-500" />
             </div>
+            
+            <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-2">
+              Mohon Maaf, Luar Jam Operasional
+            </h3>
+            
+            <p className="text-sm text-slate-600 font-medium leading-relaxed max-w-xl mx-auto">
+              Sistem saat ini sedang ditutup. Anda dapat mulai melakukan pemesanan kembali pada hari <span className="font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">Senin</span> dan <span className="font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">Selasa</span> minggu depan.
+            </p>
           </div>
         )}
 
