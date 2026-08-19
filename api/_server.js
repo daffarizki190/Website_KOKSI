@@ -2138,7 +2138,7 @@ app.get(["/api/telegram/setup", "/api/telegram/set-webhook"], async (req, res) =
     res.status(500).json({ error: err?.message || "Gagal mengatur webhook Telegram" });
   }
 });
-app.post("/api/telegram/webhook", async (req, res) => {
+app.all(["/api/telegram/webhook", "/telegram/webhook", "/api/telegram/webhook/", "/telegram/webhook/"], async (req, res) => {
   const body = req.body;
   if (!body || !body.message || !body.message.text) {
     res.status(200).json({ ok: true });

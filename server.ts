@@ -2418,7 +2418,7 @@ app.get(['/api/telegram/setup', '/api/telegram/set-webhook'], async (req: Reques
 });
 
 // Telegram Webhook Handler (No order notification spam, pure IT monitoring & control)
-app.post('/api/telegram/webhook', async (req: Request, res: Response) => {
+app.all(['/api/telegram/webhook', '/telegram/webhook', '/api/telegram/webhook/', '/telegram/webhook/'], async (req: Request, res: Response) => {
   const body = req.body;
   if (!body || !body.message || !body.message.text) {
     res.status(200).json({ ok: true });
