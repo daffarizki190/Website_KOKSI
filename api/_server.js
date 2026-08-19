@@ -2380,30 +2380,46 @@ Contoh: \`/batal 1024 Stok kosong\``);
 }
 app.all(["/api/telegram/webhook", "/telegram/webhook", "/api/telegram/webhook/", "/telegram/webhook/"], async (req, res) => {
   try {
-    const token = process.env.TELEGRAM_BOT_TOKEN || "8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY";
-    const dbgStr = JSON.stringify(req.body || {}).substring(0, 300);
-    const dbgUrl = `https://api.telegram.org/bot${token}/sendMessage`;
-    await fetch(dbgUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: "8445262546", text: `DEBUG WEBHOOK HIT!
-URL: ${req.url}
-Body: ${dbgStr}` })
-    });
-  } catch (e) {
-  }
-  let body = req.body;
-  if (typeof body === "string") {
-    try {
-      body = JSON.parse(body);
-    } catch (e) {
+    let bodyStr = "";
+    if (!req.body || Object.keys(req.body).length === 0) {
+      for await (const chunk of req) {
+        bodyStr += chunk;
+      }
     }
+    let parsedBody = req.body;
+    if (bodyStr) {
+      try {
+        parsedBody = JSON.parse(bodyStr);
+      } catch (e) {
+      }
+    } else if (typeof req.body === "string") {
+      try {
+        parsedBody = JSON.parse(req.body);
+      } catch (e) {
+      }
+    }
+    const token = process.env.TELEGRAM_BOT_TOKEN || "8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY";
+    const dbgStr = JSON.stringify(parsedBody || {}).substring(0, 500);
+    if (!parsedBody || !parsedBody.update_id) {
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: "8445262546", text: `DEBUG WEBHOOK EMPTY OR INVALID!
+Method: ${req.method}
+URL: ${req.url}
+Headers: ${JSON.stringify(req.headers)}
+Parsed: ${dbgStr}` })
+      });
+    }
+    const msgObj = parsedBody?.message || parsedBody?.edited_message || parsedBody?.channel_post;
+    if (msgObj) {
+      await handleTelegramIncomingMessage(msgObj);
+    }
+  } catch (err) {
+    console.error("Webhook processing error:", err);
+  } finally {
+    res.status(200).json({ ok: true });
   }
-  const msgObj = body?.message || body?.edited_message || body?.channel_post;
-  if (msgObj) {
-    await handleTelegramIncomingMessage(msgObj);
-  }
-  res.status(200).json({ ok: true });
 });
 async function seedDefaultUsers() {
   try {
