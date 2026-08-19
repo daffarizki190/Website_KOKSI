@@ -53,6 +53,15 @@ export const DashboardUser = () => {
     return dayOfWeek !== 1 && dayOfWeek !== 2;
   }, []);
 
+  const [showClosedModal, setShowClosedModal] = useState(() => {
+    return isOrderingClosed && !sessionStorage.getItem('saza_closed_modal_dismissed');
+  });
+
+  const handleDismissClosedModal = () => {
+    sessionStorage.setItem('saza_closed_modal_dismissed', 'true');
+    setShowClosedModal(false);
+  };
+
   // Sync cart to user-scoped localStorage whenever cart or user changes
   useEffect(() => {
     try {
@@ -534,37 +543,6 @@ export const DashboardUser = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-5 w-full flex-1 flex flex-col overflow-hidden">
         
-        {/* Global Ordering Closed Banner - Ultra Premium Centered UI */}
-        {isOrderingClosed && (
-          <div className="mb-8 relative overflow-hidden bg-gradient-to-b from-white to-slate-50/80 border border-slate-200/70 rounded-3xl p-8 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col items-center text-center">
-            {/* Background Decorations */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-teal-50/50 rounded-full blur-3xl -z-10 translate-x-1/3 -translate-y-1/3"></div>
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-sky-50/50 rounded-full blur-3xl -z-10 -translate-x-1/3 translate-y-1/3"></div>
-            
-            {/* Animated Icon Container */}
-            <div className="relative mb-5 group">
-              <div className="absolute inset-0 bg-slate-200 rounded-full blur-xl opacity-50 group-hover:opacity-80 transition-opacity duration-500"></div>
-              <div className="relative flex items-center justify-center w-20 h-20 rounded-full bg-white border border-slate-100 shadow-sm">
-                <div className="flex items-center justify-center w-16 h-16 rounded-full bg-slate-50 border border-slate-100/50">
-                  <CalendarDays className="w-8 h-8 text-slate-700 drop-shadow-sm" />
-                </div>
-              </div>
-            </div>
-            
-            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800 mb-3 tracking-tight">
-              Layanan Pemesanan Sedang Ditutup
-            </h3>
-            
-            <p className="text-sm sm:text-base text-slate-500 font-medium leading-relaxed max-w-lg mx-auto mb-6">
-              Saat ini sistem berada di luar jadwal operasional. Layanan pemesanan barang hanya tersedia pada hari <span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80">Senin</span> dan <span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80">Selasa</span>.
-            </p>
-            
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100/60 border border-slate-200/80 text-xs font-semibold text-slate-600 shadow-xs">
-              <Info className="w-4 h-4 text-slate-500" />
-              <span>Terima kasih atas pengertian Anda</span>
-            </div>
-          </div>
-        )}
 
         {/* Search Bar */}
         <div className="flex items-center gap-2 mb-3 shrink-0">
@@ -1306,6 +1284,57 @@ export const DashboardUser = () => {
           </div>
         </div>
       )}
+
+      {/* Global Ordering Closed Modal */}
+      <AnimatePresence>
+        {showClosedModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={handleDismissClosedModal}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white border border-slate-200/70 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center text-center overflow-hidden"
+            >
+              {/* Background Decorations */}
+              <div className="absolute top-0 right-0 w-48 h-48 bg-teal-50/50 rounded-full blur-3xl -z-10 translate-x-1/3 -translate-y-1/3"></div>
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-sky-50/50 rounded-full blur-3xl -z-10 -translate-x-1/3 translate-y-1/3"></div>
+              
+              {/* Animated Icon Container */}
+              <div className="relative mb-5 group">
+                <div className="absolute inset-0 bg-slate-200 rounded-full blur-xl opacity-50"></div>
+                <div className="relative flex items-center justify-center w-20 h-20 rounded-full bg-white border border-slate-100 shadow-sm">
+                  <div className="flex items-center justify-center w-16 h-16 rounded-full bg-slate-50 border border-slate-100/50">
+                    <CalendarDays className="w-8 h-8 text-slate-700 drop-shadow-sm" />
+                  </div>
+                </div>
+              </div>
+              
+              <h3 className="text-xl font-extrabold text-slate-800 mb-2.5 tracking-tight">
+                Layanan Pemesanan Ditutup
+              </h3>
+              
+              <p className="text-sm text-slate-500 font-medium leading-relaxed mb-6">
+                Sistem saat ini sedang berada di luar jadwal operasional. Layanan pemesanan barang hanya tersedia pada hari <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200/80">Senin</span> dan <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200/80">Selasa</span>.
+              </p>
+              
+              <button
+                onClick={handleDismissClosedModal}
+                className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-all shadow-md cursor-pointer"
+              >
+                Saya Mengerti
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };
