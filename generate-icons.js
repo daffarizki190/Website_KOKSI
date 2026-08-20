@@ -2,93 +2,135 @@ import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 
-// Modern, Clean, High-End App Icon for Belanjain SAZA
-// Follows Apple & Google Material Design Guidelines (No tiny text clutter, crisp signature icon)
+// Standard 512x512 Icon with SAZA branded on the shopping bag
 const svgIcon = `
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
-    <!-- Belanjain SAZA Brand Gradient -->
-    <linearGradient id="brandGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+    <!-- Background Gradient: Rich Teal Brand Color -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0f766e"/>
-      <stop offset="40%" stop-color="#0d9488"/>
-      <stop offset="80%" stop-color="#14b8a6"/>
-      <stop offset="100%" stop-color="#f59e0b"/>
+      <stop offset="50%" stop-color="#0d9488"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
     </linearGradient>
 
-    <!-- Subtle Top Glass Gloss -->
-    <linearGradient id="glassGloss" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.3"/>
-      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    <!-- Text Gradient inside Bag: Deep Teal to Turquoise -->
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#0d9488"/>
     </linearGradient>
 
-    <!-- Soft Depth Shadow for Icon Symbol -->
-    <filter id="symbolShadow" x="-30%" y="-30%" width="160%" height="160%">
+    <!-- Golden Amber Accent -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+
+    <!-- Drop Shadow for Bag -->
+    <filter id="bagShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#042f2e" flood-opacity="0.38"/>
+    </filter>
+  </defs>
+
+  <!-- Background Squircle -->
+  <rect x="20" y="20" width="472" height="472" rx="118" fill="url(#bgGrad)" />
+
+  <g filter="url(#bagShadow)">
+    <!-- Shopping Bag Handle -->
+    <path d="M196 165 C196 90, 316 90, 316 165" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/>
+
+    <!-- Shopping Bag Body (Crisp White Card with Rounded Corners) -->
+    <rect x="120" y="160" width="272" height="240" rx="38" fill="#ffffff"/>
+
+    <!-- Bag Inner Top Fold Line -->
+    <path d="M120 205 L392 205" stroke="#f1f5f9" stroke-width="6"/>
+
+    <!-- Golden Brand Dot on Top Fold -->
+    <circle cx="355" cy="205" r="8" fill="url(#goldGrad)"/>
+
+    <!-- Bold "SAZA" Typography inside the Shopping Bag -->
+    <text x="256" y="305" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="62" fill="url(#textGrad)" text-anchor="middle" letter-spacing="5">SAZA</text>
+
+    <!-- Amber "BELANJA" subtext inside Bag -->
+    <text x="256" y="348" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="800" font-size="17" fill="#f59e0b" text-anchor="middle" letter-spacing="4">BELANJA</text>
+  </g>
+</svg>
+`;
+
+// Android Adaptive Maskable Icon (Full Bleed Background + Center Safe Area)
+const maskableSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bgGradFull" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="50%" stop-color="#0d9488"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
+    </linearGradient>
+
+    <linearGradient id="textGradMask" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </linearGradient>
+
+    <linearGradient id="goldGradMask" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+
+    <filter id="maskShadow" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#042f2e" flood-opacity="0.35"/>
     </filter>
   </defs>
 
-  <!-- Base Squircle Container -->
-  <rect x="24" y="24" width="464" height="464" rx="116" fill="url(#brandGrad)" />
-  
-  <!-- Subtle Glass Highlight Arc -->
-  <rect x="24" y="24" width="464" height="232" rx="116" fill="url(#glassGloss)" />
+  <!-- 100% Full Bleed Background for Android Circles/Squircles -->
+  <rect width="512" height="512" fill="url(#bgGradFull)" />
 
-  <!-- Crisp Shopping Bag Signature Symbol -->
-  <g filter="url(#symbolShadow)" transform="translate(136, 136) scale(10.0)" fill="none" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
-    <path d="M3 6h18" />
-    <path d="M16 10a4 4 0 0 1-8 0" />
+  <g filter="url(#maskShadow)" transform="translate(25.6, 25.6) scale(0.9)">
+    <!-- Shopping Bag Handle -->
+    <path d="M196 165 C196 90, 316 90, 316 165" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/>
+
+    <!-- Shopping Bag Body -->
+    <rect x="120" y="160" width="272" height="240" rx="38" fill="#ffffff"/>
+
+    <!-- Bag Inner Top Fold Line -->
+    <path d="M120 205 L392 205" stroke="#f1f5f9" stroke-width="6"/>
+    <circle cx="355" cy="205" r="8" fill="url(#goldGradMask)"/>
+
+    <!-- SAZA in Bag -->
+    <text x="256" y="305" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="62" fill="url(#textGradMask)" text-anchor="middle" letter-spacing="5">SAZA</text>
+    <text x="256" y="348" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="800" font-size="17" fill="#f59e0b" text-anchor="middle" letter-spacing="4">BELANJA</text>
   </g>
 </svg>
 `;
 
-// Android Adaptive Maskable Icon (Full bleed background, safe zone symbol)
-const maskableSvg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="brandGradFull" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#0f766e"/>
-      <stop offset="40%" stop-color="#0d9488"/>
-      <stop offset="80%" stop-color="#14b8a6"/>
-      <stop offset="100%" stop-color="#f59e0b"/>
-    </linearGradient>
-    <filter id="maskShadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#042f2e" flood-opacity="0.3"/>
-    </filter>
-  </defs>
-
-  <!-- Full Bleed Background (Covering 100% of the canvas so Android circle mask looks flawless) -->
-  <rect width="512" height="512" fill="url(#brandGradFull)" />
-
-  <!-- Center Shopping Bag in Safe Area (~60% of total canvas) -->
-  <g filter="url(#maskShadow)" transform="translate(148, 148) scale(9.0)" fill="none" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
-    <path d="M3 6h18" />
-    <path d="M16 10a4 4 0 0 1-8 0" />
-  </g>
-</svg>
-`;
-
-// iOS Apple Touch Icon (Full bleed square, iOS adds its own squircle radius)
+// iOS Apple Touch Icon (180x180 Full Bleed)
 const appleSvg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="appleGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+    <linearGradient id="appleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0f766e"/>
-      <stop offset="40%" stop-color="#0d9488"/>
-      <stop offset="80%" stop-color="#14b8a6"/>
-      <stop offset="100%" stop-color="#f59e0b"/>
+      <stop offset="50%" stop-color="#0d9488"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
     </linearGradient>
-    <filter id="appleShadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#042f2e" flood-opacity="0.3"/>
+
+    <linearGradient id="textGradApple" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </linearGradient>
+
+    <filter id="appleShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#042f2e" flood-opacity="0.35"/>
     </filter>
   </defs>
 
-  <rect width="180" height="180" fill="url(#appleGrad)" />
-  <g filter="url(#appleShadow)" transform="translate(48, 48) scale(3.5)" fill="none" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
-    <path d="M3 6h18" />
-    <path d="M16 10a4 4 0 0 1-8 0" />
+  <rect width="512" height="512" fill="url(#appleGrad)" />
+
+  <g filter="url(#appleShadow)">
+    <path d="M196 165 C196 90, 316 90, 316 165" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/>
+    <rect x="120" y="160" width="272" height="240" rx="38" fill="#ffffff"/>
+    <path d="M120 205 L392 205" stroke="#f1f5f9" stroke-width="6"/>
+    <circle cx="355" cy="205" r="8" fill="#f59e0b"/>
+    <text x="256" y="305" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="62" fill="url(#textGradApple)" text-anchor="middle" letter-spacing="5">SAZA</text>
+    <text x="256" y="348" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="800" font-size="17" fill="#f59e0b" text-anchor="middle" letter-spacing="4">BELANJA</text>
   </g>
 </svg>
 `;
@@ -99,7 +141,7 @@ async function generate() {
     fs.mkdirSync(publicDir, { recursive: true });
   }
 
-  // 1. Generate standard 512x512 and 192x192 icons
+  // 1. Generate 512x512 and 192x192
   await sharp(Buffer.from(svgIcon))
     .resize(512, 512)
     .png()
@@ -110,19 +152,19 @@ async function generate() {
     .png()
     .toFile(path.join(publicDir, 'icon-192.png'));
 
-  // 2. Generate Android adaptive maskable icon (512x512)
+  // 2. Generate Android maskable icon
   await sharp(Buffer.from(maskableSvg))
     .resize(512, 512)
     .png()
     .toFile(path.join(publicDir, 'icon-maskable.png'));
 
-  // 3. Generate Apple Touch Icon (180x180)
+  // 3. Generate Apple touch icon
   await sharp(Buffer.from(appleSvg))
     .resize(180, 180)
     .png()
     .toFile(path.join(publicDir, 'apple-touch-icon.png'));
 
-  console.log('Successfully generated clean & modern Belanjain SAZA icons!');
+  console.log('Successfully generated Belanjain SAZA shopping bag icons with SAZA text in center!');
 }
 
 generate().catch(console.error);
