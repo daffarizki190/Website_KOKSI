@@ -143,7 +143,7 @@ app.use((req, res, next) => {
     if (trafficStats.recentRequests.length > 40) trafficStats.recentRequests.pop();
 
     if (res.statusCode >= 400 && req.originalUrl && req.originalUrl.startsWith('/api/')) {
-      errorLogsQueue.unshift({
+      const errItem = {
         id: Math.random().toString(36).substring(2, 9),
         timestamp: new Date().toISOString(),
         method: req.method,
@@ -152,11 +152,63 @@ app.use((req, res, next) => {
         message: res.statusMessage || (res.statusCode >= 500 ? 'Internal Server Execution Error' : 'Client HTTP Exception'),
         ip: (req.headers['x-forwarded-for'] as string) || req.ip || '127.0.0.1',
         userAgent: (req.headers['user-agent'] as string) || 'Browser/Unknown'
-      });
+      };
+
+      errorLogsQueue.unshift(errItem);
       if (errorLogsQueue.length > 100) errorLogsQueue.pop();
+
+      // AUTO-ALERT KE TELEGRAM UNTUK ERROR KRITIS (HTTP 500+)
+      if (res.statusCode >= 500) {
+        notifyTelegramCrashAlert({
+          type: `HTTP ${res.statusCode} Error`,
+          endpoint: `${req.method} ${req.originalUrl || req.url}`,
+          message: errItem.message,
+          ip: errItem.ip
+        });
+      }
     }
   });
   next();
+});
+
+// Throttled Telegram Crash Alert Helper
+let lastTelegramAlertTime = 0;
+function notifyTelegramCrashAlert(data: { type: string; endpoint?: string; message: string; ip?: string; stack?: string }) {
+  const now = Date.now();
+  // Throttle alert: Maksimal 1 alert per 15 detik agar tidak spam
+  if (now - lastTelegramAlertTime < 15000) return;
+  lastTelegramAlertTime = now;
+
+  const alertMsg = `🚨 *ALERT: TROUBLE / ERROR SISTEM TERDETEKSI!*
+━━━━━━━━━━━━━━━━━━━━
+⚠️ *Tipe Masalah:* ${data.type}
+${data.endpoint ? `🌐 *Endpoint:* \`${data.endpoint}\`\n` : ''}⏱️ *Waktu:* ${new Date().toLocaleString('id-ID')} WIB
+📝 *Detail:* \`${data.message.substring(0, 200)}\`
+${data.ip ? `📍 *Client IP:* \`${data.ip}\`\n` : ''}
+⚡ *Tindakan:* Sistem tetap berjalan. Ketik \`/health\` atau \`/testapi\` di bot untuk mengecek diagnosa server.`;
+
+  const adminChatIds = getAdminChatIds();
+  for (const cid of adminChatIds) {
+    sendTelegramMessage(cid, alertMsg).catch(() => {});
+  }
+}
+
+// Global Process Crash Handlers (Auto-Alert Telegram)
+process.on('uncaughtException', (err) => {
+  console.error('[CRITICAL UNCAUGHT EXCEPTION]:', err);
+  notifyTelegramCrashAlert({
+    type: 'Uncaught Exception (Process Level)',
+    message: err?.message || String(err),
+    stack: err?.stack
+  });
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  console.error('[CRITICAL UNHANDLED REJECTION]:', reason);
+  notifyTelegramCrashAlert({
+    type: 'Unhandled Promise Rejection',
+    message: reason?.message || String(reason)
+  });
 });
 
 // --- TYPES ---
