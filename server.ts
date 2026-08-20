@@ -1423,6 +1423,29 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
     };
 
     console.log(`[ORDER] Created order #${createdOrderId} for user ${userId}, total: ${cleanTotalAmount}`);
+
+    // Auto-send Telegram Notification to Admin on new order
+    try {
+      const itemsList = fullCreatedOrder.items.map(i => `• ${i.product.nama_barang} (x${i.quantity}) : Rp ${(i.price * i.quantity).toLocaleString('id-ID')}`).join('\n');
+      const tgMsg = `🛍️ *PESANAN BARU MASUK (#${createdOrderId})*
+👤 *Pemesan:* ${fullCreatedOrder.user.nama} (${fullCreatedOrder.user.no_hp || '-'})
+🏢 *PT / Dept:* ${fullCreatedOrder.user.pt} - ${fullCreatedOrder.user.departemen}
+💰 *Total Belanja:* Rp ${cleanTotalAmount.toLocaleString('id-ID')}
+
+📦 *Daftar Barang:*
+${itemsList}
+
+⚡ *Status:* ${fullCreatedOrder.status}
+Ketik \`/selesai ${createdOrderId}\` untuk menyelesaikan.`;
+
+      const adminChatIds = getAdminChatIds();
+      for (const cid of adminChatIds) {
+        sendTelegramMessage(cid, tgMsg).catch(() => {});
+      }
+    } catch (tgErr) {
+      console.warn('Telegram new order notification note:', tgErr);
+    }
+
     res.status(201).json({ message: 'Order created successfully', orderId: createdOrderId, order: fullCreatedOrder });
 
   } catch (error: any) {
@@ -1578,12 +1601,19 @@ app.put('/api/orders/:id/status', requireAuth, requireAdmin, async (req: AuthReq
       .where(eq(orders.id, orderId))
       .returning();
 
-    // Mirror in-memory
-    const memOrder = demoOrdersStore.find(o => o.id === orderId);
-    if (memOrder) {
-      memOrder.status = status;
-      if (keterangan !== undefined) memOrder.keterangan = keterangan;
-    }
+    // Auto-send Telegram Notification on Status Update
+    try {
+      const statusIcon = status === 'Selesai' ? '✅' : status === 'Dibatalkan' ? '🚫' : '🔄';
+      const tgStatusMsg = `${statusIcon} *STATUS PESANAN DIUPDATE (#${orderId})*
+⚡ *Status Baru:* ${status}
+📝 *Keterangan:* ${keterangan || '-'}
+Waktu: ${new Date().toLocaleString('id-ID')} WIB`;
+
+      const adminChatIds = getAdminChatIds();
+      for (const cid of adminChatIds) {
+        sendTelegramMessage(cid, tgStatusMsg).catch(() => {});
+      }
+    } catch (e) {}
 
     res.json(updated[0] || memOrder || { success: true });
   } catch (error) {
@@ -2372,12 +2402,23 @@ app.post('/api/it/test-apis', requireAuth, requireIT, async (req: AuthRequest, r
 });
 
 // --- TELEGRAM BOT CONTROLLER & IT MONITORING ---
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY';
-const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || '8445262546';
+const getCleanTelegramToken = () => {
+  let token = (process.env.TELEGRAM_BOT_TOKEN || '8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY').trim();
+  token = token.replace(/^["']|["']$/g, '');
+  if (token.toLowerCase().startsWith('bot')) {
+    token = token.substring(3);
+  }
+  return token;
+};
+
+const getAdminChatIds = () => {
+  const raw = process.env.TELEGRAM_ADMIN_CHAT_ID || '8445262546';
+  return raw.split(',').map(id => id.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+};
 
 async function sendTelegramMessage(chatId: string | number, text: string, parseMode: string = 'Markdown') {
-  const token = process.env.TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN || '8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY';
-  if (!token) return;
+  const token = getCleanTelegramToken();
+  if (!token || !chatId) return;
   try {
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
     const res = await fetch(url, {
@@ -2391,7 +2432,7 @@ async function sendTelegramMessage(chatId: string | number, text: string, parseM
     });
     const data = await res.json();
     if (!data.ok) {
-      console.warn('Telegram send warning (retrying plain text):', data);
+      console.warn('Telegram send markdown retry with plain text:', data);
       await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2401,21 +2442,27 @@ async function sendTelegramMessage(chatId: string | number, text: string, parseM
         })
       });
     }
+    return data;
   } catch (err) {
     console.error('Failed to send Telegram message:', err);
   }
 }
 
-// Telegram Webhook Setup Endpoint (Can be called from IT Dashboard or Browser)
+// Telegram Webhook Setup & Test Endpoints
 app.get(['/api/telegram/setup', '/api/telegram/set-webhook'], async (req: Request, res: Response) => {
-  if (!TELEGRAM_BOT_TOKEN) {
+  const token = getCleanTelegramToken();
+  if (!token) {
     res.status(400).json({ error: 'TELEGRAM_BOT_TOKEN belum diset di environment variables.' });
     return;
   }
-  const host = req.query.url || `https://${req.headers.host}`;
-  const webhookUrl = `${host}/api/telegram/webhook`;
+  
+  // Prefer provided query url or production custom domain or current host
+  const host = (req.query.url as string) || (req.headers.host ? `https://${req.headers.host}` : 'https://www.belanjainsaza.web.id');
+  const cleanHost = host.startsWith('http') ? host : `https://${host}`;
+  const webhookUrl = `${cleanHost}/api/telegram/webhook`;
+  
   try {
-    const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${encodeURIComponent(String(webhookUrl))}`);
+    const tgRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&allowed_updates=${encodeURIComponent(JSON.stringify(['message', 'edited_message', 'channel_post', 'callback_query']))}`);
     const tgData = await tgRes.json();
     res.json({
       success: tgData.ok,
@@ -2427,57 +2474,78 @@ app.get(['/api/telegram/setup', '/api/telegram/set-webhook'], async (req: Reques
   }
 });
 
+app.get('/api/telegram/test', async (req: Request, res: Response) => {
+  const token = getCleanTelegramToken();
+  const adminIds = getAdminChatIds();
+  const targetChat = (req.query.chat_id as string) || adminIds[0] || '8445262546';
+  
+  const testMsg = `🔔 *TEST NOTIFIKASI TELEGRAM BELANJAIN SAZA*
+Waktu: ${new Date().toLocaleString('id-ID')} WIB
+Server: Online & Terhubung
+Domain: ${req.headers.host || 'belanjainsaza.web.id'}
+
+✅ *Bot Telegram @belanjain_zasa_bot Berfungsi Normal 100%!*`;
+
+  try {
+    const data = await sendTelegramMessage(targetChat, testMsg);
+    res.json({ success: true, targetChat, data });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Gagal mengirim pesan test Telegram' });
+  }
+});
+
 // Central Telegram Incoming Message Handler
 async function handleTelegramIncomingMessage(msgObj: any) {
-  if (!msgObj || !msgObj.text) return;
+  if (!msgObj) return;
   const chatId = msgObj.chat?.id;
   if (!chatId) return;
 
   const userText = (msgObj.text || '').trim();
-  const senderName = msgObj.from?.first_name || 'Admin';
-
-  const adminChatIds = (process.env.TELEGRAM_ADMIN_CHAT_ID || TELEGRAM_ADMIN_CHAT_ID || '8445262546').split(',').map(id => id.trim()).filter(Boolean);
-  const isAuthorized = adminChatIds.length === 0 || adminChatIds.includes(String(chatId));
-
-  if (!isAuthorized) {
-    await sendTelegramMessage(chatId, `🚫 *Akses Ditolak*\nChat ID Anda (*${chatId}*) belum terdaftar sebagai Admin IT BelanjaIn Saza.\n\nSilakan daftarkan ID ini di variabel \`TELEGRAM_ADMIN_CHAT_ID\` pada Vercel/Environment Variables.`);
-    return;
-  }
-
+  const senderName = msgObj.from?.first_name || 'Pengguna';
   const parts = userText.split(' ');
   const rawCommand = parts[0].toLowerCase();
   const command = rawCommand.replace(/^[\\\/]+/, '').toLowerCase();
   const args = parts.slice(1);
 
-  try {
-    switch (command) {
-      case 'start':
-      case 'help':
-      case 'menu':
-      case 'bantuan': {
-        const helpMsg = `🤖 *BelanjaIn Saza - IT & System Controller Bot*
-Halo *${senderName}*! Berikut daftar perintah kontrol sistem yang tersedia:
+  const adminChatIds = getAdminChatIds();
+  const isAuthorized = adminChatIds.length === 0 || adminChatIds.includes(String(chatId));
 
-⚡ *Diagnostik & Monitoring:*
+  // Public commands accessible to anyone to get their ID & Bot Info
+  if (['start', 'help', 'menu', 'bantuan', 'id', 'myid', 'ping'].includes(command)) {
+    const authStatus = isAuthorized ? '🟢 *Terverifikasi Sebagai Admin*' : '🟡 *Belum Terdaftar Sebagai Admin*';
+    const helpMsg = `🤖 *BelanjaIn Saza - IT & System Controller Bot*
+Halo *${senderName}*!
+
+🆔 *ID Telegram Anda:* \`${chatId}\`
+Status Akses: ${authStatus}
+
+⚡ *Perintah Diagnostik & Pemantauan:*
 • \`/status\` atau \`/health\` - Cek kesehatan server, uptime, & memori
 • \`/testapi\` - Jalankan 6 poin pengujian API sistem
-• \`/report\` - Buat ringkasan Laporan Kesehatan IT
+• \`/report\` - Buat Laporan Eksekutif Kesehatan IT
 • \`/db\` - Cek status koneksi & total data PostgreSQL
 
 📦 *Katalog & Operasional Pesanan:*
 • \`/stok\` - Cek produk dengan stok menipis (< 5 pcs)
-• \`/pesanan\` - Cek 5 pesanan aktif terbaru
+• \`/pesanan\` - Cek daftar pesanan aktif terbaru
 • \`/selesai [id]\` - Ubah status pesanan menjadi Selesai
 • \`/batal [id] [alasan]\` - Batalkan pesanan & pulihkan stok
 
 🧹 *Pemeliharaan:*
 • \`/clearexceptions\` - Bersihkan counter log error server
 
-*Chat ID Anda:* \`${chatId}\``;
-        await sendTelegramMessage(chatId, helpMsg);
-        break;
-      }
+_Jika ID Anda belum terdaftar sebagai admin, silakan simpan Chat ID di atas pada \`TELEGRAM_ADMIN_CHAT_ID\`._`;
+    await sendTelegramMessage(chatId, helpMsg);
+    return;
+  }
 
+  if (!isAuthorized) {
+    await sendTelegramMessage(chatId, `🚫 *Akses Ditolak*\nChat ID Anda (*\`${chatId}\`*) belum terdaftar dalam daftar Admin BelanjaIn Saza.\n\nKetik \`/myid\` untuk melihat ID Telegram Anda.`);
+    return;
+  }
+
+  try {
+    switch (command) {
       case 'status':
       case 'health': {
         const mem = process.memoryUsage();
@@ -2520,7 +2588,7 @@ Halo *${senderName}*! Berikut daftar perintah kontrol sistem yang tersedia:
 
         const t1 = Date.now();
         try {
-          const prods = await db.select().from(products).limit(1);
+          await db.select().from(products).limit(1);
           tests.push(`✅ *Products API:* PASS (${Date.now() - t1}ms)`);
         } catch (e) {
           tests.push(`❌ *Products API:* FAIL`);
@@ -2687,44 +2755,30 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
   }
 }
 
-// Telegram Webhook Express Endpoint (Bulletproof Raw Stream Reader)
+// Telegram Webhook Express Endpoint (Robust JSON & Stream Parser)
 app.all(['/api/telegram/webhook', '/telegram/webhook', '/api/telegram/webhook/', '/telegram/webhook/'], async (req: Request, res: Response) => {
   try {
-    let bodyStr = '';
-    
-    // Fallback: manually read the raw request stream if Express/Vercel body-parser fails or is disabled
-    if (!req.body || Object.keys(req.body).length === 0) {
+    let parsedBody = req.body;
+
+    if (!parsedBody || (typeof parsedBody === 'object' && Object.keys(parsedBody).length === 0)) {
+      let bodyStr = '';
       for await (const chunk of req) {
         bodyStr += chunk;
       }
+      if (bodyStr) {
+        try { parsedBody = JSON.parse(bodyStr); } catch (e) {}
+      }
+    } else if (typeof parsedBody === 'string') {
+      try { parsedBody = JSON.parse(parsedBody); } catch (e) {}
     }
 
-    let parsedBody = req.body;
-    if (bodyStr) {
-      try { parsedBody = JSON.parse(bodyStr); } catch (e) {}
-    } else if (typeof req.body === 'string') {
-      try { parsedBody = JSON.parse(req.body); } catch (e) {}
-    }
-
-    // DEBUG: Send what we received to Telegram
-    const token = process.env.TELEGRAM_BOT_TOKEN || '8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY';
-    const dbgStr = JSON.stringify(parsedBody || {}).substring(0, 500);
-    if (!parsedBody || !parsedBody.update_id) {
-       await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ chat_id: '8445262546', text: `DEBUG WEBHOOK EMPTY OR INVALID!\nMethod: ${req.method}\nURL: ${req.url}\nHeaders: ${JSON.stringify(req.headers)}\nParsed: ${dbgStr}` })
-       });
-    }
-
-    const msgObj = parsedBody?.message || parsedBody?.edited_message || parsedBody?.channel_post;
+    const msgObj = parsedBody?.message || parsedBody?.edited_message || parsedBody?.channel_post || parsedBody?.callback_query?.message;
     if (msgObj) {
       await handleTelegramIncomingMessage(msgObj);
     }
   } catch (err) {
     console.error('Webhook processing error:', err);
   } finally {
-    // ALWAYS return 200 OK so Telegram doesn't retry infinitely
     res.status(200).json({ ok: true });
   }
 });
