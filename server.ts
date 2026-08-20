@@ -1601,6 +1601,13 @@ app.put('/api/orders/:id/status', requireAuth, requireAdmin, async (req: AuthReq
       .where(eq(orders.id, orderId))
       .returning();
 
+    // Mirror in-memory
+    const memOrder = demoOrdersStore.find(o => o.id === orderId);
+    if (memOrder) {
+      memOrder.status = status;
+      if (keterangan !== undefined) memOrder.keterangan = keterangan;
+    }
+
     // Auto-send Telegram Notification on Status Update
     try {
       const statusIcon = status === 'Selesai' ? '✅' : status === 'Dibatalkan' ? '🚫' : '🔄';
