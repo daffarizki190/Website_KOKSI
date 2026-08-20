@@ -139,7 +139,7 @@ export const GrafanaNOCDashboard: React.FC<GrafanaNOCDashboardProps> = ({ metric
   const [isLiveActive, setIsLiveActive] = useState<boolean>(true);
   const [timeRange, setTimeRange] = useState<string>('Last 1 hour');
   const [datasource, setDatasource] = useState<string>('Prometheus-0y5');
-  const [location, setLocation] = useState<string>('Gandaria City Jakarta');
+  const [location, setLocation] = useState<string>('Jakarta IDC Tier-3');
   const [instance, setInstance] = useState<string>('belanjainsaza.web.id:443');
 
   // Real backend metrics mapping
@@ -460,8 +460,8 @@ export const GrafanaNOCDashboard: React.FC<GrafanaNOCDashboardProps> = ({ metric
             onChange={(e) => setLocation(e.target.value)}
             className="bg-transparent text-emerald-400 font-bold outline-none cursor-pointer"
           >
-            <option value="Gandaria City Jakarta" className="bg-[#181b1f]">Gandaria City Jakarta</option>
             <option value="Jakarta IDC Tier-3" className="bg-[#181b1f]">Jakarta IDC Tier-3</option>
+            <option value="Indonesia Cloud Region" className="bg-[#181b1f]">Indonesia Cloud Region</option>
             <option value="Singapore Edge DC" className="bg-[#181b1f]">Singapore Edge DC</option>
           </select>
         </div>
@@ -486,7 +486,7 @@ export const GrafanaNOCDashboard: React.FC<GrafanaNOCDashboardProps> = ({ metric
                 <ChevronRight className="w-4 h-4 text-slate-400" />
               )}
               <Server className="w-4 h-4 text-emerald-400" />
-              <span>Server Utama (Production - Gandaria City Jakarta)</span>
+              <span>Server Utama (Production - Jakarta IDC Tier-3)</span>
             </div>
             <div className="flex items-center gap-3 text-xs">
               <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
