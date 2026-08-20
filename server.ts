@@ -1685,6 +1685,18 @@ app.put('/api/orders/:id/cancel', requireAuth, async (req: AuthRequest, res) => 
         }
       }
 
+      // Auto-send Telegram Notification to Admin on Cancellation
+      try {
+        const tgMsg = `🚫 *PESANAN #${orderId} DIBATALKAN OLEH ADMIN*
+📝 *Alasan:* ${alasan.toString().trim()}
+📦 Stok barang telah dikembalikan ke sistem.
+Waktu: ${new Date().toLocaleString('id-ID')} WIB`;
+        const adminChatIds = getAdminChatIds();
+        for (const cid of adminChatIds) {
+          sendTelegramMessage(cid, tgMsg).catch(() => {});
+        }
+      } catch (e) {}
+
       res.json({ message: 'Pesanan berhasil dibatalkan oleh Admin dan stok telah dikembalikan.', order: updated[0] || memOrder });
       return;
     }
@@ -1697,6 +1709,18 @@ app.put('/api/orders/:id/cancel', requireAuth, async (req: AuthRequest, res) => 
       })
       .where(eq(orders.id, orderId))
       .returning();
+
+    // Auto-send Telegram Notification to Admin on User Cancellation Request
+    try {
+      const tgMsg = `⚠️ *PENGAJUAN PEMBATALAN PESANAN (#${orderId})*
+👤 *Pemohon:* ${req.user?.nama || 'Karyawan'} (${req.user?.no_hp || '-'})
+📝 *Alasan:* ${alasan.toString().trim()}
+⚡ *Aksi:* Buka Admin Portal atau ketik \`/batal ${orderId} ${alasan.toString().trim()}\` untuk menyetujui.`;
+      const adminChatIds = getAdminChatIds();
+      for (const cid of adminChatIds) {
+        sendTelegramMessage(cid, tgMsg).catch(() => {});
+      }
+    } catch (e) {}
 
     const memOrder = demoOrdersStore.find(o => o.id === orderId);
     if (memOrder) {
