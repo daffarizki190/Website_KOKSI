@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
+import { GrafanaNOCDashboard } from '../components/GrafanaNOCDashboard';
 
 interface ServerHealth {
   uptimeSeconds: number;
@@ -143,7 +144,7 @@ export function DashboardIT() {
   const [usersList, setUsersList] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'summary' | 'health' | 'errors' | 'database' | 'security' | 'users' | 'wa_otp' | 'api_testing'>('summary');
+  const [activeTab, setActiveTab] = useState<'noc_monitoring' | 'summary' | 'health' | 'errors' | 'database' | 'security' | 'users' | 'wa_otp' | 'api_testing'>('noc_monitoring');
   const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
 
   // API Testing & Health Report States
@@ -854,6 +855,7 @@ ${testsMarkdown}
         {/* HIGH-TECH TAB NAVIGATION RAIL */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 border-b border-slate-800/80 no-scrollbar">
           {[
+            { id: 'noc_monitoring', label: 'Grafana NOC Monitor', icon: Activity, color: 'text-amber-400', badge: 'PROMETHEUS' },
             { id: 'summary', label: 'Rangkuman Sistem', icon: FileText, color: 'text-teal-400' },
             { id: 'health', label: 'Kesehatan Server', icon: Server, color: 'text-cyan-400' },
             { id: 'errors', label: `Log Error (${metrics?.errorLogs.length || 0})`, icon: AlertTriangle, color: 'text-amber-400' },
@@ -890,6 +892,13 @@ ${testsMarkdown}
         {/* TAB CONTENTS */}
         {metrics && (
           <div className="flex-1 flex flex-col gap-6">
+
+            {/* TAB 0: GRAFANA PROMETHEUS NOC MONITORING (MATCHING NOC SCREENSHOT) */}
+            {activeTab === 'noc_monitoring' && (
+              <div className="space-y-6">
+                <GrafanaNOCDashboard />
+              </div>
+            )}
 
             {/* TAB 1: RANGKUMAN BERKALA SISTEM */}
             {activeTab === 'summary' && (
