@@ -129,14 +129,27 @@ export const GrafanaArcGauge: React.FC<GrafanaArcGaugeProps> = ({
   );
 };
 
-export const GrafanaNOCDashboard: React.FC = () => {
+interface GrafanaNOCDashboardProps {
+  metrics?: any;
+}
+
+export const GrafanaNOCDashboard: React.FC<GrafanaNOCDashboardProps> = ({ metrics }) => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [refreshInterval, setRefreshInterval] = useState<number>(5); // seconds
   const [isLiveActive, setIsLiveActive] = useState<boolean>(true);
   const [timeRange, setTimeRange] = useState<string>('Last 1 hour');
   const [datasource, setDatasource] = useState<string>('Prometheus-0y5');
   const [location, setLocation] = useState<string>('Gandaria City Jakarta');
-  const [instance, setInstance] = useState<string>('localhost:9192');
+  const [instance, setInstance] = useState<string>('belanjainsaza.web.id:443');
+
+  // Real backend metrics mapping
+  const realUptime = metrics?.serverHealth?.uptimeFormatted || '28.0 weeks';
+  const realCpu = metrics?.serverHealth?.cpuUsagePercent ?? 25.4;
+  const realHeapUsedMB = metrics?.serverHealth?.memory?.heapUsedMB ?? 38;
+  const realHeapTotalMB = metrics?.serverHealth?.memory?.heapTotalMB ?? 64;
+  const realRamPercent = realHeapTotalMB > 0 ? Number(((realHeapUsedMB / realHeapTotalMB) * 100).toFixed(1)) : 59.0;
+  const realDbPing = metrics?.databasePerformance?.dbPingMs ?? 28;
+  const realRequests = metrics?.trafficAnalytics?.totalRequests ?? 14;
 
   // Accordion open/close state for servers
   const [serverUtamaOpen, setServerUtamaOpen] = useState<boolean>(true);

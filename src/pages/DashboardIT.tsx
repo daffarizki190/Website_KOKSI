@@ -790,7 +790,7 @@ ${testsMarkdown}
             {/* TAB 0: GRAFANA PROMETHEUS NOC MONITORING (MATCHING NOC SCREENSHOT) */}
             {activeTab === 'noc_monitoring' && (
               <div className="space-y-6">
-                <GrafanaNOCDashboard />
+                <GrafanaNOCDashboard metrics={metrics} />
               </div>
             )}
 
