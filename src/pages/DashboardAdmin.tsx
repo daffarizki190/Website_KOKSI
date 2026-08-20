@@ -1641,16 +1641,16 @@ export const DashboardAdmin = () => {
   const pendingOrdersCount = orders.filter(o => !o.status || o.status === 'Menunggu Konfirmasi').length;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans w-full max-w-full overflow-x-hidden">
       {/* Navbar Admin */}
-      <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md shrink-0">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-[64px] py-2.5 sm:py-0 flex items-center justify-between gap-2">
+      <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md shrink-0 w-full max-w-full">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-[64px] py-2.5 sm:py-0 flex items-center justify-between gap-2 w-full">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-tr from-teal-500 via-teal-400 to-amber-400 text-slate-950 rounded-xl flex items-center justify-center font-black text-lg sm:text-xl italic shadow-md shrink-0">
               B
             </div>
             <div className="min-w-0 flex flex-col justify-center">
-              <h1 className="text-sm sm:text-base font-extrabold tracking-tight leading-tight text-white flex items-center gap-1">
+              <h1 className="text-sm sm:text-base font-extrabold tracking-tight leading-tight text-white flex items-center gap-1 truncate">
                 <span>BelanjaIn Saza</span> <span className="text-teal-400 font-bold">&bull;</span> <span className="text-slate-300 font-semibold text-xs sm:text-sm">Admin Portal</span>
               </h1>
               <p className="text-[9.5px] sm:text-[10px] text-teal-400 font-bold uppercase tracking-wider leading-tight mt-0.5">
@@ -1679,9 +1679,9 @@ export const DashboardAdmin = () => {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 flex flex-col">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 w-full max-w-full flex-1 flex flex-col min-w-0 overflow-x-hidden">
         {/* Navigation Tabs */}
-        <div className="flex space-x-2 border-b border-slate-200 mb-6 shrink-0 overflow-x-auto">
+        <div className="flex space-x-2 border-b border-slate-200 mb-6 shrink-0 overflow-x-auto max-w-full w-full pb-1">
           <button
             onClick={() => setActiveTab('orders')}
             className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${

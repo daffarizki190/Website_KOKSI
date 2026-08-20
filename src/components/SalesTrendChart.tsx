@@ -306,98 +306,98 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orders }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 max-w-full min-w-0 overflow-hidden">
       {/* KPI Cards Header */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden group">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 max-w-full">
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 rounded-full blur-xl group-hover:bg-teal-500/10 transition-colors" />
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Total Omzet Penjualan</span>
-            <div className="w-8 h-8 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center font-bold">
-              <DollarSign className="w-4 h-4" />
+            <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Total Omzet</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center font-bold">
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+          <div className="text-base sm:text-xl font-black text-slate-900 tracking-tight truncate">
             {formatRupiah(kpiStats.totalRevenue)}
           </div>
-          <p className="text-[11px] text-teal-600 font-semibold mt-1 flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>{kpiStats.totalOrders} Transaksi Sukses/Valid</span>
+          <p className="text-[10px] sm:text-[11px] text-teal-600 font-semibold mt-1 flex items-center gap-1 truncate">
+            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{kpiStats.totalOrders} Transaksi Sukses</span>
           </p>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden group">
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-xl group-hover:bg-blue-500/10 transition-colors" />
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Pesanan Masuk</span>
-            <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold">
-              <ShoppingBag className="w-4 h-4" />
+            <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Pesanan Masuk</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold">
+              <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+          <div className="text-base sm:text-xl font-black text-slate-900 tracking-tight">
             {kpiStats.totalOrders} <span className="text-xs font-bold text-slate-400">Pesanan</span>
           </div>
-          <p className="text-[11px] text-blue-600 font-semibold mt-1 flex items-center gap-1">
-            <Package className="w-3.5 h-3.5" />
-            <span>{kpiStats.totalItems.toLocaleString('id-ID')} Pcs Terjual</span>
+          <p className="text-[10px] sm:text-[11px] text-blue-600 font-semibold mt-1 flex items-center gap-1 truncate">
+            <Package className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{kpiStats.totalItems.toLocaleString('id-ID')} Pcs Terjual</span>
           </p>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden group">
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl group-hover:bg-amber-500/10 transition-colors" />
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Rata-rata Transaksi (AOV)</span>
-            <div className="w-8 h-8 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center font-bold">
-              <Sparkles className="w-4 h-4" />
+            <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Rata-rata (AOV)</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center font-bold">
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+          <div className="text-base sm:text-xl font-black text-slate-900 tracking-tight truncate">
             {formatRupiah(kpiStats.aov)}
           </div>
-          <p className="text-[11px] text-amber-600 font-semibold mt-1 flex items-center gap-1">
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            <span>Per Pesanan Karyawan</span>
+          <p className="text-[10px] sm:text-[11px] text-amber-600 font-semibold mt-1 flex items-center gap-1 truncate">
+            <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Per Pesanan</span>
           </p>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden group">
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl group-hover:bg-emerald-500/10 transition-colors" />
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Tingkat Penyelesaian</span>
-            <div className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-bold">
-              <CheckCircle2 className="w-4 h-4" />
+            <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Penyelesaian</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-bold">
+              <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+          <div className="text-base sm:text-xl font-black text-slate-900 tracking-tight">
             {kpiStats.completionRate}%
           </div>
-          <p className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>{kpiStats.completedCount} Selesai dari {orders.length}</span>
+          <p className="text-[10px] sm:text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1 truncate">
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{kpiStats.completedCount} Selesai dari {orders.length}</span>
           </p>
         </div>
       </div>
 
       {/* Main Trend Chart Section */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
+      <div className="bg-white p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-sm space-y-4 max-w-full overflow-hidden">
         {/* Controls Toolbar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-10 h-10 bg-slate-900 text-teal-400 rounded-2xl flex items-center justify-center font-bold shadow-md shadow-slate-900/10">
-              <TrendingUp className="w-5 h-5" />
+          <div className="flex items-center space-x-2.5 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-900 text-teal-400 rounded-xl sm:rounded-2xl flex items-center justify-center font-bold shadow-md shadow-slate-900/10 shrink-0">
+              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Grafik Tren Penjualan</h3>
-              <p className="text-xs text-slate-500 font-medium">Visualisasi performa transaksi BelanjaIn Saza real-time</p>
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight truncate">Grafik Tren Penjualan</h3>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-medium truncate">Visualisasi performa transaksi BelanjaIn Saza real-time</p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 max-w-full">
             {/* Metric View Selectors */}
-            <div className="bg-slate-100 p-1 rounded-xl flex space-x-1 border border-slate-200/60">
+            <div className="bg-slate-100 p-1 rounded-xl flex space-x-1 border border-slate-200/60 max-w-full">
               <button
                 onClick={() => setMetricView('revenue')}
-                className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer ${
+                className={`px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-extrabold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                   metricView === 'revenue'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
@@ -407,7 +407,7 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orders }) => {
               </button>
               <button
                 onClick={() => setMetricView('orders')}
-                className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer ${
+                className={`px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-extrabold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                   metricView === 'orders'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
@@ -418,10 +418,10 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orders }) => {
             </div>
 
             {/* Time Range Selectors */}
-            <div className="bg-slate-100 p-1 rounded-xl flex space-x-1 border border-slate-200/60">
+            <div className="bg-slate-100 p-1 rounded-xl flex space-x-1 border border-slate-200/60 max-w-full overflow-x-auto">
               <button
                 onClick={() => setTimeRange('7days')}
-                className={`px-2.5 py-1.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer ${
+                className={`px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-extrabold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                   timeRange === '7days'
                     ? 'bg-teal-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -431,7 +431,7 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orders }) => {
               </button>
               <button
                 onClick={() => setTimeRange('30days')}
-                className={`px-2.5 py-1.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer ${
+                className={`px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-extrabold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                   timeRange === '30days'
                     ? 'bg-teal-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -441,7 +441,7 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orders }) => {
               </button>
               <button
                 onClick={() => setTimeRange('4weeks')}
-                className={`px-2.5 py-1.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer ${
+                className={`px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-extrabold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                   timeRange === '4weeks'
                     ? 'bg-teal-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -451,7 +451,7 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orders }) => {
               </button>
               <button
                 onClick={() => setTimeRange('6months')}
-                className={`px-2.5 py-1.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer ${
+                className={`px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-extrabold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                   timeRange === '6months'
                     ? 'bg-teal-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -465,7 +465,7 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orders }) => {
             <select
               value={statusFilter}
               onChange={(e: any) => setStatusFilter(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-xs cursor-pointer"
+              className="px-2.5 sm:px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-[11px] sm:text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-xs cursor-pointer max-w-full"
             >
               <option value="valid">Pesanan Valid (Non-Batal)</option>
               <option value="completed">Hanya Selesai</option>
@@ -475,7 +475,7 @@ export const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ orders }) => {
         </div>
 
         {/* Chart Render */}
-        <div className="h-[320px] w-full pt-2">
+        <div className="h-[280px] sm:h-[320px] w-full pt-2 min-w-0 overflow-hidden">
           <ResponsiveContainer width="100%" height="100%">
             {metricView === 'revenue' ? (
               <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
