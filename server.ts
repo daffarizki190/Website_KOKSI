@@ -2449,7 +2449,7 @@ async function sendTelegramMessage(chatId: string | number, text: string, parseM
 }
 
 // Telegram Webhook Setup & Test Endpoints
-app.get(['/api/telegram/setup', '/api/telegram/set-webhook'], async (req: Request, res: Response) => {
+app.get(['/api/telegram/setup', '/api/telegram/set-webhook', '/telegram/setup', '/telegram/set-webhook'], async (req: Request, res: Response) => {
   const token = getCleanTelegramToken();
   if (!token) {
     res.status(400).json({ error: 'TELEGRAM_BOT_TOKEN belum diset di environment variables.' });
@@ -2474,7 +2474,7 @@ app.get(['/api/telegram/setup', '/api/telegram/set-webhook'], async (req: Reques
   }
 });
 
-app.get('/api/telegram/test', async (req: Request, res: Response) => {
+app.get(['/api/telegram/test', '/telegram/test'], async (req: Request, res: Response) => {
   const token = getCleanTelegramToken();
   const adminIds = getAdminChatIds();
   const targetChat = (req.query.chat_id as string) || adminIds[0] || '8445262546';
