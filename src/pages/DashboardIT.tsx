@@ -635,11 +635,11 @@ ${testsMarkdown}
       <div className="fixed bottom-0 right-10 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none -z-10" />
 
       {/* HEADER SECTION (CYBER MISSION CONTROL HUD) */}
-      <header className="bg-slate-900/80 border-b border-slate-800/80 sticky top-0 z-40 backdrop-blur-xl shadow-2xl shadow-slate-950/60 w-full max-w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="relative">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-teal-500 via-cyan-400 to-emerald-400 p-0.5 shadow-lg shadow-teal-500/25">
+      <header className="bg-slate-900/90 border-b border-slate-800/80 sticky top-0 z-40 backdrop-blur-xl shadow-2xl shadow-slate-950/60 w-full max-w-full">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 w-full md:w-auto">
+            <div className="relative shrink-0">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-teal-500 via-cyan-400 to-emerald-400 p-0.5 shadow-lg shadow-teal-500/25">
                 <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
                   <Server className="w-5 h-5 text-teal-400" />
                 </div>
@@ -649,80 +649,80 @@ ${testsMarkdown}
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-black text-white tracking-tight flex items-center gap-2">
-                  <span>Pusat Operasi & Infrastruktur IT</span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h1 className="text-sm sm:text-base font-black text-white tracking-tight truncate">
+                  Pusat Operasi IT
                 </h1>
-                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black tracking-widest uppercase">
-                  <span>LIVE HUD</span>
+                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black tracking-widest uppercase">
+                  <span>LIVE</span>
                 </div>
-                <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-teal-500/15 text-teal-300 border border-teal-500/30">
+                <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-md bg-teal-500/15 text-teal-300 border border-teal-500/30">
                   Role IT
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-medium mt-0.5">
-                Sistem Telemetri Server, Traffic, Database, Diagnostik API, Keamanan & Pengelolaan Akses
+              <p className="text-[10px] sm:text-xs text-slate-400 font-medium truncate mt-0.5">
+                Sistem Telemetri Server, Database & Keamanan
               </p>
             </div>
           </div>
 
           {/* Quick Controls Toolbar */}
-          <div className="flex items-center flex-wrap gap-2 w-full md:w-auto justify-end">
+          <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 w-full md:w-auto justify-start md:justify-end">
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 cursor-pointer ${
+              className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
                 autoRefresh 
                   ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-sm shadow-emerald-500/10' 
                   : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700/80 text-slate-300'
               }`}
             >
-              <Radio className={`w-3.5 h-3.5 ${autoRefresh ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
-              <span>Auto-Sync: {autoRefresh ? 'AKTIF (5s)' : 'NONAKTIF'}</span>
+              <Radio className={`w-3 h-3 ${autoRefresh ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
+              <span>{autoRefresh ? 'Auto 5s' : 'Sync Off'}</span>
             </button>
 
             <button
               onClick={fetchITData}
-              className="px-3 py-1.5 bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 border border-slate-700/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
-              title="Refresh manual data metrik IT"
+              className="px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 border border-slate-700/80 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+              title="Refresh data metrik"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-teal-400" />
+              <RefreshCw className="w-3 h-3 text-teal-400" />
               <span>Refresh</span>
             </button>
 
             <button
               onClick={handleFetchSummaryReport}
-              className="px-3.5 py-1.5 bg-gradient-to-r from-teal-500 via-emerald-400 to-cyan-400 hover:opacity-95 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-teal-500/20 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              className="px-3 py-1.5 bg-gradient-to-r from-teal-500 via-emerald-400 to-cyan-400 hover:opacity-95 text-slate-950 font-black rounded-xl text-[11px] shadow-md shadow-teal-500/20 transition-all flex items-center gap-1 cursor-pointer active:scale-95"
             >
-              <FileText className="w-3.5 h-3.5 text-slate-950" />
-              <span>Rangkuman IT</span>
+              <FileText className="w-3 h-3 text-slate-950" />
+              <span>Rangkuman</span>
             </button>
 
             {user?.role === 'admin' && (
               <button
                 onClick={() => navigate('/admin')}
-                className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
               >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Admin Portal</span>
+                <ArrowLeft className="w-3 h-3" />
+                <span>Admin</span>
               </button>
             )}
 
             <button
               onClick={handleOpenProfileModal}
-              className="px-3 py-1.5 bg-slate-800/90 hover:bg-slate-700/90 text-teal-300 border border-slate-700/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700/90 text-teal-300 border border-slate-700/80 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
               title="Edit Profil Saya"
             >
-              <UserIcon className="w-3.5 h-3.5 text-teal-400" />
-              <span>Profil IT</span>
+              <UserIcon className="w-3 h-3 text-teal-400" />
+              <span>Profil</span>
             </button>
 
             <button
               onClick={() => { logout(); navigate('/login'); }}
-              className="p-1.5 bg-slate-800/90 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-slate-700/80 hover:border-red-500/30 rounded-xl transition-all cursor-pointer"
+              className="p-1.5 bg-slate-800/90 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-slate-700/80 hover:border-red-500/30 rounded-xl transition-all cursor-pointer ml-auto md:ml-0"
               title="Keluar / Logout"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -746,25 +746,47 @@ ${testsMarkdown}
       {/* MAIN CONTAINER */}
       <main className="w-full max-w-[1700px] mx-auto px-2 sm:px-4 lg:px-6 py-4 flex-1 flex flex-col gap-4 min-w-0 overflow-x-hidden">
 
-        {/* TAB NAVIGATION: Mobile Dropdown Selector & Desktop Rail */}
-        {/* Mobile View (< sm): Zero swiping, instant tab selection */}
-        <div className="block sm:hidden bg-slate-900/90 p-2 rounded-2xl border border-slate-800 shadow-md">
-          <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Pilih Modul IT:</label>
-          <select
-            value={activeTab}
-            onChange={(e) => setActiveTab(e.target.value as any)}
-            className="w-full bg-slate-950 border border-slate-700 text-teal-300 font-bold text-xs rounded-xl py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
-          >
-            <option value="noc_monitoring">📊 Grafana NOC Monitor (Prometheus)</option>
-            <option value="summary">📄 Rangkuman Sistem</option>
-            <option value="health">🖥️ Kesehatan Server</option>
-            <option value="errors">⚠️ Log Error ({metrics?.errorLogs.length || 0})</option>
-            <option value="database">🗄️ Database & APIs</option>
-            <option value="security">🛡️ Keamanan & Rilis</option>
-            <option value="users">👥 Akses Peran IT</option>
-            <option value="wa_otp">💬 WhatsApp & SMS OTP</option>
-            <option value="api_testing">⚡ Pengetesan API ({apiPassRate})</option>
-          </select>
+        {/* TAB NAVIGATION: Mobile 3-Column Cyber Grid / Desktop Navigation Rail */}
+        {/* Mobile View (< sm): Instant 1-Tap Cyber Matrix (Zero System Popup, Zero Swiping) */}
+        <div className="block sm:hidden bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800 shadow-xl space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[10px] text-teal-400 font-extrabold uppercase tracking-widest flex items-center gap-1.5">
+              <Activity className="w-3 h-3 text-teal-400" />
+              <span>Pilih Modul IT</span>
+            </span>
+            <span className="text-[9px] text-slate-500 font-mono font-bold">HUD LIVE</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1.5">
+            {[
+              { id: 'noc_monitoring', label: 'Grafana NOC', icon: Activity, color: 'text-amber-400', badge: 'PROMETHEUS' },
+              { id: 'summary', label: 'Rangkuman', icon: FileText, color: 'text-teal-400' },
+              { id: 'health', label: 'Server', icon: Server, color: 'text-cyan-400' },
+              { id: 'errors', label: `Log Error (${metrics?.errorLogs.length || 0})`, icon: AlertTriangle, color: 'text-amber-400' },
+              { id: 'database', label: 'Database', icon: Database, color: 'text-blue-400' },
+              { id: 'security', label: 'Keamanan', icon: ShieldCheck, color: 'text-emerald-400' },
+              { id: 'users', label: 'Akses IT', icon: Users, color: 'text-purple-400' },
+              { id: 'wa_otp', label: 'WhatsApp', icon: MessageSquare, color: 'text-emerald-400' },
+              { id: 'api_testing', label: 'API Health', icon: Zap, color: 'text-amber-400', badge: apiPassRate }
+            ].map((tab) => {
+              const IconComp = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`p-2 rounded-xl text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border ${
+                    isActive
+                      ? 'bg-gradient-to-tr from-teal-500 via-cyan-400 to-emerald-400 text-slate-950 border-teal-300 font-black shadow-md shadow-teal-500/25 scale-[1.02]'
+                      : 'bg-slate-950/80 hover:bg-slate-800 text-slate-300 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <IconComp className={`w-3.5 h-3.5 ${isActive ? 'text-slate-950' : tab.color}`} />
+                  <span className="text-[10px] font-bold leading-tight line-clamp-1">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Desktop View (>= sm): High-Tech Tab Navigation Rail */}
