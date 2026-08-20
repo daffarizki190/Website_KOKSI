@@ -1680,8 +1680,67 @@ export const DashboardAdmin = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 w-full max-w-full flex-1 flex flex-col min-w-0 overflow-x-hidden">
-        {/* Navigation Tabs */}
-        <div className="flex space-x-2 border-b border-slate-200 mb-6 shrink-0 overflow-x-auto max-w-full w-full pb-1">
+        {/* Navigation Tabs (Mobile 2-Column Grid / Desktop Horizontal Tabs) */}
+        {/* Mobile View (< sm): Fits 100% on screen, Zero Swiping Needed */}
+        <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-slate-200/60 rounded-2xl mb-4 sm:hidden">
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
+              activeTab === 'orders'
+                ? 'bg-teal-600 text-white shadow-xs'
+                : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 truncate">
+              <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Transaksi</span>
+            </div>
+            {pendingOrdersCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 text-[9px] bg-amber-400 text-slate-950 rounded-full font-black">
+                {pendingOrdersCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer truncate ${
+              activeTab === 'analytics'
+                ? 'bg-teal-600 text-white shadow-xs'
+                : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <TrendingUp className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'analytics' ? 'text-white' : 'text-teal-600'}`} />
+            <span className="truncate">Grafik Penjualan</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer truncate ${
+              activeTab === 'products'
+                ? 'bg-teal-600 text-white shadow-xs'
+                : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <Package className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Data Produk</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer truncate ${
+              activeTab === 'users'
+                ? 'bg-teal-600 text-white shadow-xs'
+                : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Pengguna ({users.length})</span>
+          </button>
+        </div>
+
+        {/* Desktop View (>= sm): Standard Horizontal Tabs */}
+        <div className="hidden sm:flex space-x-2 border-b border-slate-200 mb-6 shrink-0 overflow-x-auto max-w-full w-full pb-1">
           <button
             onClick={() => setActiveTab('orders')}
             className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${
@@ -1742,8 +1801,6 @@ export const DashboardAdmin = () => {
             <UserIcon className="w-4 h-4 text-teal-600" />
             <span>Edit Profil Saya</span>
           </button>
-
-          
         </div>
 
         {/* TAB 1: PERMINTAAN TRANSAKSI (REAL-TIME ORDERS) */}
@@ -2329,8 +2386,68 @@ export const DashboardAdmin = () => {
               )}
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 flex-1 overflow-hidden flex flex-col">
-              <div className="overflow-y-auto flex-1">
+            <div className="bg-white rounded-2xl border border-slate-200 flex-1 overflow-hidden flex flex-col shadow-xs">
+              {/* 1. Mobile Cards View (< md): Pas di layar HP, Tanpa Perlu Geser/Swipe */}
+              <div className="block md:hidden divide-y divide-slate-100 overflow-y-auto flex-1">
+                {products
+                  .filter((p) => {
+                    const matchCat = productCategoryFilter === 'Semua' || p.kategori === productCategoryFilter;
+                    const matchSub = productSubCategoryFilter === 'Semua' || p.sub_kategori === productSubCategoryFilter;
+                    const matchQuery = !productSearch || 
+                      p.nama_barang.toLowerCase().includes(productSearch.toLowerCase()) ||
+                      p.kategori.toLowerCase().includes(productSearch.toLowerCase()) ||
+                      (p.sub_kategori || '').toLowerCase().includes(productSearch.toLowerCase());
+                    return matchCat && matchSub && matchQuery;
+                  })
+                  .map((p) => (
+                    <div key={p.id} className="p-3.5 space-y-2.5 hover:bg-slate-50 transition-colors">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-extrabold text-slate-900 text-sm leading-snug">{p.nama_barang}</h4>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                            <span className="inline-block px-2 py-0.5 bg-teal-50 text-teal-800 border border-teal-200 rounded-md text-[10px] font-bold">
+                              {p.kategori}
+                            </span>
+                            {p.sub_kategori && (
+                              <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-md text-[10px] font-medium">
+                                {p.sub_kategori}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-black text-teal-700">Rp {p.harga.toLocaleString('id-ID')}</p>
+                          <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold ${p.stok < 10 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>
+                            Stok: {p.stok}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                        <button 
+                          onClick={() => openEditModal(p)} 
+                          className="flex items-center gap-1 text-slate-700 hover:text-teal-700 px-3 py-1.5 bg-slate-100 hover:bg-teal-50 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-teal-600" />
+                          <span>Edit Produk</span>
+                        </button>
+                        <button 
+                          onClick={() => setDeleteProductConfirmModal({ id: p.id, nama: p.nama_barang })} 
+                          className="flex items-center gap-1 text-red-600 hover:text-red-700 px-3 py-1.5 bg-red-50 hover:bg-red-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                          <span>Hapus</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                {products.length === 0 && (
+                  <div className="p-8 text-center text-slate-500 text-xs">Belum ada produk.</div>
+                )}
+              </div>
+
+              {/* 2. Desktop Table View (>= md) */}
+              <div className="hidden md:block overflow-y-auto flex-1">
                 <table className="min-w-full divide-y divide-slate-100 text-left">
                   <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 z-10">
                     <tr>
@@ -2424,8 +2541,107 @@ export const DashboardAdmin = () => {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 flex-1 overflow-hidden flex flex-col">
-              <div className="overflow-y-auto flex-1">
+            <div className="bg-white rounded-2xl border border-slate-200 flex-1 overflow-hidden flex flex-col shadow-xs">
+              {/* 1. Mobile Cards View (< md): Pas di layar HP, Tanpa Perlu Geser/Swipe */}
+              <div className="block md:hidden divide-y divide-slate-100 overflow-y-auto flex-1">
+                {users
+                  .filter(u => {
+                    const matchPt = ptFilter === 'Semua' || (u.pt || '').toLowerCase() === ptFilter.toLowerCase();
+                    const query = userSearch.toLowerCase();
+                    const matchSearch = !query || 
+                      (u.nama || '').toLowerCase().includes(query) || 
+                      (u.no_hp || '').toLowerCase().includes(query) || 
+                      (u.pt || '').toLowerCase().includes(query) || 
+                      (u.departemen || '').toLowerCase().includes(query);
+                    return matchPt && matchSearch;
+                  })
+                  .map((u) => (
+                    <div key={u.id} className="p-3.5 space-y-2.5 hover:bg-slate-50 transition-colors">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-extrabold text-slate-900 text-sm leading-snug">{u.nama}</h4>
+                          <p className="text-xs text-slate-500 font-mono mt-0.5">{u.no_hp}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                            <span className="inline-block px-2 py-0.5 bg-teal-50 text-teal-800 font-bold text-[10px] rounded-md border border-teal-100">
+                              {u.pt}
+                            </span>
+                            {u.departemen && (
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                • {u.departemen}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="shrink-0">
+                          <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${
+                            u.role === 'admin' 
+                              ? 'bg-amber-100 text-amber-900 border-amber-200' 
+                              : u.role === 'it' 
+                              ? 'bg-purple-100 text-purple-900 border-purple-200' 
+                              : 'bg-slate-100 text-slate-700 border-slate-200'
+                          }`}>
+                            {u.role || 'user'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
+                        {/* Quick Role Switcher */}
+                        <div className="flex items-center justify-between gap-1 flex-wrap">
+                          <span className="text-[10px] text-slate-400 font-bold">Ubah Role:</span>
+                          <div className="flex items-center gap-1">
+                            {(['user', 'admin', 'it'] as const).map((r) => (
+                              <button
+                                key={r}
+                                type="button"
+                                disabled={updatingRoleId === u.id || (u.role || 'user') === r}
+                                onClick={() => handleRoleChange(u.id, r)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase transition-all border cursor-pointer ${
+                                  (u.role || 'user') === r
+                                    ? 'bg-slate-900 text-white border-slate-800 shadow-xs'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                }`}
+                              >
+                                {r}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button 
+                            onClick={() => openEditUserModal(u)}
+                            className="px-2.5 py-1 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <Edit3 className="w-3 h-3 text-teal-600" />
+                            <span>Edit</span>
+                          </button>
+                          <button 
+                            onClick={() => openResetPasswordModal(u)}
+                            className="px-2.5 py-1 text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <Key className="w-3 h-3 text-slate-600" />
+                            <span>Reset PW</span>
+                          </button>
+                          <button 
+                            onClick={() => openDeleteUserModal(u)}
+                            className="px-2.5 py-1 text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3 text-red-600" />
+                            <span>Hapus</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                {users.length === 0 && (
+                  <div className="p-8 text-center text-slate-500 text-xs">Belum ada pengguna.</div>
+                )}
+              </div>
+
+              {/* 2. Desktop Table View (>= md) */}
+              <div className="hidden md:block overflow-y-auto flex-1">
                 <table className="min-w-full divide-y divide-slate-100 text-left">
                   <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 z-10">
                     <tr>

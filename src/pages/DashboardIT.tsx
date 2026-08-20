@@ -746,8 +746,29 @@ ${testsMarkdown}
       {/* MAIN CONTAINER */}
       <main className="w-full max-w-[1700px] mx-auto px-2 sm:px-4 lg:px-6 py-4 flex-1 flex flex-col gap-4 min-w-0 overflow-x-hidden">
 
-        {/* HIGH-TECH TAB NAVIGATION RAIL */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 border-b border-slate-800/80 no-scrollbar">
+        {/* TAB NAVIGATION: Mobile Dropdown Selector & Desktop Rail */}
+        {/* Mobile View (< sm): Zero swiping, instant tab selection */}
+        <div className="block sm:hidden bg-slate-900/90 p-2 rounded-2xl border border-slate-800 shadow-md">
+          <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Pilih Modul IT:</label>
+          <select
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as any)}
+            className="w-full bg-slate-950 border border-slate-700 text-teal-300 font-bold text-xs rounded-xl py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+          >
+            <option value="noc_monitoring">📊 Grafana NOC Monitor (Prometheus)</option>
+            <option value="summary">📄 Rangkuman Sistem</option>
+            <option value="health">🖥️ Kesehatan Server</option>
+            <option value="errors">⚠️ Log Error ({metrics?.errorLogs.length || 0})</option>
+            <option value="database">🗄️ Database & APIs</option>
+            <option value="security">🛡️ Keamanan & Rilis</option>
+            <option value="users">👥 Akses Peran IT</option>
+            <option value="wa_otp">💬 WhatsApp & SMS OTP</option>
+            <option value="api_testing">⚡ Pengetesan API ({apiPassRate})</option>
+          </select>
+        </div>
+
+        {/* Desktop View (>= sm): High-Tech Tab Navigation Rail */}
+        <div className="hidden sm:flex items-center gap-2 overflow-x-auto pb-2 pt-1 border-b border-slate-800/80 no-scrollbar">
           {[
             { id: 'noc_monitoring', label: 'Grafana NOC Monitor', icon: Activity, color: 'text-amber-400', badge: 'PROMETHEUS' },
             { id: 'summary', label: 'Rangkuman Sistem', icon: FileText, color: 'text-teal-400' },
@@ -774,7 +795,11 @@ ${testsMarkdown}
                 <IconComp className={`w-4 h-4 ${isActive ? 'text-slate-950' : tab.color}`} />
                 <span>{tab.label}</span>
                 {tab.badge && (
-                  <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase ${isActive ? 'bg-slate-950 text-emerald-400' : 'bg-amber-400 text-slate-950'}`}>
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
+                    isActive 
+                      ? 'bg-slate-950/20 text-slate-950' 
+                      : 'bg-slate-800 text-slate-300 border border-slate-700'
+                  }`}>
                     {tab.badge}
                   </span>
                 )}
