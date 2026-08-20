@@ -2,56 +2,68 @@ import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 
-// Standard 512x512 Icon with SAZA branded on the shopping bag
+// Full-Page Shopping Bag App Icon (No extra background tile, the icon IS the bag)
+// belanjain text is placed on top of SAZA pill badge
 const svgIcon = `
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
-    <!-- Background Gradient: Rich Teal Brand Color -->
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- Rich Teal Gradient for the full Bag Body -->
+    <linearGradient id="bagGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0f766e"/>
-      <stop offset="50%" stop-color="#0d9488"/>
+      <stop offset="45%" stop-color="#0d9488"/>
       <stop offset="100%" stop-color="#14b8a6"/>
     </linearGradient>
 
-    <!-- Text Gradient inside Bag: Deep Teal to Turquoise -->
-    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#0f766e"/>
-      <stop offset="100%" stop-color="#0d9488"/>
-    </linearGradient>
-
-    <!-- Golden Amber Accent -->
-    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <!-- Golden Amber Gradient for the SAZA Badge -->
+    <linearGradient id="goldBadge" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#f59e0b"/>
       <stop offset="100%" stop-color="#fbbf24"/>
     </linearGradient>
 
-    <!-- Drop Shadow for Bag -->
-    <filter id="bagShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#042f2e" flood-opacity="0.38"/>
+    <!-- Soft Depth Shadow -->
+    <filter id="depthShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#022c22" flood-opacity="0.38"/>
     </filter>
+
+    <!-- Inner Top Fold Shadow -->
+    <linearGradient id="topFold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#042f2e" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#042f2e" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Top Highlight Gloss -->
+    <linearGradient id="topGloss" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
   </defs>
 
-  <!-- Background Squircle -->
-  <rect x="20" y="20" width="472" height="472" rx="118" fill="url(#bgGrad)" />
+  <!-- Full Frame Bag Body (Fills the entire icon squircle) -->
+  <rect x="20" y="20" width="472" height="472" rx="116" fill="url(#bagGrad)"/>
+  
+  <!-- Subtle Top Gloss Curve -->
+  <rect x="20" y="20" width="472" height="236" rx="116" fill="url(#topGloss)"/>
 
-  <g filter="url(#bagShadow)">
-    <!-- Shopping Bag Handle -->
-    <path d="M196 165 C196 90, 316 90, 316 165" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/>
+  <!-- Shopping Bag Handle Arch -->
+  <g filter="url(#depthShadow)">
+    <path d="M192 115 C192 48, 320 48, 320 115" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/>
+  </g>
 
-    <!-- Shopping Bag Body (Crisp White Card with Rounded Corners) -->
-    <rect x="120" y="160" width="272" height="240" rx="38" fill="#ffffff"/>
+  <!-- Top Fold Crease Line -->
+  <line x1="20" y1="135" x2="492" y2="135" stroke="#042f2e" stroke-width="4" opacity="0.35"/>
+  <rect x="20" y="135" width="472" height="28" fill="url(#topFold)"/>
 
-    <!-- Bag Inner Top Fold Line -->
-    <path d="M120 205 L392 205" stroke="#f1f5f9" stroke-width="6"/>
+  <!-- Center Branding: 1. "belanjain" Text (Above SAZA) -->
+  <g filter="url(#depthShadow)" transform="translate(256, 275)">
+    <text x="0" y="0" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="66" text-anchor="middle" letter-spacing="-1">
+      <tspan fill="#ffffff">belanja</tspan><tspan fill="#f59e0b" font-style="italic">in</tspan>
+    </text>
+  </g>
 
-    <!-- Golden Brand Dot on Top Fold -->
-    <circle cx="355" cy="205" r="8" fill="url(#goldGrad)"/>
-
-    <!-- Bold "SAZA" Typography inside the Shopping Bag -->
-    <text x="256" y="305" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="62" fill="url(#textGrad)" text-anchor="middle" letter-spacing="5">SAZA</text>
-
-    <!-- Amber "BELANJA" subtext inside Bag -->
-    <text x="256" y="348" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="800" font-size="17" fill="#f59e0b" text-anchor="middle" letter-spacing="4">BELANJA</text>
+  <!-- Center Branding: 2. "SAZA" Pill Badge (Below belanjain) -->
+  <g filter="url(#depthShadow)" transform="translate(256, 360)">
+    <rect x="-85" y="-28" width="170" height="56" rx="28" fill="url(#goldBadge)"/>
+    <text x="0" y="10" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="28" fill="#ffffff" text-anchor="middle" letter-spacing="4">SAZA</text>
   </g>
 </svg>
 `;
@@ -60,44 +72,53 @@ const svgIcon = `
 const maskableSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bgGradFull" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="bagGradFull" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0f766e"/>
-      <stop offset="50%" stop-color="#0d9488"/>
+      <stop offset="45%" stop-color="#0d9488"/>
       <stop offset="100%" stop-color="#14b8a6"/>
     </linearGradient>
 
-    <linearGradient id="textGradMask" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#0f766e"/>
-      <stop offset="100%" stop-color="#0d9488"/>
-    </linearGradient>
-
-    <linearGradient id="goldGradMask" x1="0%" y1="0%" x2="100%" y2="0%">
+    <linearGradient id="goldBadgeMask" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#f59e0b"/>
       <stop offset="100%" stop-color="#fbbf24"/>
     </linearGradient>
 
-    <filter id="maskShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#042f2e" flood-opacity="0.35"/>
+    <filter id="depthShadowMask" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#022c22" flood-opacity="0.38"/>
     </filter>
+
+    <linearGradient id="topFoldMask" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#042f2e" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#042f2e" stop-opacity="0"/>
+    </linearGradient>
   </defs>
 
   <!-- 100% Full Bleed Background for Android Circles/Squircles -->
-  <rect width="512" height="512" fill="url(#bgGradFull)" />
+  <rect width="512" height="512" fill="url(#bagGradFull)" />
 
-  <g filter="url(#maskShadow)" transform="translate(25.6, 25.6) scale(0.9)">
-    <!-- Shopping Bag Handle -->
-    <path d="M196 165 C196 90, 316 90, 316 165" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/>
+  <!-- Bag Content Fitted in Safe Circle Zone -->
+  <g transform="translate(0, 10)">
+    <!-- Shopping Bag Handle Arch -->
+    <g filter="url(#depthShadowMask)">
+      <path d="M196 125 C196 65, 316 65, 316 125" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/>
+    </g>
 
-    <!-- Shopping Bag Body -->
-    <rect x="120" y="160" width="272" height="240" rx="38" fill="#ffffff"/>
+    <!-- Top Fold Crease Line -->
+    <line x1="0" y1="145" x2="512" y2="145" stroke="#042f2e" stroke-width="4" opacity="0.35"/>
+    <rect x="0" y="145" width="512" height="28" fill="url(#topFoldMask)"/>
 
-    <!-- Bag Inner Top Fold Line -->
-    <path d="M120 205 L392 205" stroke="#f1f5f9" stroke-width="6"/>
-    <circle cx="355" cy="205" r="8" fill="url(#goldGradMask)"/>
+    <!-- "belanjain" Text -->
+    <g filter="url(#depthShadowMask)" transform="translate(256, 275)">
+      <text x="0" y="0" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="66" text-anchor="middle" letter-spacing="-1">
+        <tspan fill="#ffffff">belanja</tspan><tspan fill="#f59e0b" font-style="italic">in</tspan>
+      </text>
+    </g>
 
-    <!-- SAZA in Bag -->
-    <text x="256" y="305" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="62" fill="url(#textGradMask)" text-anchor="middle" letter-spacing="5">SAZA</text>
-    <text x="256" y="348" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="800" font-size="17" fill="#f59e0b" text-anchor="middle" letter-spacing="4">BELANJA</text>
+    <!-- "SAZA" Pill Badge -->
+    <g filter="url(#depthShadowMask)" transform="translate(256, 355)">
+      <rect x="-85" y="-28" width="170" height="56" rx="28" fill="url(#goldBadgeMask)"/>
+      <text x="0" y="10" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="28" fill="#ffffff" text-anchor="middle" letter-spacing="4">SAZA</text>
+    </g>
   </g>
 </svg>
 `;
@@ -108,29 +129,31 @@ const appleSvg = `
   <defs>
     <linearGradient id="appleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0f766e"/>
-      <stop offset="50%" stop-color="#0d9488"/>
+      <stop offset="45%" stop-color="#0d9488"/>
       <stop offset="100%" stop-color="#14b8a6"/>
     </linearGradient>
-
-    <linearGradient id="textGradApple" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#0f766e"/>
-      <stop offset="100%" stop-color="#0d9488"/>
+    <linearGradient id="appleGold" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
     </linearGradient>
-
     <filter id="appleShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#042f2e" flood-opacity="0.35"/>
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#022c22" flood-opacity="0.38"/>
     </filter>
   </defs>
 
   <rect width="512" height="512" fill="url(#appleGrad)" />
-
   <g filter="url(#appleShadow)">
-    <path d="M196 165 C196 90, 316 90, 316 165" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/>
-    <rect x="120" y="160" width="272" height="240" rx="38" fill="#ffffff"/>
-    <path d="M120 205 L392 205" stroke="#f1f5f9" stroke-width="6"/>
-    <circle cx="355" cy="205" r="8" fill="#f59e0b"/>
-    <text x="256" y="305" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="62" fill="url(#textGradApple)" text-anchor="middle" letter-spacing="5">SAZA</text>
-    <text x="256" y="348" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="800" font-size="17" fill="#f59e0b" text-anchor="middle" letter-spacing="4">BELANJA</text>
+    <path d="M192 115 C192 48, 320 48, 320 115" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/>
+  </g>
+  <line x1="0" y1="135" x2="512" y2="135" stroke="#042f2e" stroke-width="4" opacity="0.35"/>
+  <g filter="url(#appleShadow)" transform="translate(256, 275)">
+    <text x="0" y="0" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="66" text-anchor="middle" letter-spacing="-1">
+      <tspan fill="#ffffff">belanja</tspan><tspan fill="#f59e0b" font-style="italic">in</tspan>
+    </text>
+  </g>
+  <g filter="url(#appleShadow)" transform="translate(256, 360)">
+    <rect x="-85" y="-28" width="170" height="56" rx="28" fill="url(#appleGold)"/>
+    <text x="0" y="10" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="28" fill="#ffffff" text-anchor="middle" letter-spacing="4">SAZA</text>
   </g>
 </svg>
 `;
@@ -164,7 +187,7 @@ async function generate() {
     .png()
     .toFile(path.join(publicDir, 'apple-touch-icon.png'));
 
-  console.log('Successfully generated Belanjain SAZA shopping bag icons with SAZA text in center!');
+  console.log('Successfully generated Full-Page Shopping Bag icons with Belanjain + SAZA!');
 }
 
 generate().catch(console.error);
