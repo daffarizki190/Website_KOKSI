@@ -116,7 +116,7 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen overflow-y-auto bg-slate-50 flex flex-col justify-between p-3 sm:p-5">
+    <div className="min-h-screen overflow-y-auto overflow-x-hidden bg-slate-50 flex flex-col justify-between p-3 sm:p-5 w-full max-w-full">
       {/* Header Logo: Belanjain */}
       <header className="w-full flex justify-center items-center max-w-md sm:max-w-lg mx-auto pt-2 shrink-0">
         <BelanjainLogo size="md" showSubtitle={true} />

@@ -628,14 +628,14 @@ ${testsMarkdown}
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-teal-500 selection:text-slate-950 relative overflow-x-hidden">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-teal-500 selection:text-slate-950 relative overflow-x-hidden w-full max-w-full">
       {/* Background Ambient Glow Accents */}
       <div className="fixed top-0 left-1/4 w-96 h-96 bg-teal-500/5 rounded-full blur-3xl pointer-events-none -z-10" />
       <div className="fixed top-20 right-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none -z-10" />
       <div className="fixed bottom-0 right-10 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none -z-10" />
 
       {/* HEADER SECTION (CYBER MISSION CONTROL HUD) */}
-      <header className="bg-slate-900/80 border-b border-slate-800/80 sticky top-0 z-40 backdrop-blur-xl shadow-2xl shadow-slate-950/60">
+      <header className="bg-slate-900/80 border-b border-slate-800/80 sticky top-0 z-40 backdrop-blur-xl shadow-2xl shadow-slate-950/60 w-full max-w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="relative">
@@ -744,7 +744,7 @@ ${testsMarkdown}
       )}
 
       {/* MAIN CONTAINER */}
-      <main className="w-full max-w-[1700px] mx-auto px-2 sm:px-4 lg:px-6 py-4 flex-1 flex flex-col gap-4">
+      <main className="w-full max-w-[1700px] mx-auto px-2 sm:px-4 lg:px-6 py-4 flex-1 flex flex-col gap-4 min-w-0 overflow-x-hidden">
 
         {/* HIGH-TECH TAB NAVIGATION RAIL */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 border-b border-slate-800/80 no-scrollbar">
