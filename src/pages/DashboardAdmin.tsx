@@ -95,12 +95,18 @@ export const DashboardAdmin = () => {
   
   const [printingOrderId, setPrintingOrderId] = useState<number | null>(null);
   
+  useEffect(() => {
+    if (printingOrderId !== null) {
+      const timer = setTimeout(() => {
+        window.print();
+        setPrintingOrderId(null);
+      }, 500); // Give React enough time to mount the DOM and CSS
+      return () => clearTimeout(timer);
+    }
+  }, [printingOrderId]);
+
   const handlePrintReceipt = (orderId: number) => {
     setPrintingOrderId(orderId);
-    setTimeout(() => {
-      window.print();
-      setPrintingOrderId(null);
-    }, 100);
   };
 
   // Order status modal state
@@ -2107,7 +2113,7 @@ export const DashboardAdmin = () => {
                         (!order.status || order.status === 'Menunggu Konfirmasi') 
                           ? 'border-amber-300 ring-2 ring-amber-400/20' 
                           : 'border-slate-200'
-                      } ${printingOrderId === order.id ? 'print-section' : ''}`}
+                      }`}
                     >
                       {/* Order Header Info */}
                       <div className="bg-slate-50 border-b border-slate-100 p-4 sm:px-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -2339,6 +2345,58 @@ export const DashboardAdmin = () => {
                           ))}
                         </div>
                       </div>
+
+                      {/* Professional Thermal Receipt Design (Print Only) */}
+                      {printingOrderId === order.id && (
+                        <div className="print-section text-black bg-white" style={{ fontFamily: 'monospace' }}>
+                          <div className="max-w-[80mm] mx-auto p-4 border border-slate-200 rounded-lg no-print-border">
+                            <div className="text-center mb-4">
+                              <h2 className="font-extrabold text-xl mb-1">BELANJAIN SAZA</h2>
+                              <p className="text-xs font-bold">Koperasi Karyawan Siemens Indonesia (KOKSI)</p>
+                              <p className="text-xs">PT. Siemens Indonesia</p>
+                              <div className="border-b-2 border-dashed border-black my-3"></div>
+                            </div>
+                            <div className="mb-4 text-xs space-y-1">
+                              <div className="flex justify-between"><span>No Order:</span> <span className="font-bold">#{order.id}</span></div>
+                              <div className="flex justify-between"><span>Tanggal:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
+                              <div className="flex justify-between"><span>Pemesan:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
+                              <div className="flex justify-between"><span>Dept:</span> <span>{order.user?.departemen || '-'}</span></div>
+                              <div className="flex justify-between"><span>No. HP:</span> <span>{order.user?.no_hp || '-'}</span></div>
+                            </div>
+                            <div className="border-b-2 border-dashed border-black my-3"></div>
+                            <div className="mb-4">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b border-black">
+                                    <th className="text-left py-1 w-7/12">Item</th>
+                                    <th className="text-center py-1 w-2/12">Qty</th>
+                                    <th className="text-right py-1 w-3/12">Total</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="align-top">
+                                  {order.items.map((item, idx) => (
+                                    <tr key={idx} className="border-b border-dashed border-gray-300">
+                                      <td className="py-2 pr-2">{item.product?.nama_barang} <br/><span className="text-[10px] text-gray-500">@ Rp {item.price.toLocaleString('id-ID')}</span></td>
+                                      <td className="text-center py-2">{item.quantity}</td>
+                                      <td className="text-right py-2">{(item.price * item.quantity).toLocaleString('id-ID')}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <div className="border-b-2 border-dashed border-black my-3"></div>
+                            <div className="flex justify-between font-extrabold text-sm mb-6">
+                              <span>TOTAL BAYAR</span>
+                              <span>Rp {order.total_amount.toLocaleString('id-ID')}</span>
+                            </div>
+                            <div className="text-center text-[10px] mt-6 italic text-gray-800 space-y-1">
+                              <p className="font-bold">Terima kasih telah berbelanja di KOKSI</p>
+                              <p>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</p>
+                              <p className="mt-2 text-[9px] uppercase">** BUKTI PEMBAYARAN SAH **</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
               )}
