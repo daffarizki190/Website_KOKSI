@@ -8,7 +8,7 @@ import {
   Phone, MessageSquare, Search, Filter, AlertCircle, AlertTriangle, Check, X,
   QrCode, ScanLine, Camera, CameraOff, Inbox, FilterX, PackageSearch,
   Calendar, FileSpreadsheet, Building2, Key, Lock, Eye, EyeOff, Server,
-  User as UserIcon, Edit3, Save, TrendingUp, BarChart2
+  User as UserIcon, Edit3, Save, TrendingUp, BarChart2, Bell, Printer
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import XLSX from 'xlsx-js-style';
@@ -57,6 +57,17 @@ interface Order {
   items: OrderItem[];
 }
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 export const DashboardAdmin = () => {
   const { user, token, logout } = useAuth();
   const { toast, confirm: confirmModal } = useNotification();
@@ -82,6 +93,16 @@ export const DashboardAdmin = () => {
   const [orderDateFilter, setOrderDateFilter] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   
+  const [printingOrderId, setPrintingOrderId] = useState<number | null>(null);
+  
+  const handlePrintReceipt = (orderId: number) => {
+    setPrintingOrderId(orderId);
+    setTimeout(() => {
+      window.print();
+      setPrintingOrderId(null);
+    }, 100);
+  };
+
   // Order status modal state
   const [selectedOrderForStatus, setSelectedOrderForStatus] = useState<Order | null>(null);
   const [newStatusValue, setNewStatusValue] = useState('');
@@ -679,6 +700,54 @@ export const DashboardAdmin = () => {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleSubscribePush = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      toast.error('Browser tidak mendukung Push Notification');
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        toast.warning('Izin notifikasi ditolak.');
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+      
+      if (!subscription) {
+        const response = await fetch('/api/notifications/vapid-public-key');
+        const vapidPublicKey = await response.text();
+        const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertedVapidKey
+        });
+      }
+
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify(subscription)
+      });
+
+      if (res.ok) {
+        toast.success('Berhasil mengaktifkan Notifikasi HP!');
+      } else {
+        toast.error('Gagal mendaftarkan notifikasi di server');
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Terjadi kesalahan saat mengaktifkan notifikasi');
+    }
   };
 
   const openAddModal = () => {
@@ -1668,6 +1737,13 @@ export const DashboardAdmin = () => {
               <span className="text-[11px] sm:text-xs font-bold whitespace-nowrap">Edit Profil</span>
             </button>
             <button
+              onClick={handleSubscribePush}
+              className="p-1.5 sm:p-2 text-amber-400 hover:text-white hover:bg-amber-600 rounded-xl transition-colors cursor-pointer"
+              title="Aktifkan Notifikasi HP"
+            >
+              <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+            <button
               onClick={handleLogout}
               className="p-1.5 sm:p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
               title="Logout"
@@ -2031,7 +2107,7 @@ export const DashboardAdmin = () => {
                         (!order.status || order.status === 'Menunggu Konfirmasi') 
                           ? 'border-amber-300 ring-2 ring-amber-400/20' 
                           : 'border-slate-200'
-                      }`}
+                      } ${printingOrderId === order.id ? 'print-section' : ''}`}
                     >
                       {/* Order Header Info */}
                       <div className="bg-slate-50 border-b border-slate-100 p-4 sm:px-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -2083,8 +2159,15 @@ export const DashboardAdmin = () => {
                           </span>
 
                           <button
+                            onClick={() => handlePrintReceipt(order.id)}
+                            className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-colors border border-transparent hover:border-teal-200 cursor-pointer shrink-0 no-print"
+                            title={`Cetak Struk Pesanan #${order.id}`}
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => handleDeleteSingleOrder(order.id)}
-                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-200 cursor-pointer shrink-0"
+                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-200 cursor-pointer shrink-0 no-print"
                             title={`Hapus Transaksi Pesanan #${order.id}`}
                           >
                             <Trash2 className="w-4 h-4" />

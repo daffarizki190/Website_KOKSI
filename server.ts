@@ -7,10 +7,20 @@ import * as path from 'path';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import { db, withDbRetry } from './src/db/index';
-import { users, products, orders, orderItems, cartItems } from './src/db/schema';
-import { eq, asc, and, sql } from 'drizzle-orm';
+import { users, products, orders, orderItems, cartItems, activityLogs, pushSubscriptions } from './src/db/schema';
+import { eq, asc, desc, and, sql } from 'drizzle-orm';
+import webpush from 'web-push';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_koperasi';
+
+// Web Push Configuration
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BGVGOqnq6m-OkrL4HNRTm3y6WtAyzUjeUsbROjTFYoKk8XIQduHZ7V0CoWn1Cl5J-MdoOte8VaTsbBavSU1is1Q';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'znlU1YtgWH2cnr5_tXxrHXaDAOIZiev5jlPftA75X74';
+webpush.setVapidDetails(
+  'mailto:it-admin@belanjainsaza.com',
+  VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY
+);
 
 const jwtSign = (payload: any, secret: string, options?: any): string => {
   const signer = (jwt as any).default?.sign || (jwt as any).sign || jwt.sign;
@@ -112,6 +122,29 @@ const itAuditLogsQueue: Array<{
     details: 'Modul pemantauan infrastruktur dan kinerja website berhasil diaktifkan.'
   }
 ];
+
+async function logActivity(userId: number | null, actorName: string, action: string, details: string) {
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    
+    itAuditLogsQueue.unshift({
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toISOString(),
+      actor: actorName,
+      action: action,
+      details: details
+    });
+    if (itAuditLogsQueue.length > 500) itAuditLogsQueue.pop();
+
+    if (isDbConfigured) {
+      await withDbRetry(() => db.insert(activityLogs).values({
+        userId, actorName, action, details
+      }));
+    }
+  } catch (err) {
+    console.warn('Activity log error:', err);
+  }
+}
 
 // Traffic & Error Logging Middleware
 app.use((req, res, next) => {
@@ -594,6 +627,67 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   }
 });
 
+// --- WEB PUSH ROUTES ---
+app.post('/api/notifications/subscribe', requireAuth, async (req: any, res) => {
+  try {
+    const userId = Number(req.user?.id);
+    const subscription = req.body;
+    
+    if (!subscription || !subscription.endpoint) {
+      res.status(400).json({ error: 'Subscription data tidak valid' });
+      return;
+    }
+
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (isDbConfigured) {
+      const existing = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, subscription.endpoint));
+      if (existing.length === 0) {
+        await db.insert(pushSubscriptions).values({
+          userId,
+          endpoint: subscription.endpoint,
+          keys: JSON.stringify(subscription.keys)
+        });
+      }
+    }
+    res.status(201).json({ message: 'Berhasil mendaftarkan push notification' });
+  } catch (err: any) {
+    console.error('Subscription error:', err);
+    res.status(500).json({ error: 'Gagal berlangganan push notification' });
+  }
+});
+
+app.get('/api/notifications/vapid-public-key', (req, res) => {
+  res.send(VAPID_PUBLIC_KEY);
+});
+
+// --- ACTIVITY LOGS ROUTE ---
+app.get('/api/activity-logs', requireAuth, requireIT, async (req, res) => {
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) {
+      res.json(itAuditLogsQueue);
+      return;
+    }
+    const logs = await withDbRetry(() => db.select({
+      id: activityLogs.id,
+      timestamp: activityLogs.createdAt,
+      actor: activityLogs.actorName,
+      action: activityLogs.action,
+      details: activityLogs.details
+    }).from(activityLogs).orderBy(desc(activityLogs.createdAt)).limit(100));
+    
+    // Merge DB logs with memory logs for fallback completeness
+    const formattedDbLogs = logs.map(l => ({
+      ...l,
+      timestamp: l.timestamp?.toISOString() || new Date().toISOString()
+    }));
+    res.json(formattedDbLogs.length > 0 ? formattedDbLogs : itAuditLogsQueue);
+  } catch (error) {
+    console.error('Fetch activity logs error:', error);
+    res.status(500).json({ error: 'Gagal mengambil data activity log' });
+  }
+});
+
 // --- PRODUCT ROUTES ---
 app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
   try {
@@ -833,13 +927,7 @@ app.delete('/api/users/:id', requireAuth, async (req: AuthRequest, res) => {
     await db.delete(users).where(eq(users.id, targetUserId));
 
     // Log to IT Audit Trail
-    itAuditLogsQueue.unshift({
-      id: Math.random().toString(36).substring(2, 9),
-      timestamp: new Date().toISOString(),
-      actor: `${req.user?.nama || 'System'} (${req.user?.role || 'user'})`,
-      action: 'Penghapusan Akun Pengguna',
-      details: `Akun "${targetUser.nama}" (${targetUser.no_hp}, ${targetUser.pt}) telah dihapus. Alasan: "${reason.trim()}".`
-    });
+    await logActivity(req.user?.id || null, `${req.user?.nama || 'System'} (${req.user?.role || 'user'})`, 'Penghapusan Akun Pengguna', `Akun "${targetUser.nama}" (${targetUser.no_hp}, ${targetUser.pt}) telah dihapus. Alasan: "${reason.trim()}".`);
 
     res.json({ message: `Akun "${targetUser.nama}" berhasil dihapus.` });
   } catch (error: any) {
@@ -885,12 +973,13 @@ app.get('/api/products', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/products', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/products', requireAuth, requireAdmin, async (req: any, res) => {
   try {
     const { nama_barang, kategori, harga, stok } = req.body;
     const newProduct = await db.insert(products).values({
       nama_barang, kategori, harga, stok
     }).returning();
+    await logActivity(req.user?.id || null, req.user?.nama || 'Admin', 'Tambah Produk', `Menambahkan produk baru: ${nama_barang} (Kategori: ${kategori})`);
     res.status(201).json(newProduct[0]);
   } catch (error) {
     res.status(500).json({ error: 'Failed to add product' });
@@ -976,6 +1065,23 @@ async function ensureDatabaseSchema() {
           user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
           quantity INTEGER NOT NULL DEFAULT 1,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS activity_logs (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          actor_name TEXT NOT NULL,
+          action TEXT NOT NULL,
+          details TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          endpoint TEXT NOT NULL UNIQUE,
+          keys TEXT NOT NULL,
           created_at TIMESTAMP DEFAULT NOW()
         );
       `);
@@ -1476,26 +1582,34 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
 
     console.log(`[ORDER] Created order #${createdOrderId} for user ${userId}, total: ${cleanTotalAmount}`);
 
-    // Auto-send Telegram Notification to Admin on new order
+    // Web Push Notification to Admin
     try {
-      const itemsList = fullCreatedOrder.items.map(i => `• ${i.product.nama_barang} (x${i.quantity}) : Rp ${(i.price * i.quantity).toLocaleString('id-ID')}`).join('\n');
-      const tgMsg = `🛍️ *PESANAN BARU MASUK (#${createdOrderId})*
-👤 *Pemesan:* ${fullCreatedOrder.user.nama} (${fullCreatedOrder.user.no_hp || '-'})
-🏢 *PT / Dept:* ${fullCreatedOrder.user.pt} - ${fullCreatedOrder.user.departemen}
-💰 *Total Belanja:* Rp ${cleanTotalAmount.toLocaleString('id-ID')}
-
-📦 *Daftar Barang:*
-${itemsList}
-
-⚡ *Status:* ${fullCreatedOrder.status}
-Ketik \`/selesai ${createdOrderId}\` untuk menyelesaikan.`;
-
-      const adminChatIds = getAdminChatIds();
-      for (const cid of adminChatIds) {
-        sendTelegramMessage(cid, tgMsg).catch(() => {});
+      const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+      if (isDbConfigured) {
+        const subs = await db.select().from(pushSubscriptions);
+        const pushPayload = JSON.stringify({
+          title: `Pesanan Baru #${createdOrderId}`,
+          body: `Pemesan: ${fullCreatedOrder.user.nama}\nTotal: Rp ${cleanTotalAmount.toLocaleString('id-ID')}`,
+          url: '/admin'
+        });
+        
+        const pushPromises = subs.map(async (sub) => {
+          try {
+            const subData = { endpoint: sub.endpoint, keys: JSON.parse(sub.keys) };
+            await webpush.sendNotification(subData as any, pushPayload);
+          } catch (e: any) {
+            if (e.statusCode === 404 || e.statusCode === 410) {
+              console.log('Subscription expired or removed, deleting...', sub.endpoint);
+              await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, sub.endpoint));
+            } else {
+              console.warn('Gagal push ke endpoint:', sub.endpoint, e.message);
+            }
+          }
+        });
+        await Promise.allSettled(pushPromises);
       }
-    } catch (tgErr) {
-      console.warn('Telegram new order notification note:', tgErr);
+    } catch (e) {
+      console.warn('Web push broadcast error:', e);
     }
 
     res.status(201).json({ message: 'Order created successfully', orderId: createdOrderId, order: fullCreatedOrder });
