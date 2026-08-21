@@ -568,6 +568,18 @@ export const DashboardUser = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-5 w-full flex-1 flex flex-col overflow-hidden">
         
+        {/* Info Banner: Jadwal Pemesanan */}
+        <div className="bg-sky-50 border border-sky-200 rounded-2xl p-3 sm:p-4 mb-4 flex items-start sm:items-center gap-3 shadow-sm shrink-0">
+          <div className="bg-sky-100 p-2 rounded-xl shrink-0 text-sky-600">
+            <Info className="w-5 h-5 sm:w-6 sm:h-6" />
+          </div>
+          <div>
+            <h4 className="text-xs sm:text-sm font-extrabold text-sky-900 mb-0.5">Jadwal Operasional KOKSI</h4>
+            <p className="text-[11px] sm:text-xs text-sky-700 font-medium leading-relaxed">
+              Layanan pemesanan barang (checkout) hanya dapat dilakukan pada hari <strong className="font-bold text-sky-900 bg-sky-200/50 px-1 py-0.5 rounded">Senin</strong> dan <strong className="font-bold text-sky-900 bg-sky-200/50 px-1 py-0.5 rounded">Selasa</strong>. Anda tetap dapat melihat katalog produk setiap saat.
+            </p>
+          </div>
+        </div>
 
         {/* Search Bar */}
         <div className="flex items-center gap-2 mb-3 shrink-0">
