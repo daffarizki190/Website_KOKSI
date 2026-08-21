@@ -95,12 +95,18 @@ export const DashboardAdmin = () => {
   
   const [printingOrderId, setPrintingOrderId] = useState<number | null>(null);
   
+  useEffect(() => {
+    if (printingOrderId !== null) {
+      const timer = setTimeout(() => {
+        window.print();
+        setPrintingOrderId(null);
+      }, 500); // Give React enough time to mount the DOM and CSS
+      return () => clearTimeout(timer);
+    }
+  }, [printingOrderId]);
+
   const handlePrintReceipt = (orderId: number) => {
     setPrintingOrderId(orderId);
-    setTimeout(() => {
-      window.print();
-      setPrintingOrderId(null);
-    }, 100);
   };
 
   // Order status modal state
