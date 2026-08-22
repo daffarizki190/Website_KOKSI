@@ -27,37 +27,32 @@ body {
 }
 
 @media print {
-  /* Sembunyikan elemen utama React agar tidak membuat halaman blank berlebih */
-  #root {
-    display: none !important;
-  }
-  
-  /* Reset pengaturan halaman untuk pencetakan */
+  /* Reset pengaturan halaman */
   @page {
     margin: 0;
     size: auto;
   }
 
-  body {
-    margin: 0;
-    padding: 0;
-    background: white;
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
   }
 
-  .print-section, .print-section * {
-    visibility: visible !important;
-  }
-  
-  .print-section {
-    display: block !important;
-    position: static !important;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    background: white;
-  }
-  
-  .no-print {
+  /* Sembunyikan SEMUA elemen di body (termasuk #root, modal, notifikasi) */
+  body > * {
     display: none !important;
+  }
+
+  /* Tampilkan hanya bagian struk */
+  body > .print-section {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
   }
 }
