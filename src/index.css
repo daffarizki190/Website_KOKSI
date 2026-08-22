@@ -27,23 +27,36 @@ body {
 }
 
 @media print {
-  body * {
-    visibility: hidden;
+  /* Sembunyikan elemen utama React agar tidak membuat halaman blank berlebih */
+  #root {
+    display: none !important;
   }
-  .print-section, .print-section * {
-    visibility: visible;
+  
+  /* Reset pengaturan halaman untuk pencetakan */
+  @page {
+    margin: 0;
+    size: auto;
   }
-  .print-section {
-    position: fixed; /* Fixes blank page issue */
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
+
+  body {
     margin: 0;
     padding: 0;
     background: white;
-    z-index: 99999;
   }
+
+  .print-section, .print-section * {
+    visibility: visible !important;
+  }
+  
+  .print-section {
+    display: block !important;
+    position: static !important;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: white;
+  }
+  
   .no-print {
     display: none !important;
   }

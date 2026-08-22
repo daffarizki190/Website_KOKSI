@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
@@ -2347,7 +2348,7 @@ export const DashboardAdmin = () => {
                       </div>
 
                       {/* Professional Thermal Receipt Design (Print Only) */}
-                      {printingOrderId === order.id && (
+                      {printingOrderId === order.id && createPortal(
                         <div className="print-section text-black bg-white" style={{ fontFamily: 'monospace' }}>
                           <div className="max-w-[80mm] mx-auto p-4 border border-slate-200 rounded-lg no-print-border">
                             <div className="text-center mb-4">
@@ -2395,7 +2396,8 @@ export const DashboardAdmin = () => {
                               <p className="mt-2 text-[9px] uppercase">** BUKTI PEMBAYARAN SAH **</p>
                             </div>
                           </div>
-                        </div>
+                        </div>,
+                        document.body
                       )}
                     </div>
                   ))
