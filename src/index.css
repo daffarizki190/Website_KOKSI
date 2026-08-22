@@ -27,24 +27,43 @@ body {
 }
 
 @media print {
-  body * {
-    visibility: hidden;
-  }
-  .print-section, .print-section * {
-    visibility: visible;
-  }
-  .print-section {
-    position: fixed; /* Fixes blank page issue */
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
+  @page {
     margin: 0;
-    padding: 0;
-    background: white;
-    z-index: 99999;
   }
-  .no-print {
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-width: none !important;
+    overflow: visible !important;
+  }
+
+  /* Sembunyikan SEMUA elemen di body (termasuk #root, modal, notifikasi) */
+  body > * {
     display: none !important;
   }
+
+  /* Tampilkan hanya bagian struk */
+  body > .print-section {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  .no-print-border {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
 }
+

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
@@ -1716,7 +1717,7 @@ export const DashboardAdmin = () => {
   const pendingOrdersCount = orders.filter(o => !o.status || o.status === 'Menunggu Konfirmasi').length;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans w-full max-w-full overflow-x-hidden">
+    <div className={printingOrderId !== null ? 'hidden' : 'min-h-screen bg-slate-50 flex flex-col font-sans w-full max-w-full overflow-x-hidden'}>
       {/* Navbar Admin */}
       <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md shrink-0 w-full max-w-full">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-[64px] py-2.5 sm:py-0 flex items-center justify-between gap-2 w-full">
@@ -2347,7 +2348,7 @@ export const DashboardAdmin = () => {
                       </div>
 
                       {/* Professional Thermal Receipt Design (Print Only) */}
-                      {printingOrderId === order.id && (
+                      {printingOrderId === order.id && createPortal(
                         <div className="print-section text-black bg-white" style={{ fontFamily: 'monospace' }}>
                           <div className="max-w-[80mm] mx-auto p-4 border border-slate-200 rounded-lg no-print-border">
                             <div className="text-center mb-4">
@@ -2395,7 +2396,8 @@ export const DashboardAdmin = () => {
                               <p className="mt-2 text-[9px] uppercase">** BUKTI PEMBAYARAN SAH **</p>
                             </div>
                           </div>
-                        </div>
+                        </div>,
+                        document.body
                       )}
                     </div>
                   ))
