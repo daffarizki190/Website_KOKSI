@@ -27,16 +27,18 @@ body {
 }
 
 @media print {
-  /* Reset pengaturan halaman */
   @page {
     margin: 0;
-    size: auto;
   }
 
   html, body {
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-width: none !important;
+    overflow: visible !important;
   }
 
   /* Sembunyikan SEMUA elemen di body (termasuk #root, modal, notifikasi) */
@@ -47,12 +49,21 @@ body {
   /* Tampilkan hanya bagian struk */
   body > .print-section {
     display: block !important;
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    position: static !important;
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  .no-print-border {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 }
+
