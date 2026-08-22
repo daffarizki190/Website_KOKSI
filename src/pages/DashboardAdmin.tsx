@@ -1717,7 +1717,7 @@ export const DashboardAdmin = () => {
   const pendingOrdersCount = orders.filter(o => !o.status || o.status === 'Menunggu Konfirmasi').length;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans w-full max-w-full overflow-x-hidden">
+    <div className={printingOrderId !== null ? 'hidden' : 'min-h-screen bg-slate-50 flex flex-col font-sans w-full max-w-full overflow-x-hidden'}>
       {/* Navbar Admin */}
       <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md shrink-0 w-full max-w-full">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-[64px] py-2.5 sm:py-0 flex items-center justify-between gap-2 w-full">
