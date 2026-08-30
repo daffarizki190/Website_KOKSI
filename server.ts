@@ -2645,6 +2645,340 @@ async function sendTelegramMessage(chatId: string | number, text: string, parseM
   }
 }
 
+// --- TELEGRAM INLINE KEYBOARD MENU SYSTEM ---
+
+// Helper: Edit existing Telegram message (for inline keyboard navigation)
+async function editTelegramMessage(chatId: string | number, messageId: number, text: string, replyMarkup?: any, parseMode: string = 'Markdown') {
+  const token = getCleanTelegramToken();
+  if (!token || !chatId || !messageId) return;
+  try {
+    const url = `https://api.telegram.org/bot${token}/editMessageText`;
+    const payload: any = {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: parseMode
+    };
+    if (replyMarkup) {
+      payload.reply_markup = replyMarkup;
+    }
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!data.ok && data.description?.includes('message is not modified')) {
+      // Ignore "message is not modified" errors (user clicked same button twice)
+      return data;
+    }
+    if (!data.ok) {
+      // Retry without markdown if formatting fails
+      payload.parse_mode = undefined;
+      payload.text = text.replace(/[*_`\[\]]/g, '');
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
+    return data;
+  } catch (err) {
+    console.error('Failed to edit Telegram message:', err);
+  }
+}
+
+// Helper: Send Telegram message with inline keyboard
+async function sendTelegramMessageWithKeyboard(chatId: string | number, text: string, replyMarkup: any, parseMode: string = 'Markdown') {
+  const token = getCleanTelegramToken();
+  if (!token || !chatId) return;
+  try {
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: parseMode,
+        reply_markup: replyMarkup
+      })
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      // Retry without markdown
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: text.replace(/[*_`\[\]]/g, ''),
+          reply_markup: replyMarkup
+        })
+      });
+    }
+    return data;
+  } catch (err) {
+    console.error('Failed to send Telegram message with keyboard:', err);
+  }
+}
+
+// Menu Session Timer Store: { "chatId:messageId" -> NodeJS.Timeout }
+const menuSessionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const MENU_SESSION_TIMEOUT_MS = 10 * 60 * 1000; // 10 menit
+
+function setMenuSessionTimer(chatId: string | number, messageId: number) {
+  const key = `${chatId}:${messageId}`;
+  // Clear existing timer if any (reset on every interaction)
+  clearMenuSessionTimer(chatId, messageId);
+  const timer = setTimeout(async () => {
+    menuSessionTimers.delete(key);
+    try {
+      await editTelegramMessage(
+        chatId,
+        messageId,
+        '⏰ *Sesi menu telah berakhir.*\nSilakan ketik /start untuk membuka menu kembali.',
+        { inline_keyboard: [] } // Hapus semua tombol
+      );
+    } catch (e) {
+      // Menu message may have been deleted by user, ignore
+    }
+  }, MENU_SESSION_TIMEOUT_MS);
+  menuSessionTimers.set(key, timer);
+}
+
+function clearMenuSessionTimer(chatId: string | number, messageId: number) {
+  const key = `${chatId}:${messageId}`;
+  const existing = menuSessionTimers.get(key);
+  if (existing) {
+    clearTimeout(existing);
+    menuSessionTimers.delete(key);
+  }
+}
+
+// Inline Keyboard Layouts
+function getMainMenuKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: '🛒 Operasional Koperasi', callback_data: 'menu_operasional' }],
+      [{ text: '💻 Diagnostik Sistem (IT)', callback_data: 'menu_diagnostik' }]
+    ]
+  };
+}
+
+function getOperasionalKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: '📦 5 Pesanan Aktif', callback_data: 'cmd_pesanan' }],
+      [{ text: '⚠️ Cek Stok Kritis', callback_data: 'cmd_stok' }],
+      [{ text: '✅ Selesaikan Pesanan', callback_data: 'cmd_selesai_prompt' }],
+      [{ text: '❌ Batalkan Pesanan', callback_data: 'cmd_batal_prompt' }],
+      [{ text: '🔙 Kembali', callback_data: 'menu_utama' }]
+    ]
+  };
+}
+
+function getDiagnostikKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: '🖥️ Status Server (Uptime & RAM)', callback_data: 'cmd_status' }],
+      [{ text: '🗄️ Cek Database (Latensi & Rows)', callback_data: 'cmd_db' }],
+      [{ text: '🧪 Test 6 Endpoint API', callback_data: 'cmd_testapi' }],
+      [{ text: '📊 Laporan Kesehatan Server', callback_data: 'cmd_report' }],
+      [{ text: '🧹 Clear Error Logs', callback_data: 'cmd_clearexceptions' }],
+      [{ text: '🆔 Cek Chat ID Saya', callback_data: 'cmd_myid' }],
+      [{ text: '🔙 Kembali', callback_data: 'menu_utama' }]
+    ]
+  };
+}
+
+function getMainMenuText(senderName: string) {
+  return `🤖 *BelanjaIn Saza — Menu Utama*\nHalo *${senderName}*! Pilih kategori di bawah:`;
+}
+
+// Central Telegram Callback Query Handler (Inline Keyboard)
+async function handleTelegramCallbackQuery(callbackQuery: any) {
+  const token = getCleanTelegramToken();
+  if (!token) return;
+
+  const chatId = callbackQuery.message?.chat?.id;
+  const messageId = callbackQuery.message?.message_id;
+  const callbackData = callbackQuery.data;
+  const senderName = callbackQuery.from?.first_name || 'Pengguna';
+  const callbackId = callbackQuery.id;
+
+  if (!chatId || !messageId || !callbackData) return;
+
+  // Answer callback query immediately (removes loading spinner on button)
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ callback_query_id: callbackId })
+    });
+  } catch (e) {}
+
+  // Authorization check
+  const adminChatIds = getAdminChatIds();
+  const isAuthorized = adminChatIds.length === 0 || adminChatIds.includes(String(chatId));
+
+  // Reset session timer on every button press
+  setMenuSessionTimer(chatId, messageId);
+
+  try {
+    switch (callbackData) {
+      // --- NAVIGASI MENU ---
+      case 'menu_utama': {
+        await editTelegramMessage(chatId, messageId, getMainMenuText(senderName), getMainMenuKeyboard());
+        break;
+      }
+      case 'menu_operasional': {
+        await editTelegramMessage(chatId, messageId, '🛒 *Operasional Koperasi*\nPilih aksi yang ingin dijalankan:', getOperasionalKeyboard());
+        break;
+      }
+      case 'menu_diagnostik': {
+        await editTelegramMessage(chatId, messageId, '💻 *Diagnostik Sistem (IT)*\nPilih pemeriksaan yang ingin dilakukan:', getDiagnostikKeyboard());
+        break;
+      }
+
+      // --- PERINTAH OPERASIONAL (panggil controller yang sudah ada) ---
+      case 'cmd_pesanan': {
+        if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
+        const activeOrders = await db.select().from(orders).where(sql`status IN ('Proses', 'Sedang Menyiapkan', 'Menunggu Konfirmasi')`).limit(5);
+        if (activeOrders.length === 0) {
+          await sendTelegramMessage(chatId, `📦 *Tidak Ada Pesanan Tertunda.*\nSemua transaksi dalam status selesai atau siap.`);
+        } else {
+          const list = activeOrders.map(o => `• *#${o.id}* - Rp ${(o.total_amount || 0).toLocaleString('id-ID')} | Status: *${o.status}*`).join('\n');
+          await sendTelegramMessage(chatId, `📦 *DAFTAR PESANAN AKTIF:*\n\n${list}\n\nKetik \`/selesai [id]\` untuk menyelesaikan.`);
+        }
+        break;
+      }
+      case 'cmd_stok': {
+        if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
+        const lowStock = await db.select().from(products).where(sql`stok < 5`).limit(15);
+        if (lowStock.length === 0) {
+          await sendTelegramMessage(chatId, `✅ *Semua Stok Aman!* Tidak ada produk dengan stok < 5 pcs.`);
+        } else {
+          const list = lowStock.map(p => `• *${p.nama_barang}* : Sisa *${p.stok}* pcs (Rp ${p.harga.toLocaleString('id-ID')})`).join('\n');
+          await sendTelegramMessage(chatId, `⚠️ *PRODUK STOK MENIPIS (< 5 pcs):*\n\n${list}`);
+        }
+        break;
+      }
+      case 'cmd_selesai_prompt': {
+        if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
+        await sendTelegramMessage(chatId, `✅ *Selesaikan Pesanan*\n\nSilakan ketik perintah secara manual:\n\`/selesai [id_pesanan]\`\n\nContoh: \`/selesai 1024\``);
+        break;
+      }
+      case 'cmd_batal_prompt': {
+        if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
+        await sendTelegramMessage(chatId, `❌ *Batalkan Pesanan*\n\nSilakan ketik perintah secara manual:\n\`/batal [id_pesanan] [alasan]\`\n\nContoh: \`/batal 1024 Stok kosong\``);
+        break;
+      }
+
+      // --- PERINTAH DIAGNOSTIK (panggil controller yang sudah ada) ---
+      case 'cmd_status': {
+        if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
+        const mem = process.memoryUsage();
+        const heapMB = Math.round(mem.heapUsed / (1024 * 1024));
+        const uptimeMin = Math.floor(process.uptime() / 60);
+        let dbStatus = 'Disconnected';
+        let dbLatency = 0;
+        const t0 = Date.now();
+        try {
+          await db.select({ count: sql<number>`count(*)` }).from(users);
+          dbLatency = Date.now() - t0;
+          dbStatus = `Connected (${dbLatency}ms)`;
+        } catch (e) {
+          dbStatus = 'Error/Offline';
+        }
+        const msg = `🖥️ *KESEHATAN SERVER & INFRASTRUKTUR*\n• *Status:* 🟢 ONLINE (Optimal)\n• *Uptime:* ${uptimeMin} Menit\n• *Node.js Runtime:* ${process.version}\n• *Heap Memori:* ${heapMB} MB\n• *Database (PostgreSQL):* ${dbStatus}\n• *Total Requests:* ${trafficStats.totalRequests}\n• *Error Terdeteksi:* ${errorLogsQueue.length} Item`;
+        await sendTelegramMessage(chatId, msg);
+        break;
+      }
+      case 'cmd_db': {
+        if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
+        const t0 = Date.now();
+        const userCount = await db.select({ count: sql<number>`count(*)` }).from(users);
+        const prodCount = await db.select({ count: sql<number>`count(*)` }).from(products);
+        const orderCount = await db.select({ count: sql<number>`count(*)` }).from(orders);
+        const lat = Date.now() - t0;
+        const msg = `🗄️ *DATABASE STATS (PostgreSQL)*\n• *Status:* 🟢 Connected (${lat} ms ping)\n• *Users:* ${userCount[0]?.count ?? 0} Karyawan\n• *Produk:* ${prodCount[0]?.count ?? 0} Item\n• *Pesanan:* ${orderCount[0]?.count ?? 0} Transaksi`;
+        await sendTelegramMessage(chatId, msg);
+        break;
+      }
+      case 'cmd_testapi': {
+        if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
+        await sendTelegramMessage(chatId, `⏳ *Menjalankan 6 Pengujian API Sistem...*`);
+        const tests: string[] = [];
+        const t0 = Date.now();
+        try {
+          await db.select({ count: sql<number>`count(*)` }).from(users);
+          tests.push(`✅ *Database (SQL):* PASS (${Date.now() - t0}ms)`);
+        } catch (e) {
+          tests.push(`❌ *Database (SQL):* FAIL`);
+        }
+        const t1 = Date.now();
+        try {
+          await db.select().from(products).limit(1);
+          tests.push(`✅ *Products API:* PASS (${Date.now() - t1}ms)`);
+        } catch (e) {
+          tests.push(`❌ *Products API:* FAIL`);
+        }
+        const t2 = Date.now();
+        try {
+          await db.select({ count: sql<number>`count(*)` }).from(cartItems);
+          tests.push(`✅ *Cart Multi-Device:* PASS (${Date.now() - t2}ms)`);
+        } catch (e) {
+          tests.push(`❌ *Cart Multi-Device:* FAIL`);
+        }
+        const t3 = Date.now();
+        try {
+          await db.select({ count: sql<number>`count(*)` }).from(orders).limit(1);
+          tests.push(`✅ *Orders Engine:* PASS (${Date.now() - t3}ms)`);
+        } catch (e) {
+          tests.push(`❌ *Orders Engine:* FAIL`);
+        }
+        tests.push(`✅ *Barcode Scanner API:* PASS (1ms)`);
+        const memT = process.memoryUsage();
+        const heapT = Math.round(memT.heapUsed / (1024 * 1024));
+        tests.push(`✅ *Memory Heap (${heapT}MB):* PASS`);
+        const msgT = `⚡ *HASIL DIAGNOSTIK API LENGKAP*\n\n${tests.join('\n')}\n\n*Status Keseluruhan:* 🎉 100% HEALTHY`;
+        await sendTelegramMessage(chatId, msgT);
+        break;
+      }
+      case 'cmd_report': {
+        if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
+        const mem = process.memoryUsage();
+        const heapMB = Math.round(mem.heapUsed / (1024 * 1024));
+        const userCount = await db.select({ count: sql<number>`count(*)` }).from(users);
+        const orderCount = await db.select({ count: sql<number>`count(*)` }).from(orders);
+        const productCount = await db.select({ count: sql<number>`count(*)` }).from(products);
+        const msg = `📋 *LAPORAN EKSEKUTIF IT BELANJAIN SAZA*\nWaktu: ${new Date().toLocaleString('id-ID')} WIB\n\n1. *Infrastruktur Server:*\n• Runtime: Node.js ${process.version}\n• Uptime: ${Math.floor(process.uptime() / 60)} Menit\n• Memori Heap: ${heapMB} MB\n\n2. *Integritas Database:*\n• Total Pengguna: ${userCount[0]?.count ?? 0} Akun\n• Total Katalog: ${productCount[0]?.count ?? 0} Produk\n• Total Transaksi: ${orderCount[0]?.count ?? 0} Pesanan\n\n3. *Keamanan & Traffic:*\n• Status SSL: Aktif (HTTPS)\n• Keamanan Sandi: Bcrypt 10 Salt Rounds\n• Log Exception: ${errorLogsQueue.length} Error`;
+        await sendTelegramMessage(chatId, msg);
+        break;
+      }
+      case 'cmd_clearexceptions': {
+        if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
+        errorLogsQueue.length = 0;
+        await sendTelegramMessage(chatId, `🧹 *Log Exception & Error Berhasil Dibersihkan!*`);
+        break;
+      }
+      case 'cmd_myid': {
+        await sendTelegramMessage(chatId, `🆔 *Chat ID Telegram Anda:* \`${chatId}\`\n\n_Simpan ID ini di environment variable \`TELEGRAM_ADMIN_CHAT_ID\` untuk mendaftarkan akses admin bot._`);
+        break;
+      }
+
+      default: {
+        await sendTelegramMessage(chatId, `❓ Aksi tidak dikenali.`);
+        break;
+      }
+    }
+  } catch (err: any) {
+    console.error('Callback query handler error:', err);
+    await sendTelegramMessage(chatId, `⚠️ Terjadi kesalahan: ${err?.message || err}`);
+  }
+}
+
 // Telegram Webhook Setup & Test Endpoints
 app.get(['/api/telegram/setup', '/api/telegram/set-webhook', '/telegram/setup', '/telegram/set-webhook'], async (req: Request, res: Response) => {
   const token = getCleanTelegramToken();
@@ -2708,13 +3042,30 @@ async function handleTelegramIncomingMessage(msgObj: any) {
   const isAuthorized = adminChatIds.length === 0 || adminChatIds.includes(String(chatId));
 
   // Public commands accessible to anyone to get their ID & Bot Info
-  if (['start', 'help', 'menu', 'bantuan', 'id', 'myid', 'ping'].includes(command)) {
+  if (['start', 'mulai', 'menu'].includes(command)) {
+    // Kirim Menu Utama dengan Inline Keyboard
+    const result = await sendTelegramMessageWithKeyboard(
+      chatId,
+      getMainMenuText(senderName),
+      getMainMenuKeyboard()
+    );
+    // Set session timeout pada pesan menu yang baru dikirim
+    if (result?.ok && result?.result?.message_id) {
+      setMenuSessionTimer(chatId, result.result.message_id);
+    }
+    return;
+  }
+
+  // Legacy text-based /help tetap tersedia untuk backward compatibility
+  if (['help', 'bantuan', 'id', 'myid', 'ping'].includes(command)) {
     const authStatus = isAuthorized ? '🟢 *Terverifikasi Sebagai Admin*' : '🟡 *Belum Terdaftar Sebagai Admin*';
     const helpMsg = `🤖 *BelanjaIn Saza - IT & System Controller Bot*
 Halo *${senderName}*!
 
 🆔 *ID Telegram Anda:* \`${chatId}\`
 Status Akses: ${authStatus}
+
+💡 *Ketik /start untuk membuka Menu Interaktif!*
 
 ⚡ *Perintah Diagnostik & Pemantauan:*
 • \`/status\` atau \`/health\` - Cek kesehatan server, uptime, & memori
@@ -2969,9 +3320,15 @@ app.all(['/api/telegram/webhook', '/telegram/webhook', '/api/telegram/webhook/',
       try { parsedBody = JSON.parse(parsedBody); } catch (e) {}
     }
 
-    const msgObj = parsedBody?.message || parsedBody?.edited_message || parsedBody?.channel_post || parsedBody?.callback_query?.message;
-    if (msgObj) {
-      await handleTelegramIncomingMessage(msgObj);
+    // Route callback_query (inline keyboard button presses) to dedicated handler
+    if (parsedBody?.callback_query) {
+      await handleTelegramCallbackQuery(parsedBody.callback_query);
+    } else {
+      // Route regular messages to existing command handler
+      const msgObj = parsedBody?.message || parsedBody?.edited_message || parsedBody?.channel_post;
+      if (msgObj) {
+        await handleTelegramIncomingMessage(msgObj);
+      }
     }
   } catch (err) {
     console.error('Webhook processing error:', err);

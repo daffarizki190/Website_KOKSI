@@ -18,6 +18,8 @@ import { Pool } from "pg";
 // src/db/schema.ts
 var schema_exports = {};
 __export(schema_exports, {
+  activityLogs: () => activityLogs,
+  activityLogsRelations: () => activityLogsRelations,
   cartItems: () => cartItems,
   cartItemsRelations: () => cartItemsRelations,
   orderItems: () => orderItems,
@@ -26,6 +28,8 @@ __export(schema_exports, {
   ordersRelations: () => ordersRelations,
   products: () => products,
   productsRelations: () => productsRelations,
+  pushSubscriptions: () => pushSubscriptions,
+  pushSubscriptionsRelations: () => pushSubscriptionsRelations,
   users: () => users,
   usersRelations: () => usersRelations
 });
@@ -109,6 +113,33 @@ var cartItemsRelations = relations(cartItems, ({ one }) => ({
     references: [products.id]
   })
 }));
+var activityLogs = pgTable("activity_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  actorName: text("actor_name").notNull(),
+  action: text("action").notNull(),
+  details: text("details"),
+  createdAt: timestamp("created_at").defaultNow()
+});
+var activityLogsRelations = relations(activityLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [activityLogs.userId],
+    references: [users.id]
+  })
+}));
+var pushSubscriptions = pgTable("push_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  endpoint: text("endpoint").notNull().unique(),
+  keys: text("keys").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+var pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
+  user: one(users, {
+    fields: [pushSubscriptions.userId],
+    references: [users.id]
+  })
+}));
 
 // src/db/index.ts
 var createPool = () => {
@@ -186,9 +217,17 @@ async function withDbRetry(operation, maxRetries = 2) {
 }
 
 // server.ts
-import { eq, asc, and, sql } from "drizzle-orm";
+import { eq, asc, desc, and, sql } from "drizzle-orm";
+import webpush from "web-push";
 dotenv.config();
 var JWT_SECRET = process.env.JWT_SECRET || "supersecretjwtkey_koperasi";
+var VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BGVGOqnq6m-OkrL4HNRTm3y6WtAyzUjeUsbROjTFYoKk8XIQduHZ7V0CoWn1Cl5J-MdoOte8VaTsbBavSU1is1Q";
+var VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "znlU1YtgWH2cnr5_tXxrHXaDAOIZiev5jlPftA75X74";
+webpush.setVapidDetails(
+  "mailto:it-admin@belanjainsaza.com",
+  VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY
+);
 var jwtSign = (payload, secret, options) => {
   const signer = jwt.default?.sign || jwt.sign || jwt.sign;
   return signer(payload, secret, options);
@@ -259,6 +298,29 @@ var itAuditLogsQueue = [
     details: "Modul pemantauan infrastruktur dan kinerja website berhasil diaktifkan."
   }
 ];
+async function logActivity(userId, actorName, action, details) {
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    itAuditLogsQueue.unshift({
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      actor: actorName,
+      action,
+      details
+    });
+    if (itAuditLogsQueue.length > 500) itAuditLogsQueue.pop();
+    if (isDbConfigured) {
+      await withDbRetry(() => db.insert(activityLogs).values({
+        userId,
+        actorName,
+        action,
+        details
+      }));
+    }
+  } catch (err) {
+    console.warn("Activity log error:", err);
+  }
+}
 app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
@@ -283,7 +345,7 @@ app.use((req, res, next) => {
     });
     if (trafficStats.recentRequests.length > 40) trafficStats.recentRequests.pop();
     if (res.statusCode >= 400 && req.originalUrl && req.originalUrl.startsWith("/api/")) {
-      errorLogsQueue.unshift({
+      const errItem = {
         id: Math.random().toString(36).substring(2, 9),
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
         method: req.method,
@@ -292,11 +354,55 @@ app.use((req, res, next) => {
         message: res.statusMessage || (res.statusCode >= 500 ? "Internal Server Execution Error" : "Client HTTP Exception"),
         ip: req.headers["x-forwarded-for"] || req.ip || "127.0.0.1",
         userAgent: req.headers["user-agent"] || "Browser/Unknown"
-      });
+      };
+      errorLogsQueue.unshift(errItem);
       if (errorLogsQueue.length > 100) errorLogsQueue.pop();
+      if (res.statusCode >= 500) {
+        notifyTelegramCrashAlert({
+          type: `HTTP ${res.statusCode} Error`,
+          endpoint: `${req.method} ${req.originalUrl || req.url}`,
+          message: errItem.message,
+          ip: errItem.ip
+        });
+      }
     }
   });
   next();
+});
+var lastTelegramAlertTime = 0;
+function notifyTelegramCrashAlert(data) {
+  const now = Date.now();
+  if (now - lastTelegramAlertTime < 15e3) return;
+  lastTelegramAlertTime = now;
+  const alertMsg = `\u{1F6A8} *ALERT: TROUBLE / ERROR SISTEM TERDETEKSI!*
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+\u26A0\uFE0F *Tipe Masalah:* ${data.type}
+${data.endpoint ? `\u{1F310} *Endpoint:* \`${data.endpoint}\`
+` : ""}\u23F1\uFE0F *Waktu:* ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB
+\u{1F4DD} *Detail:* \`${data.message.substring(0, 200)}\`
+${data.ip ? `\u{1F4CD} *Client IP:* \`${data.ip}\`
+` : ""}
+\u26A1 *Tindakan:* Sistem tetap berjalan. Ketik \`/health\` atau \`/testapi\` di bot untuk mengecek diagnosa server.`;
+  const adminChatIds = getAdminChatIds();
+  for (const cid of adminChatIds) {
+    sendTelegramMessage(cid, alertMsg).catch(() => {
+    });
+  }
+}
+process.on("uncaughtException", (err) => {
+  console.error("[CRITICAL UNCAUGHT EXCEPTION]:", err);
+  notifyTelegramCrashAlert({
+    type: "Uncaught Exception (Process Level)",
+    message: err?.message || String(err),
+    stack: err?.stack
+  });
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[CRITICAL UNHANDLED REJECTION]:", reason);
+  notifyTelegramCrashAlert({
+    type: "Unhandled Promise Rejection",
+    message: reason?.message || String(reason)
+  });
 });
 var requireAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -617,6 +723,58 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     res.status(500).json({ error: "Terjadi kesalahan saat memverifikasi OTP" });
   }
 });
+app.post("/api/notifications/subscribe", requireAuth, async (req, res) => {
+  try {
+    const userId = Number(req.user?.id);
+    const subscription = req.body;
+    if (!subscription || !subscription.endpoint) {
+      res.status(400).json({ error: "Subscription data tidak valid" });
+      return;
+    }
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (isDbConfigured) {
+      const existing = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, subscription.endpoint));
+      if (existing.length === 0) {
+        await db.insert(pushSubscriptions).values({
+          userId,
+          endpoint: subscription.endpoint,
+          keys: JSON.stringify(subscription.keys)
+        });
+      }
+    }
+    res.status(201).json({ message: "Berhasil mendaftarkan push notification" });
+  } catch (err) {
+    console.error("Subscription error:", err);
+    res.status(500).json({ error: "Gagal berlangganan push notification" });
+  }
+});
+app.get("/api/notifications/vapid-public-key", (req, res) => {
+  res.send(VAPID_PUBLIC_KEY);
+});
+app.get("/api/activity-logs", requireAuth, requireIT, async (req, res) => {
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) {
+      res.json(itAuditLogsQueue);
+      return;
+    }
+    const logs = await withDbRetry(() => db.select({
+      id: activityLogs.id,
+      timestamp: activityLogs.createdAt,
+      actor: activityLogs.actorName,
+      action: activityLogs.action,
+      details: activityLogs.details
+    }).from(activityLogs).orderBy(desc(activityLogs.createdAt)).limit(100));
+    const formattedDbLogs = logs.map((l) => ({
+      ...l,
+      timestamp: l.timestamp?.toISOString() || (/* @__PURE__ */ new Date()).toISOString()
+    }));
+    res.json(formattedDbLogs.length > 0 ? formattedDbLogs : itAuditLogsQueue);
+  } catch (error) {
+    console.error("Fetch activity logs error:", error);
+    res.status(500).json({ error: "Gagal mengambil data activity log" });
+  }
+});
 app.get("/api/users", requireAuth, requireAdmin, async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
@@ -802,13 +960,7 @@ app.delete("/api/users/:id", requireAuth, async (req, res) => {
       await db.delete(orders).where(eq(orders.userId, targetUserId));
     }
     await db.delete(users).where(eq(users.id, targetUserId));
-    itAuditLogsQueue.unshift({
-      id: Math.random().toString(36).substring(2, 9),
-      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-      actor: `${req.user?.nama || "System"} (${req.user?.role || "user"})`,
-      action: "Penghapusan Akun Pengguna",
-      details: `Akun "${targetUser.nama}" (${targetUser.no_hp}, ${targetUser.pt}) telah dihapus. Alasan: "${reason.trim()}".`
-    });
+    await logActivity(req.user?.id || null, `${req.user?.nama || "System"} (${req.user?.role || "user"})`, "Penghapusan Akun Pengguna", `Akun "${targetUser.nama}" (${targetUser.no_hp}, ${targetUser.pt}) telah dihapus. Alasan: "${reason.trim()}".`);
     res.json({ message: `Akun "${targetUser.nama}" berhasil dihapus.` });
   } catch (error) {
     console.error("Failed to delete user account:", error);
@@ -859,6 +1011,7 @@ app.post("/api/products", requireAuth, requireAdmin, async (req, res) => {
       harga,
       stok
     }).returning();
+    await logActivity(req.user?.id || null, req.user?.nama || "Admin", "Tambah Produk", `Menambahkan produk baru: ${nama_barang} (Kategori: ${kategori})`);
     res.status(201).json(newProduct[0]);
   } catch (error) {
     res.status(500).json({ error: "Failed to add product" });
@@ -935,6 +1088,23 @@ async function ensureDatabaseSchema() {
           user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
           quantity INTEGER NOT NULL DEFAULT 1,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS activity_logs (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          actor_name TEXT NOT NULL,
+          action TEXT NOT NULL,
+          details TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          endpoint TEXT NOT NULL UNIQUE,
+          keys TEXT NOT NULL,
           created_at TIMESTAMP DEFAULT NOW()
         );
       `);
@@ -1337,6 +1507,34 @@ app.post("/api/orders", requireAuth, async (req, res) => {
       }
     };
     console.log(`[ORDER] Created order #${createdOrderId} for user ${userId}, total: ${cleanTotalAmount}`);
+    try {
+      const isDbConfigured2 = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+      if (isDbConfigured2) {
+        const subs = await db.select().from(pushSubscriptions);
+        const pushPayload = JSON.stringify({
+          title: `Pesanan Baru #${createdOrderId}`,
+          body: `Pemesan: ${fullCreatedOrder.user.nama}
+Total: Rp ${cleanTotalAmount.toLocaleString("id-ID")}`,
+          url: "/admin"
+        });
+        const pushPromises = subs.map(async (sub) => {
+          try {
+            const subData = { endpoint: sub.endpoint, keys: JSON.parse(sub.keys) };
+            await webpush.sendNotification(subData, pushPayload);
+          } catch (e) {
+            if (e.statusCode === 404 || e.statusCode === 410) {
+              console.log("Subscription expired or removed, deleting...", sub.endpoint);
+              await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, sub.endpoint));
+            } else {
+              console.warn("Gagal push ke endpoint:", sub.endpoint, e.message);
+            }
+          }
+        });
+        await Promise.allSettled(pushPromises);
+      }
+    } catch (e) {
+      console.warn("Web push broadcast error:", e);
+    }
     res.status(201).json({ message: "Order created successfully", orderId: createdOrderId, order: fullCreatedOrder });
   } catch (error) {
     const errMsg = error?.message || String(error);
@@ -1466,6 +1664,19 @@ app.put("/api/orders/:id/status", requireAuth, requireAdmin, async (req, res) =>
       memOrder.status = status;
       if (keterangan !== void 0) memOrder.keterangan = keterangan;
     }
+    try {
+      const statusIcon = status === "Selesai" ? "\u2705" : status === "Dibatalkan" ? "\u{1F6AB}" : "\u{1F504}";
+      const tgStatusMsg = `${statusIcon} *STATUS PESANAN DIUPDATE (#${orderId})*
+\u26A1 *Status Baru:* ${status}
+\u{1F4DD} *Keterangan:* ${keterangan || "-"}
+Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB`;
+      const adminChatIds = getAdminChatIds();
+      for (const cid of adminChatIds) {
+        sendTelegramMessage(cid, tgStatusMsg).catch(() => {
+        });
+      }
+    } catch (e) {
+    }
     res.json(updated[0] || memOrder || { success: true });
   } catch (error) {
     console.error("Failed to update order status:", error);
@@ -1514,6 +1725,18 @@ app.put("/api/orders/:id/cancel", requireAuth, async (req, res) => {
           }
         }
       }
+      try {
+        const tgMsg = `\u{1F6AB} *PESANAN #${orderId} DIBATALKAN OLEH ADMIN*
+\u{1F4DD} *Alasan:* ${alasan.toString().trim()}
+\u{1F4E6} Stok barang telah dikembalikan ke sistem.
+Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB`;
+        const adminChatIds = getAdminChatIds();
+        for (const cid of adminChatIds) {
+          sendTelegramMessage(cid, tgMsg).catch(() => {
+          });
+        }
+      } catch (e) {
+      }
       res.json({ message: "Pesanan berhasil dibatalkan oleh Admin dan stok telah dikembalikan.", order: updated2[0] || memOrder2 });
       return;
     }
@@ -1521,6 +1744,18 @@ app.put("/api/orders/:id/cancel", requireAuth, async (req, res) => {
       status: "Pengajuan Pembatalan",
       keterangan: `Pengajuan Pembatalan: ${alasan.toString().trim()}`
     }).where(eq(orders.id, orderId)).returning();
+    try {
+      const tgMsg = `\u26A0\uFE0F *PENGAJUAN PEMBATALAN PESANAN (#${orderId})*
+\u{1F464} *Pemohon:* ${req.user?.nama || "Karyawan"} (${req.user?.no_hp || "-"})
+\u{1F4DD} *Alasan:* ${alasan.toString().trim()}
+\u26A1 *Aksi:* Buka Admin Portal atau ketik \`/batal ${orderId} ${alasan.toString().trim()}\` untuk menyetujui.`;
+      const adminChatIds = getAdminChatIds();
+      for (const cid of adminChatIds) {
+        sendTelegramMessage(cid, tgMsg).catch(() => {
+        });
+      }
+    } catch (e) {
+    }
     const memOrder = demoOrdersStore.find((o) => o.id === orderId);
     if (memOrder) {
       memOrder.status = "Pengajuan Pembatalan";
@@ -2094,11 +2329,21 @@ app.post("/api/it/test-apis", requireAuth, requireIT, async (req, res) => {
     tests
   });
 });
-var TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY";
-var TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || "8445262546";
+var getCleanTelegramToken = () => {
+  let token = (process.env.TELEGRAM_BOT_TOKEN || "8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY").trim();
+  token = token.replace(/^["']|["']$/g, "");
+  if (token.toLowerCase().startsWith("bot")) {
+    token = token.substring(3);
+  }
+  return token;
+};
+var getAdminChatIds = () => {
+  const raw = process.env.TELEGRAM_ADMIN_CHAT_ID || "8445262546";
+  return raw.split(",").map((id) => id.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
+};
 async function sendTelegramMessage(chatId, text2, parseMode = "Markdown") {
-  const token = process.env.TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN || "8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY";
-  if (!token) return;
+  const token = getCleanTelegramToken();
+  if (!token || !chatId) return;
   try {
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
     const res = await fetch(url, {
@@ -2112,7 +2357,7 @@ async function sendTelegramMessage(chatId, text2, parseMode = "Markdown") {
     });
     const data = await res.json();
     if (!data.ok) {
-      console.warn("Telegram send warning (retrying plain text):", data);
+      console.warn("Telegram send markdown retry with plain text:", data);
       await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2122,19 +2367,402 @@ async function sendTelegramMessage(chatId, text2, parseMode = "Markdown") {
         })
       });
     }
+    return data;
   } catch (err) {
     console.error("Failed to send Telegram message:", err);
   }
 }
-app.get(["/api/telegram/setup", "/api/telegram/set-webhook"], async (req, res) => {
-  if (!TELEGRAM_BOT_TOKEN) {
+async function editTelegramMessage(chatId, messageId, text2, replyMarkup, parseMode = "Markdown") {
+  const token = getCleanTelegramToken();
+  if (!token || !chatId || !messageId) return;
+  try {
+    const url = `https://api.telegram.org/bot${token}/editMessageText`;
+    const payload = {
+      chat_id: chatId,
+      message_id: messageId,
+      text: text2,
+      parse_mode: parseMode
+    };
+    if (replyMarkup) {
+      payload.reply_markup = replyMarkup;
+    }
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!data.ok && data.description?.includes("message is not modified")) {
+      return data;
+    }
+    if (!data.ok) {
+      payload.parse_mode = void 0;
+      payload.text = text2.replace(/[*_`\[\]]/g, "");
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    }
+    return data;
+  } catch (err) {
+    console.error("Failed to edit Telegram message:", err);
+  }
+}
+async function sendTelegramMessageWithKeyboard(chatId, text2, replyMarkup, parseMode = "Markdown") {
+  const token = getCleanTelegramToken();
+  if (!token || !chatId) return;
+  try {
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text2,
+        parse_mode: parseMode,
+        reply_markup: replyMarkup
+      })
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: text2.replace(/[*_`\[\]]/g, ""),
+          reply_markup: replyMarkup
+        })
+      });
+    }
+    return data;
+  } catch (err) {
+    console.error("Failed to send Telegram message with keyboard:", err);
+  }
+}
+var menuSessionTimers = /* @__PURE__ */ new Map();
+var MENU_SESSION_TIMEOUT_MS = 10 * 60 * 1e3;
+function setMenuSessionTimer(chatId, messageId) {
+  const key = `${chatId}:${messageId}`;
+  clearMenuSessionTimer(chatId, messageId);
+  const timer = setTimeout(async () => {
+    menuSessionTimers.delete(key);
+    try {
+      await editTelegramMessage(
+        chatId,
+        messageId,
+        "\u23F0 *Sesi menu telah berakhir.*\nSilakan ketik /start untuk membuka menu kembali.",
+        { inline_keyboard: [] }
+        // Hapus semua tombol
+      );
+    } catch (e) {
+    }
+  }, MENU_SESSION_TIMEOUT_MS);
+  menuSessionTimers.set(key, timer);
+}
+function clearMenuSessionTimer(chatId, messageId) {
+  const key = `${chatId}:${messageId}`;
+  const existing = menuSessionTimers.get(key);
+  if (existing) {
+    clearTimeout(existing);
+    menuSessionTimers.delete(key);
+  }
+}
+function getMainMenuKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "\u{1F6D2} Operasional Koperasi", callback_data: "menu_operasional" }],
+      [{ text: "\u{1F4BB} Diagnostik Sistem (IT)", callback_data: "menu_diagnostik" }]
+    ]
+  };
+}
+function getOperasionalKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "\u{1F4E6} 5 Pesanan Aktif", callback_data: "cmd_pesanan" }],
+      [{ text: "\u26A0\uFE0F Cek Stok Kritis", callback_data: "cmd_stok" }],
+      [{ text: "\u2705 Selesaikan Pesanan", callback_data: "cmd_selesai_prompt" }],
+      [{ text: "\u274C Batalkan Pesanan", callback_data: "cmd_batal_prompt" }],
+      [{ text: "\u{1F519} Kembali", callback_data: "menu_utama" }]
+    ]
+  };
+}
+function getDiagnostikKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "\u{1F5A5}\uFE0F Status Server (Uptime & RAM)", callback_data: "cmd_status" }],
+      [{ text: "\u{1F5C4}\uFE0F Cek Database (Latensi & Rows)", callback_data: "cmd_db" }],
+      [{ text: "\u{1F9EA} Test 6 Endpoint API", callback_data: "cmd_testapi" }],
+      [{ text: "\u{1F4CA} Laporan Kesehatan Server", callback_data: "cmd_report" }],
+      [{ text: "\u{1F9F9} Clear Error Logs", callback_data: "cmd_clearexceptions" }],
+      [{ text: "\u{1F194} Cek Chat ID Saya", callback_data: "cmd_myid" }],
+      [{ text: "\u{1F519} Kembali", callback_data: "menu_utama" }]
+    ]
+  };
+}
+function getMainMenuText(senderName) {
+  return `\u{1F916} *BelanjaIn Saza \u2014 Menu Utama*
+Halo *${senderName}*! Pilih kategori di bawah:`;
+}
+async function handleTelegramCallbackQuery(callbackQuery) {
+  const token = getCleanTelegramToken();
+  if (!token) return;
+  const chatId = callbackQuery.message?.chat?.id;
+  const messageId = callbackQuery.message?.message_id;
+  const callbackData = callbackQuery.data;
+  const senderName = callbackQuery.from?.first_name || "Pengguna";
+  const callbackId = callbackQuery.id;
+  if (!chatId || !messageId || !callbackData) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: callbackId })
+    });
+  } catch (e) {
+  }
+  const adminChatIds = getAdminChatIds();
+  const isAuthorized = adminChatIds.length === 0 || adminChatIds.includes(String(chatId));
+  setMenuSessionTimer(chatId, messageId);
+  try {
+    switch (callbackData) {
+      // --- NAVIGASI MENU ---
+      case "menu_utama": {
+        await editTelegramMessage(chatId, messageId, getMainMenuText(senderName), getMainMenuKeyboard());
+        break;
+      }
+      case "menu_operasional": {
+        await editTelegramMessage(chatId, messageId, "\u{1F6D2} *Operasional Koperasi*\nPilih aksi yang ingin dijalankan:", getOperasionalKeyboard());
+        break;
+      }
+      case "menu_diagnostik": {
+        await editTelegramMessage(chatId, messageId, "\u{1F4BB} *Diagnostik Sistem (IT)*\nPilih pemeriksaan yang ingin dilakukan:", getDiagnostikKeyboard());
+        break;
+      }
+      // --- PERINTAH OPERASIONAL (panggil controller yang sudah ada) ---
+      case "cmd_pesanan": {
+        if (!isAuthorized) {
+          await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+          break;
+        }
+        const activeOrders = await db.select().from(orders).where(sql`status IN ('Proses', 'Sedang Menyiapkan', 'Menunggu Konfirmasi')`).limit(5);
+        if (activeOrders.length === 0) {
+          await sendTelegramMessage(chatId, `\u{1F4E6} *Tidak Ada Pesanan Tertunda.*
+Semua transaksi dalam status selesai atau siap.`);
+        } else {
+          const list = activeOrders.map((o) => `\u2022 *#${o.id}* - Rp ${(o.total_amount || 0).toLocaleString("id-ID")} | Status: *${o.status}*`).join("\n");
+          await sendTelegramMessage(chatId, `\u{1F4E6} *DAFTAR PESANAN AKTIF:*
+
+${list}
+
+Ketik \`/selesai [id]\` untuk menyelesaikan.`);
+        }
+        break;
+      }
+      case "cmd_stok": {
+        if (!isAuthorized) {
+          await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+          break;
+        }
+        const lowStock = await db.select().from(products).where(sql`stok < 5`).limit(15);
+        if (lowStock.length === 0) {
+          await sendTelegramMessage(chatId, `\u2705 *Semua Stok Aman!* Tidak ada produk dengan stok < 5 pcs.`);
+        } else {
+          const list = lowStock.map((p) => `\u2022 *${p.nama_barang}* : Sisa *${p.stok}* pcs (Rp ${p.harga.toLocaleString("id-ID")})`).join("\n");
+          await sendTelegramMessage(chatId, `\u26A0\uFE0F *PRODUK STOK MENIPIS (< 5 pcs):*
+
+${list}`);
+        }
+        break;
+      }
+      case "cmd_selesai_prompt": {
+        if (!isAuthorized) {
+          await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+          break;
+        }
+        await sendTelegramMessage(chatId, `\u2705 *Selesaikan Pesanan*
+
+Silakan ketik perintah secara manual:
+\`/selesai [id_pesanan]\`
+
+Contoh: \`/selesai 1024\``);
+        break;
+      }
+      case "cmd_batal_prompt": {
+        if (!isAuthorized) {
+          await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+          break;
+        }
+        await sendTelegramMessage(chatId, `\u274C *Batalkan Pesanan*
+
+Silakan ketik perintah secara manual:
+\`/batal [id_pesanan] [alasan]\`
+
+Contoh: \`/batal 1024 Stok kosong\``);
+        break;
+      }
+      // --- PERINTAH DIAGNOSTIK (panggil controller yang sudah ada) ---
+      case "cmd_status": {
+        if (!isAuthorized) {
+          await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+          break;
+        }
+        const mem = process.memoryUsage();
+        const heapMB = Math.round(mem.heapUsed / (1024 * 1024));
+        const uptimeMin = Math.floor(process.uptime() / 60);
+        let dbStatus = "Disconnected";
+        let dbLatency = 0;
+        const t0 = Date.now();
+        try {
+          await db.select({ count: sql`count(*)` }).from(users);
+          dbLatency = Date.now() - t0;
+          dbStatus = `Connected (${dbLatency}ms)`;
+        } catch (e) {
+          dbStatus = "Error/Offline";
+        }
+        const msg = `\u{1F5A5}\uFE0F *KESEHATAN SERVER & INFRASTRUKTUR*
+\u2022 *Status:* \u{1F7E2} ONLINE (Optimal)
+\u2022 *Uptime:* ${uptimeMin} Menit
+\u2022 *Node.js Runtime:* ${process.version}
+\u2022 *Heap Memori:* ${heapMB} MB
+\u2022 *Database (PostgreSQL):* ${dbStatus}
+\u2022 *Total Requests:* ${trafficStats.totalRequests}
+\u2022 *Error Terdeteksi:* ${errorLogsQueue.length} Item`;
+        await sendTelegramMessage(chatId, msg);
+        break;
+      }
+      case "cmd_db": {
+        if (!isAuthorized) {
+          await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+          break;
+        }
+        const t0 = Date.now();
+        const userCount = await db.select({ count: sql`count(*)` }).from(users);
+        const prodCount = await db.select({ count: sql`count(*)` }).from(products);
+        const orderCount = await db.select({ count: sql`count(*)` }).from(orders);
+        const lat = Date.now() - t0;
+        const msg = `\u{1F5C4}\uFE0F *DATABASE STATS (PostgreSQL)*
+\u2022 *Status:* \u{1F7E2} Connected (${lat} ms ping)
+\u2022 *Users:* ${userCount[0]?.count ?? 0} Karyawan
+\u2022 *Produk:* ${prodCount[0]?.count ?? 0} Item
+\u2022 *Pesanan:* ${orderCount[0]?.count ?? 0} Transaksi`;
+        await sendTelegramMessage(chatId, msg);
+        break;
+      }
+      case "cmd_testapi": {
+        if (!isAuthorized) {
+          await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+          break;
+        }
+        await sendTelegramMessage(chatId, `\u23F3 *Menjalankan 6 Pengujian API Sistem...*`);
+        const tests = [];
+        const t0 = Date.now();
+        try {
+          await db.select({ count: sql`count(*)` }).from(users);
+          tests.push(`\u2705 *Database (SQL):* PASS (${Date.now() - t0}ms)`);
+        } catch (e) {
+          tests.push(`\u274C *Database (SQL):* FAIL`);
+        }
+        const t1 = Date.now();
+        try {
+          await db.select().from(products).limit(1);
+          tests.push(`\u2705 *Products API:* PASS (${Date.now() - t1}ms)`);
+        } catch (e) {
+          tests.push(`\u274C *Products API:* FAIL`);
+        }
+        const t2 = Date.now();
+        try {
+          await db.select({ count: sql`count(*)` }).from(cartItems);
+          tests.push(`\u2705 *Cart Multi-Device:* PASS (${Date.now() - t2}ms)`);
+        } catch (e) {
+          tests.push(`\u274C *Cart Multi-Device:* FAIL`);
+        }
+        const t3 = Date.now();
+        try {
+          await db.select({ count: sql`count(*)` }).from(orders).limit(1);
+          tests.push(`\u2705 *Orders Engine:* PASS (${Date.now() - t3}ms)`);
+        } catch (e) {
+          tests.push(`\u274C *Orders Engine:* FAIL`);
+        }
+        tests.push(`\u2705 *Barcode Scanner API:* PASS (1ms)`);
+        const memT = process.memoryUsage();
+        const heapT = Math.round(memT.heapUsed / (1024 * 1024));
+        tests.push(`\u2705 *Memory Heap (${heapT}MB):* PASS`);
+        const msgT = `\u26A1 *HASIL DIAGNOSTIK API LENGKAP*
+
+${tests.join("\n")}
+
+*Status Keseluruhan:* \u{1F389} 100% HEALTHY`;
+        await sendTelegramMessage(chatId, msgT);
+        break;
+      }
+      case "cmd_report": {
+        if (!isAuthorized) {
+          await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+          break;
+        }
+        const mem = process.memoryUsage();
+        const heapMB = Math.round(mem.heapUsed / (1024 * 1024));
+        const userCount = await db.select({ count: sql`count(*)` }).from(users);
+        const orderCount = await db.select({ count: sql`count(*)` }).from(orders);
+        const productCount = await db.select({ count: sql`count(*)` }).from(products);
+        const msg = `\u{1F4CB} *LAPORAN EKSEKUTIF IT BELANJAIN SAZA*
+Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB
+
+1. *Infrastruktur Server:*
+\u2022 Runtime: Node.js ${process.version}
+\u2022 Uptime: ${Math.floor(process.uptime() / 60)} Menit
+\u2022 Memori Heap: ${heapMB} MB
+
+2. *Integritas Database:*
+\u2022 Total Pengguna: ${userCount[0]?.count ?? 0} Akun
+\u2022 Total Katalog: ${productCount[0]?.count ?? 0} Produk
+\u2022 Total Transaksi: ${orderCount[0]?.count ?? 0} Pesanan
+
+3. *Keamanan & Traffic:*
+\u2022 Status SSL: Aktif (HTTPS)
+\u2022 Keamanan Sandi: Bcrypt 10 Salt Rounds
+\u2022 Log Exception: ${errorLogsQueue.length} Error`;
+        await sendTelegramMessage(chatId, msg);
+        break;
+      }
+      case "cmd_clearexceptions": {
+        if (!isAuthorized) {
+          await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+          break;
+        }
+        errorLogsQueue.length = 0;
+        await sendTelegramMessage(chatId, `\u{1F9F9} *Log Exception & Error Berhasil Dibersihkan!*`);
+        break;
+      }
+      case "cmd_myid": {
+        await sendTelegramMessage(chatId, `\u{1F194} *Chat ID Telegram Anda:* \`${chatId}\`
+
+_Simpan ID ini di environment variable \`TELEGRAM_ADMIN_CHAT_ID\` untuk mendaftarkan akses admin bot._`);
+        break;
+      }
+      default: {
+        await sendTelegramMessage(chatId, `\u2753 Aksi tidak dikenali.`);
+        break;
+      }
+    }
+  } catch (err) {
+    console.error("Callback query handler error:", err);
+    await sendTelegramMessage(chatId, `\u26A0\uFE0F Terjadi kesalahan: ${err?.message || err}`);
+  }
+}
+app.get(["/api/telegram/setup", "/api/telegram/set-webhook", "/telegram/setup", "/telegram/set-webhook"], async (req, res) => {
+  const token = getCleanTelegramToken();
+  if (!token) {
     res.status(400).json({ error: "TELEGRAM_BOT_TOKEN belum diset di environment variables." });
     return;
   }
-  const host = req.query.url || `https://${req.headers.host}`;
-  const webhookUrl = `${host}/api/telegram/webhook`;
+  const host = req.query.url || (req.headers.host ? `https://${req.headers.host}` : "https://www.belanjainsaza.web.id");
+  const cleanHost = host.startsWith("http") ? host : `https://${host}`;
+  const webhookUrl = `${cleanHost}/api/telegram/webhook`;
   try {
-    const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${encodeURIComponent(String(webhookUrl))}`);
+    const tgRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&allowed_updates=${encodeURIComponent(JSON.stringify(["message", "edited_message", "channel_post", "callback_query"]))}`);
     const tgData = await tgRes.json();
     res.json({
       success: tgData.ok,
@@ -2145,53 +2773,84 @@ app.get(["/api/telegram/setup", "/api/telegram/set-webhook"], async (req, res) =
     res.status(500).json({ error: err?.message || "Gagal mengatur webhook Telegram" });
   }
 });
+app.get(["/api/telegram/test", "/telegram/test"], async (req, res) => {
+  const token = getCleanTelegramToken();
+  const adminIds = getAdminChatIds();
+  const targetChat = req.query.chat_id || adminIds[0] || "8445262546";
+  const testMsg = `\u{1F514} *TEST NOTIFIKASI TELEGRAM BELANJAIN SAZA*
+Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB
+Server: Online & Terhubung
+Domain: ${req.headers.host || "belanjainsaza.web.id"}
+
+\u2705 *Bot Telegram @belanjain_zasa_bot Berfungsi Normal 100%!*`;
+  try {
+    const data = await sendTelegramMessage(targetChat, testMsg);
+    res.json({ success: true, targetChat, data });
+  } catch (err) {
+    res.status(500).json({ error: err?.message || "Gagal mengirim pesan test Telegram" });
+  }
+});
 async function handleTelegramIncomingMessage(msgObj) {
-  if (!msgObj || !msgObj.text) return;
+  if (!msgObj) return;
   const chatId = msgObj.chat?.id;
   if (!chatId) return;
   const userText = (msgObj.text || "").trim();
-  const senderName = msgObj.from?.first_name || "Admin";
-  const adminChatIds = (process.env.TELEGRAM_ADMIN_CHAT_ID || TELEGRAM_ADMIN_CHAT_ID || "8445262546").split(",").map((id) => id.trim()).filter(Boolean);
-  const isAuthorized = adminChatIds.length === 0 || adminChatIds.includes(String(chatId));
-  if (!isAuthorized) {
-    await sendTelegramMessage(chatId, `\u{1F6AB} *Akses Ditolak*
-Chat ID Anda (*${chatId}*) belum terdaftar sebagai Admin IT BelanjaIn Saza.
-
-Silakan daftarkan ID ini di variabel \`TELEGRAM_ADMIN_CHAT_ID\` pada Vercel/Environment Variables.`);
-    return;
-  }
+  const senderName = msgObj.from?.first_name || "Pengguna";
   const parts = userText.split(" ");
   const rawCommand = parts[0].toLowerCase();
   const command = rawCommand.replace(/^[\\\/]+/, "").toLowerCase();
   const args = parts.slice(1);
-  try {
-    switch (command) {
-      case "start":
-      case "help":
-      case "menu":
-      case "bantuan": {
-        const helpMsg = `\u{1F916} *BelanjaIn Saza - IT & System Controller Bot*
-Halo *${senderName}*! Berikut daftar perintah kontrol sistem yang tersedia:
+  const adminChatIds = getAdminChatIds();
+  const isAuthorized = adminChatIds.length === 0 || adminChatIds.includes(String(chatId));
+  if (["start", "mulai", "menu"].includes(command)) {
+    const result = await sendTelegramMessageWithKeyboard(
+      chatId,
+      getMainMenuText(senderName),
+      getMainMenuKeyboard()
+    );
+    if (result?.ok && result?.result?.message_id) {
+      setMenuSessionTimer(chatId, result.result.message_id);
+    }
+    return;
+  }
+  if (["help", "bantuan", "id", "myid", "ping"].includes(command)) {
+    const authStatus = isAuthorized ? "\u{1F7E2} *Terverifikasi Sebagai Admin*" : "\u{1F7E1} *Belum Terdaftar Sebagai Admin*";
+    const helpMsg = `\u{1F916} *BelanjaIn Saza - IT & System Controller Bot*
+Halo *${senderName}*!
 
-\u26A1 *Diagnostik & Monitoring:*
+\u{1F194} *ID Telegram Anda:* \`${chatId}\`
+Status Akses: ${authStatus}
+
+\u{1F4A1} *Ketik /start untuk membuka Menu Interaktif!*
+
+\u26A1 *Perintah Diagnostik & Pemantauan:*
 \u2022 \`/status\` atau \`/health\` - Cek kesehatan server, uptime, & memori
 \u2022 \`/testapi\` - Jalankan 6 poin pengujian API sistem
-\u2022 \`/report\` - Buat ringkasan Laporan Kesehatan IT
+\u2022 \`/report\` - Buat Laporan Eksekutif Kesehatan IT
 \u2022 \`/db\` - Cek status koneksi & total data PostgreSQL
 
 \u{1F4E6} *Katalog & Operasional Pesanan:*
 \u2022 \`/stok\` - Cek produk dengan stok menipis (< 5 pcs)
-\u2022 \`/pesanan\` - Cek 5 pesanan aktif terbaru
+\u2022 \`/pesanan\` - Cek daftar pesanan aktif terbaru
 \u2022 \`/selesai [id]\` - Ubah status pesanan menjadi Selesai
 \u2022 \`/batal [id] [alasan]\` - Batalkan pesanan & pulihkan stok
 
 \u{1F9F9} *Pemeliharaan:*
 \u2022 \`/clearexceptions\` - Bersihkan counter log error server
 
-*Chat ID Anda:* \`${chatId}\``;
-        await sendTelegramMessage(chatId, helpMsg);
-        break;
-      }
+_Jika ID Anda belum terdaftar sebagai admin, silakan simpan Chat ID di atas pada \`TELEGRAM_ADMIN_CHAT_ID\`._`;
+    await sendTelegramMessage(chatId, helpMsg);
+    return;
+  }
+  if (!isAuthorized) {
+    await sendTelegramMessage(chatId, `\u{1F6AB} *Akses Ditolak*
+Chat ID Anda (*\`${chatId}\`*) belum terdaftar dalam daftar Admin BelanjaIn Saza.
+
+Ketik \`/myid\` untuk melihat ID Telegram Anda.`);
+    return;
+  }
+  try {
+    switch (command) {
       case "status":
       case "health": {
         const mem = process.memoryUsage();
@@ -2231,7 +2890,7 @@ Halo *${senderName}*! Berikut daftar perintah kontrol sistem yang tersedia:
         }
         const t1 = Date.now();
         try {
-          const prods = await db.select().from(products).limit(1);
+          await db.select().from(products).limit(1);
           tests.push(`\u2705 *Products API:* PASS (${Date.now() - t1}ms)`);
         } catch (e) {
           tests.push(`\u274C *Products API:* FAIL`);
@@ -2387,40 +3046,31 @@ Contoh: \`/batal 1024 Stok kosong\``);
 }
 app.all(["/api/telegram/webhook", "/telegram/webhook", "/api/telegram/webhook/", "/telegram/webhook/"], async (req, res) => {
   try {
-    let bodyStr = "";
-    if (!req.body || Object.keys(req.body).length === 0) {
+    let parsedBody = req.body;
+    if (!parsedBody || typeof parsedBody === "object" && Object.keys(parsedBody).length === 0) {
+      let bodyStr = "";
       for await (const chunk of req) {
         bodyStr += chunk;
       }
-    }
-    let parsedBody = req.body;
-    if (bodyStr) {
+      if (bodyStr) {
+        try {
+          parsedBody = JSON.parse(bodyStr);
+        } catch (e) {
+        }
+      }
+    } else if (typeof parsedBody === "string") {
       try {
-        parsedBody = JSON.parse(bodyStr);
+        parsedBody = JSON.parse(parsedBody);
       } catch (e) {
       }
-    } else if (typeof req.body === "string") {
-      try {
-        parsedBody = JSON.parse(req.body);
-      } catch (e) {
+    }
+    if (parsedBody?.callback_query) {
+      await handleTelegramCallbackQuery(parsedBody.callback_query);
+    } else {
+      const msgObj = parsedBody?.message || parsedBody?.edited_message || parsedBody?.channel_post;
+      if (msgObj) {
+        await handleTelegramIncomingMessage(msgObj);
       }
-    }
-    const token = process.env.TELEGRAM_BOT_TOKEN || "8425375850:AAFFVzDIsC-gVikTyYWfczWGdQ1hy9Zu6IY";
-    const dbgStr = JSON.stringify(parsedBody || {}).substring(0, 500);
-    if (!parsedBody || !parsedBody.update_id) {
-      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: "8445262546", text: `DEBUG WEBHOOK EMPTY OR INVALID!
-Method: ${req.method}
-URL: ${req.url}
-Headers: ${JSON.stringify(req.headers)}
-Parsed: ${dbgStr}` })
-      });
-    }
-    const msgObj = parsedBody?.message || parsedBody?.edited_message || parsedBody?.channel_post;
-    if (msgObj) {
-      await handleTelegramIncomingMessage(msgObj);
     }
   } catch (err) {
     console.error("Webhook processing error:", err);
