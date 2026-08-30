@@ -204,6 +204,20 @@ app.use((req, res, next) => {
   next();
 });
 
+// Helper: Format date to WIB (Asia/Jakarta)
+function formatWIBTime(date: Date = new Date()): string {
+  return date.toLocaleString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+}
+
 // Throttled Telegram Crash Alert Helper
 let lastTelegramAlertTime = 0;
 function notifyTelegramCrashAlert(data: { type: string; endpoint?: string; message: string; ip?: string; stack?: string }) {
@@ -215,7 +229,7 @@ function notifyTelegramCrashAlert(data: { type: string; endpoint?: string; messa
   const alertMsg = `🚨 *ALERT: TROUBLE / ERROR SISTEM TERDETEKSI!*
 ━━━━━━━━━━━━━━━━━━━━
 ⚠️ *Tipe Masalah:* ${data.type}
-${data.endpoint ? `🌐 *Endpoint:* \`${data.endpoint}\`\n` : ''}⏱️ *Waktu:* ${new Date().toLocaleString('id-ID')} WIB
+${data.endpoint ? `🌐 *Endpoint:* \`${data.endpoint}\`\n` : ''}⏱️ *Waktu:* ${formatWIBTime()} WIB
 📝 *Detail:* \`${data.message.substring(0, 200)}\`
 ${data.ip ? `📍 *Client IP:* \`${data.ip}\`\n` : ''}
 ⚡ *Tindakan:* Sistem tetap berjalan. Ketik \`/health\` atau \`/testapi\` di bot untuk mengecek diagnosa server.`;
@@ -2844,18 +2858,33 @@ async function handleTelegramCallbackQuery(callbackQuery: any) {
       // --- PERINTAH OPERASIONAL (panggil controller yang sudah ada) ---
       case 'cmd_pesanan': {
         if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
-        const activeOrders = await db.select().from(orders).where(sql`status IN ('Proses', 'Sedang Menyiapkan', 'Menunggu Konfirmasi')`).limit(5);
+        const activeOrders = await db.select({
+          id: orders.id,
+          total_amount: orders.total_amount,
+          status: orders.status,
+          userName: users.nama,
+          userPt: users.pt
+        })
+        .from(orders)
+        .leftJoin(users, eq(orders.userId, users.id))
+        .where(sql`${orders.status} IN ('Proses', 'Sedang Menyiapkan', 'Menunggu Konfirmasi')`)
+        .orderBy(desc(orders.id))
+        .limit(5);
+
         if (activeOrders.length === 0) {
           await sendTelegramMessage(chatId, `📦 *Tidak Ada Pesanan Tertunda.*\nSemua transaksi dalam status selesai atau siap.`);
         } else {
-          const list = activeOrders.map(o => `• *#${o.id}* - Rp ${(o.total_amount || 0).toLocaleString('id-ID')} | Status: *${o.status}*`).join('\n');
-          await sendTelegramMessage(chatId, `📦 *DAFTAR PESANAN AKTIF:*\n\n${list}\n\nKetik \`/selesai [id]\` untuk menyelesaikan.`);
+          const list = activeOrders.map(o => {
+            const pemesan = o.userName ? ` (${o.userName} - ${o.userPt || 'Siemens'})` : '';
+            return `• *#${o.id}* - Rp ${(o.total_amount || 0).toLocaleString('id-ID')} | Status: *${o.status}*${pemesan}`;
+          }).join('\n');
+          await sendTelegramMessage(chatId, `📦 *DAFTAR PESANAN AKTIF (5 TERBARU):*\n\n${list}\n\nKetik \`/selesai [id]\` untuk menyelesaikan.`);
         }
         break;
       }
       case 'cmd_stok': {
         if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
-        const lowStock = await db.select().from(products).where(sql`stok < 5`).limit(15);
+        const lowStock = await db.select().from(products).where(sql`stok < 5`).orderBy(asc(products.stok)).limit(15);
         if (lowStock.length === 0) {
           await sendTelegramMessage(chatId, `✅ *Semua Stok Aman!* Tidak ada produk dengan stok < 5 pcs.`);
         } else {
@@ -2953,7 +2982,7 @@ async function handleTelegramCallbackQuery(callbackQuery: any) {
         const userCount = await db.select({ count: sql<number>`count(*)` }).from(users);
         const orderCount = await db.select({ count: sql<number>`count(*)` }).from(orders);
         const productCount = await db.select({ count: sql<number>`count(*)` }).from(products);
-        const msg = `📋 *LAPORAN EKSEKUTIF IT BELANJAIN SAZA*\nWaktu: ${new Date().toLocaleString('id-ID')} WIB\n\n1. *Infrastruktur Server:*\n• Runtime: Node.js ${process.version}\n• Uptime: ${Math.floor(process.uptime() / 60)} Menit\n• Memori Heap: ${heapMB} MB\n\n2. *Integritas Database:*\n• Total Pengguna: ${userCount[0]?.count ?? 0} Akun\n• Total Katalog: ${productCount[0]?.count ?? 0} Produk\n• Total Transaksi: ${orderCount[0]?.count ?? 0} Pesanan\n\n3. *Keamanan & Traffic:*\n• Status SSL: Aktif (HTTPS)\n• Keamanan Sandi: Bcrypt 10 Salt Rounds\n• Log Exception: ${errorLogsQueue.length} Error`;
+        const msg = `📋 *LAPORAN EKSEKUTIF IT BELANJAIN SAZA*\nWaktu: ${formatWIBTime()} WIB\n\n1. *Infrastruktur Server:*\n• Runtime: Node.js ${process.version}\n• Uptime: ${Math.floor(process.uptime() / 60)} Menit\n• Memori Heap: ${heapMB} MB\n\n2. *Integritas Database:*\n• Total Pengguna: ${userCount[0]?.count ?? 0} Akun\n• Total Katalog: ${productCount[0]?.count ?? 0} Produk\n• Total Transaksi: ${orderCount[0]?.count ?? 0} Pesanan\n\n3. *Keamanan & Traffic:*\n• Status SSL: Aktif (HTTPS)\n• Keamanan Sandi: Bcrypt 10 Salt Rounds\n• Log Exception: ${errorLogsQueue.length} Error`;
         await sendTelegramMessage(chatId, msg);
         break;
       }
@@ -2964,7 +2993,7 @@ async function handleTelegramCallbackQuery(callbackQuery: any) {
         break;
       }
       case 'cmd_myid': {
-        await sendTelegramMessage(chatId, `🆔 *Chat ID Telegram Anda:* \`${chatId}\`\n\n_Simpan ID ini di environment variable \`TELEGRAM_ADMIN_CHAT_ID\` untuk mendaftarkan akses admin bot._`);
+        await sendTelegramMessage(chatId, `🆔 *Chat ID Telegram Anda:* \`${chatId}\`\n\nSimpan ID ini di environment variable \`TELEGRAM_ADMIN_CHAT_ID\` untuk mendaftarkan akses admin bot.`);
         break;
       }
 
@@ -3011,7 +3040,7 @@ app.get(['/api/telegram/test', '/telegram/test'], async (req: Request, res: Resp
   const targetChat = (req.query.chat_id as string) || adminIds[0] || '8445262546';
   
   const testMsg = `🔔 *TEST NOTIFIKASI TELEGRAM BELANJAIN SAZA*
-Waktu: ${new Date().toLocaleString('id-ID')} WIB
+Waktu: ${formatWIBTime()} WIB
 Server: Online & Terhubung
 Domain: ${req.headers.host || 'belanjainsaza.web.id'}
 
@@ -3178,7 +3207,7 @@ _Jika ID Anda belum terdaftar sebagai admin, silakan simpan Chat ID di atas pada
         const productCount = await db.select({ count: sql<number>`count(*)` }).from(products);
 
         const msg = `📋 *LAPORAN EKSEKUTIF IT BELANJAIN SAZA*
-Waktu: ${new Date().toLocaleString('id-ID')} WIB
+Waktu: ${formatWIBTime()} WIB
 
 1. *Infrastruktur Server:*
 • Runtime: Node.js ${process.version}
@@ -3217,7 +3246,7 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
 
       case 'stok':
       case 'stock': {
-        const lowStock = await db.select().from(products).where(sql`stok < 5`).limit(15);
+        const lowStock = await db.select().from(products).where(sql`stok < 5`).orderBy(asc(products.stok)).limit(15);
         if (lowStock.length === 0) {
           await sendTelegramMessage(chatId, `✅ *Semua Stok Aman!* Tidak ada produk dengan stok < 5 pcs.`);
         } else {
@@ -3229,12 +3258,27 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
 
       case 'pesanan':
       case 'orders': {
-        const activeOrders = await db.select().from(orders).where(sql`status IN ('Proses', 'Sedang Menyiapkan', 'Menunggu Konfirmasi')`).limit(5);
+        const activeOrders = await db.select({
+          id: orders.id,
+          total_amount: orders.total_amount,
+          status: orders.status,
+          userName: users.nama,
+          userPt: users.pt
+        })
+        .from(orders)
+        .leftJoin(users, eq(orders.userId, users.id))
+        .where(sql`${orders.status} IN ('Proses', 'Sedang Menyiapkan', 'Menunggu Konfirmasi')`)
+        .orderBy(desc(orders.id))
+        .limit(5);
+
         if (activeOrders.length === 0) {
           await sendTelegramMessage(chatId, `📦 *Tidak Ada Pesanan Tertunda.*\nSemua transaksi dalam status selesai atau siap.`);
         } else {
-          const list = activeOrders.map(o => `• *#${o.id}* - Rp ${(o.total_amount || 0).toLocaleString('id-ID')} | Status: *${o.status}*`).join('\n');
-          await sendTelegramMessage(chatId, `📦 *DAFTAR PESANAN AKTIF:*\n\n${list}\n\nKetik \`/selesai [id]\` untuk menyelesaikan.`);
+          const list = activeOrders.map(o => {
+            const pemesan = o.userName ? ` (${o.userName} - ${o.userPt || 'Siemens'})` : '';
+            return `• *#${o.id}* - Rp ${(o.total_amount || 0).toLocaleString('id-ID')} | Status: *${o.status}*${pemesan}`;
+          }).join('\n');
+          await sendTelegramMessage(chatId, `📦 *DAFTAR PESANAN AKTIF (5 TERBARU):*\n\n${list}\n\nKetik \`/selesai [id]\` untuk menyelesaikan.`);
         }
         break;
       }
@@ -3246,7 +3290,7 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB
           break;
         }
         const updated = await db.update(orders)
-          .set({ status: 'Selesai', keterangan: `Diselesaikan via Telegram oleh ${senderName} pada ${new Date().toLocaleString('id-ID')}` })
+          .set({ status: 'Selesai', keterangan: `Diselesaikan via Telegram oleh ${senderName} pada ${formatWIBTime()}` })
           .where(eq(orders.id, orderId))
           .returning();
 

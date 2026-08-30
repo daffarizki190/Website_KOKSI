@@ -369,6 +369,18 @@ app.use((req, res, next) => {
   });
   next();
 });
+function formatWIBTime(date = /* @__PURE__ */ new Date()) {
+  return date.toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  });
+}
 var lastTelegramAlertTime = 0;
 function notifyTelegramCrashAlert(data) {
   const now = Date.now();
@@ -378,7 +390,7 @@ function notifyTelegramCrashAlert(data) {
 \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
 \u26A0\uFE0F *Tipe Masalah:* ${data.type}
 ${data.endpoint ? `\u{1F310} *Endpoint:* \`${data.endpoint}\`
-` : ""}\u23F1\uFE0F *Waktu:* ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB
+` : ""}\u23F1\uFE0F *Waktu:* ${formatWIBTime()} WIB
 \u{1F4DD} *Detail:* \`${data.message.substring(0, 200)}\`
 ${data.ip ? `\u{1F4CD} *Client IP:* \`${data.ip}\`
 ` : ""}
@@ -2546,13 +2558,22 @@ async function handleTelegramCallbackQuery(callbackQuery) {
           await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
           break;
         }
-        const activeOrders = await db.select().from(orders).where(sql`status IN ('Proses', 'Sedang Menyiapkan', 'Menunggu Konfirmasi')`).limit(5);
+        const activeOrders = await db.select({
+          id: orders.id,
+          total_amount: orders.total_amount,
+          status: orders.status,
+          userName: users.nama,
+          userPt: users.pt
+        }).from(orders).leftJoin(users, eq(orders.userId, users.id)).where(sql`${orders.status} IN ('Proses', 'Sedang Menyiapkan', 'Menunggu Konfirmasi')`).orderBy(desc(orders.id)).limit(5);
         if (activeOrders.length === 0) {
           await sendTelegramMessage(chatId, `\u{1F4E6} *Tidak Ada Pesanan Tertunda.*
 Semua transaksi dalam status selesai atau siap.`);
         } else {
-          const list = activeOrders.map((o) => `\u2022 *#${o.id}* - Rp ${(o.total_amount || 0).toLocaleString("id-ID")} | Status: *${o.status}*`).join("\n");
-          await sendTelegramMessage(chatId, `\u{1F4E6} *DAFTAR PESANAN AKTIF:*
+          const list = activeOrders.map((o) => {
+            const pemesan = o.userName ? ` (${o.userName} - ${o.userPt || "Siemens"})` : "";
+            return `\u2022 *#${o.id}* - Rp ${(o.total_amount || 0).toLocaleString("id-ID")} | Status: *${o.status}*${pemesan}`;
+          }).join("\n");
+          await sendTelegramMessage(chatId, `\u{1F4E6} *DAFTAR PESANAN AKTIF (5 TERBARU):*
 
 ${list}
 
@@ -2565,7 +2586,7 @@ Ketik \`/selesai [id]\` untuk menyelesaikan.`);
           await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
           break;
         }
-        const lowStock = await db.select().from(products).where(sql`stok < 5`).limit(15);
+        const lowStock = await db.select().from(products).where(sql`stok < 5`).orderBy(asc(products.stok)).limit(15);
         if (lowStock.length === 0) {
           await sendTelegramMessage(chatId, `\u2705 *Semua Stok Aman!* Tidak ada produk dengan stok < 5 pcs.`);
         } else {
@@ -2708,7 +2729,7 @@ ${tests.join("\n")}
         const orderCount = await db.select({ count: sql`count(*)` }).from(orders);
         const productCount = await db.select({ count: sql`count(*)` }).from(products);
         const msg = `\u{1F4CB} *LAPORAN EKSEKUTIF IT BELANJAIN SAZA*
-Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB
+Waktu: ${formatWIBTime()} WIB
 
 1. *Infrastruktur Server:*
 \u2022 Runtime: Node.js ${process.version}
@@ -2739,7 +2760,7 @@ Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB
       case "cmd_myid": {
         await sendTelegramMessage(chatId, `\u{1F194} *Chat ID Telegram Anda:* \`${chatId}\`
 
-_Simpan ID ini di environment variable \`TELEGRAM_ADMIN_CHAT_ID\` untuk mendaftarkan akses admin bot._`);
+Simpan ID ini di environment variable \`TELEGRAM_ADMIN_CHAT_ID\` untuk mendaftarkan akses admin bot.`);
         break;
       }
       default: {
@@ -2778,7 +2799,7 @@ app.get(["/api/telegram/test", "/telegram/test"], async (req, res) => {
   const adminIds = getAdminChatIds();
   const targetChat = req.query.chat_id || adminIds[0] || "8445262546";
   const testMsg = `\u{1F514} *TEST NOTIFIKASI TELEGRAM BELANJAIN SAZA*
-Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB
+Waktu: ${formatWIBTime()} WIB
 Server: Online & Terhubung
 Domain: ${req.headers.host || "belanjainsaza.web.id"}
 
@@ -2929,7 +2950,7 @@ ${tests.join("\n")}
         const orderCount = await db.select({ count: sql`count(*)` }).from(orders);
         const productCount = await db.select({ count: sql`count(*)` }).from(products);
         const msg = `\u{1F4CB} *LAPORAN EKSEKUTIF IT BELANJAIN SAZA*
-Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB
+Waktu: ${formatWIBTime()} WIB
 
 1. *Infrastruktur Server:*
 \u2022 Runtime: Node.js ${process.version}
@@ -2965,7 +2986,7 @@ Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB
       }
       case "stok":
       case "stock": {
-        const lowStock = await db.select().from(products).where(sql`stok < 5`).limit(15);
+        const lowStock = await db.select().from(products).where(sql`stok < 5`).orderBy(asc(products.stok)).limit(15);
         if (lowStock.length === 0) {
           await sendTelegramMessage(chatId, `\u2705 *Semua Stok Aman!* Tidak ada produk dengan stok < 5 pcs.`);
         } else {
@@ -2978,13 +2999,22 @@ ${list}`);
       }
       case "pesanan":
       case "orders": {
-        const activeOrders = await db.select().from(orders).where(sql`status IN ('Proses', 'Sedang Menyiapkan', 'Menunggu Konfirmasi')`).limit(5);
+        const activeOrders = await db.select({
+          id: orders.id,
+          total_amount: orders.total_amount,
+          status: orders.status,
+          userName: users.nama,
+          userPt: users.pt
+        }).from(orders).leftJoin(users, eq(orders.userId, users.id)).where(sql`${orders.status} IN ('Proses', 'Sedang Menyiapkan', 'Menunggu Konfirmasi')`).orderBy(desc(orders.id)).limit(5);
         if (activeOrders.length === 0) {
           await sendTelegramMessage(chatId, `\u{1F4E6} *Tidak Ada Pesanan Tertunda.*
 Semua transaksi dalam status selesai atau siap.`);
         } else {
-          const list = activeOrders.map((o) => `\u2022 *#${o.id}* - Rp ${(o.total_amount || 0).toLocaleString("id-ID")} | Status: *${o.status}*`).join("\n");
-          await sendTelegramMessage(chatId, `\u{1F4E6} *DAFTAR PESANAN AKTIF:*
+          const list = activeOrders.map((o) => {
+            const pemesan = o.userName ? ` (${o.userName} - ${o.userPt || "Siemens"})` : "";
+            return `\u2022 *#${o.id}* - Rp ${(o.total_amount || 0).toLocaleString("id-ID")} | Status: *${o.status}*${pemesan}`;
+          }).join("\n");
+          await sendTelegramMessage(chatId, `\u{1F4E6} *DAFTAR PESANAN AKTIF (5 TERBARU):*
 
 ${list}
 
@@ -2999,7 +3029,7 @@ Ketik \`/selesai [id]\` untuk menyelesaikan.`);
 Contoh: \`/selesai 1024\``);
           break;
         }
-        const updated = await db.update(orders).set({ status: "Selesai", keterangan: `Diselesaikan via Telegram oleh ${senderName} pada ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")}` }).where(eq(orders.id, orderId)).returning();
+        const updated = await db.update(orders).set({ status: "Selesai", keterangan: `Diselesaikan via Telegram oleh ${senderName} pada ${formatWIBTime()}` }).where(eq(orders.id, orderId)).returning();
         if (updated.length > 0) {
           await sendTelegramMessage(chatId, `\u2705 *Pesanan #${orderId} Berhasil Diselesaikan!*`);
         } else {
