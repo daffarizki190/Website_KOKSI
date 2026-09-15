@@ -184,8 +184,28 @@ var createPool = () => {
   }
   return global._postgresPool;
 };
-var pool = createPool();
-var db = drizzle(pool, { schema: schema_exports });
+var getPool = () => {
+  if (global._postgresPool) {
+    try {
+      global._postgresPool.end();
+    } catch {
+    }
+    global._postgresPool = void 0;
+  }
+  return createPool();
+};
+var _db = null;
+var getDb = () => {
+  if (!_db) {
+    _db = drizzle(getPool(), { schema: schema_exports });
+  }
+  return _db;
+};
+var db = new Proxy({}, {
+  get(_target, prop) {
+    return getDb()[prop];
+  }
+});
 function isTransientDbError(error) {
   if (!error) return false;
   const code = error?.code || error?.cause?.code;
@@ -221,6 +241,9 @@ import { eq, asc, desc, and, sql } from "drizzle-orm";
 import webpush from "web-push";
 dotenv.config();
 var JWT_SECRET = process.env.JWT_SECRET || "supersecretjwtkey_koperasi";
+if (process.env.NODE_ENV === "production" && (!process.env.JWT_SECRET || process.env.JWT_SECRET === "supersecretjwtkey_koperasi")) {
+  console.warn("\u26A0\uFE0F [SECURITY WARNING]: JWT_SECRET is using fallback default in production! Please set a unique secret in environment variables.");
+}
 var VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BGVGOqnq6m-OkrL4HNRTm3y6WtAyzUjeUsbROjTFYoKk8XIQduHZ7V0CoWn1Cl5J-MdoOte8VaTsbBavSU1is1Q";
 var VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "znlU1YtgWH2cnr5_tXxrHXaDAOIZiev5jlPftA75X74";
 webpush.setVapidDetails(
@@ -245,6 +268,7 @@ var bcryptCompare = async (s, hash2) => {
   return comparer(s, hash2);
 };
 var app = express();
+app.set("trust proxy", 1);
 app.use((req, res, next) => {
   console.log("=> " + req.method + " " + req.path);
   next();
@@ -262,6 +286,14 @@ app.use((req, res, next) => {
 var rateLimitStore = /* @__PURE__ */ new Map();
 var RATE_LIMIT_WINDOW_MS = 60 * 1e3;
 var MAX_REQUESTS_PER_WINDOW = 1200;
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of rateLimitStore.entries()) {
+    if (now > record.resetTime) {
+      rateLimitStore.delete(ip);
+    }
+  }
+}, 60 * 1e3);
 var apiRateLimiter = (req, res, next) => {
   const clientIp = req.headers["x-forwarded-for"] || req.ip || "127.0.0.1";
   const now = Date.now();
@@ -1132,16 +1164,6 @@ async function ensureDatabaseSchema() {
         `);
       } catch (e) {
       }
-      // Auto-seed products DISABLED — admin inputs real products manually
-      // try {
-      //   const existingProds = await db.select().from(products);
-      //   if (existingProds.length === 0) {
-      //     for (const p of DEFAULT_CATALOG_PRODUCTS) {
-      //       await db.insert(products).values({ nama_barang: p.nama_barang, kategori: p.kategori, sub_kategori: p.sub_kategori, harga: p.harga, stok: p.stok });
-      //     }
-      //   }
-      // } catch (e) { }
-
       try {
         const DEMO_SEED = [
           { no_hp: "081234567890", pass: "admin123", nama: "Admin Sembako", pt: "PT. Siemens Indonesia", departemen: "Admin", role: "admin" },
@@ -1553,6 +1575,19 @@ Total: Rp ${cleanTotalAmount.toLocaleString("id-ID")}`,
     }
   }
 });
+app.get("/api/orders", requireAuth, async (req, res) => {
+  const role = req.user?.role;
+  if (role === "admin" || role === "it") {
+    req.url = "/api/orders/all";
+    return app._router.handle(req, res, () => {
+      res.status(404).json({ error: "Not found" });
+    });
+  }
+  req.url = "/api/orders/history";
+  return app._router.handle(req, res, () => {
+    res.status(404).json({ error: "Not found" });
+  });
+});
 app.get("/api/orders/history", requireAuth, async (req, res) => {
   try {
     let userId = Number(req.user?.id);
@@ -1656,6 +1691,33 @@ app.get("/api/orders/all", requireAuth, requireAdmin, async (req, res) => {
   } catch (error) {
     console.error("Fetch all orders error:", error);
     res.status(500).json({ error: "Gagal mengambil data pesanan dari database. Silakan refresh." });
+  }
+});
+app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const [allOrders, allProducts, allUsers] = await Promise.all([
+      withDbRetry(() => db.select().from(orders)),
+      withDbRetry(() => db.select().from(products)),
+      withDbRetry(() => db.select().from(users))
+    ]);
+    const totalRevenue = allOrders.reduce((acc, o) => acc + (o.total_amount || 0), 0);
+    const completedOrders = allOrders.filter((o) => o.status === "Selesai").length;
+    const pendingOrders = allOrders.filter((o) => o.status === "Proses" || o.status === "Menunggu Konfirmasi" || o.status === "Diproses" || o.status === "Sedang Menyiapkan").length;
+    const cancelledOrders = allOrders.filter((o) => o.status === "Dibatalkan").length;
+    const lowStockProducts = allProducts.filter((p) => p.stok <= 5).length;
+    res.json({
+      totalOrders: allOrders.length,
+      completedOrders,
+      pendingOrders,
+      cancelledOrders,
+      totalRevenue,
+      totalProducts: allProducts.length,
+      lowStockProducts,
+      totalUsers: allUsers.length
+    });
+  } catch (error) {
+    console.error("Admin stats error:", error);
+    res.status(500).json({ error: "Gagal mengambil statistik admin." });
   }
 });
 app.put("/api/orders/:id/status", requireAuth, requireAdmin, async (req, res) => {

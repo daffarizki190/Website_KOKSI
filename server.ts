@@ -1031,9 +1031,21 @@ app.put('/api/products/:id', requireAuth, requireAdmin, async (req, res) => {
 
 app.delete('/api/products/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    await db.delete(products).where(eq(products.id, Number(req.params.id)));
+    const productId = Number(req.params.id);
+    
+    // Hapus barang dari keranjang (cart_items) agar tidak ada Foreign Key error
+    await db.delete(cartItems).where(eq(cartItems.productId, productId));
+    
+    // Putuskan relasi dari riwayat pesanan (order_items) dengan mengeset productId ke null
+    // (hal ini aman karena productId memang diset nullable di schema untuk menjaga riwayat pesanan)
+    await db.update(orderItems).set({ productId: null }).where(eq(orderItems.productId, productId));
+    
+    // Hapus produk utama
+    await db.delete(products).where(eq(products.id, productId));
+    
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
+    console.error('Error deleting product:', error);
     res.status(500).json({ error: 'Failed to delete product' });
   }
 });
