@@ -1132,21 +1132,16 @@ async function ensureDatabaseSchema() {
         `);
       } catch (e) {
       }
-      try {
-        const existingProds = await db.select().from(products);
-        if (existingProds.length === 0) {
-          for (const p of DEFAULT_CATALOG_PRODUCTS) {
-            await db.insert(products).values({
-              nama_barang: p.nama_barang,
-              kategori: p.kategori,
-              sub_kategori: p.sub_kategori,
-              harga: p.harga,
-              stok: p.stok
-            });
-          }
-        }
-      } catch (e) {
-      }
+      // Auto-seed products DISABLED — admin inputs real products manually
+      // try {
+      //   const existingProds = await db.select().from(products);
+      //   if (existingProds.length === 0) {
+      //     for (const p of DEFAULT_CATALOG_PRODUCTS) {
+      //       await db.insert(products).values({ nama_barang: p.nama_barang, kategori: p.kategori, sub_kategori: p.sub_kategori, harga: p.harga, stok: p.stok });
+      //     }
+      //   }
+      // } catch (e) { }
+
       try {
         const DEMO_SEED = [
           { no_hp: "081234567890", pass: "admin123", nama: "Admin Sembako", pt: "PT. Siemens Indonesia", departemen: "Admin", role: "admin" },
