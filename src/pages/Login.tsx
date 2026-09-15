@@ -12,6 +12,8 @@ export const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  const showDemoAccounts = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === 'true';
+
   const isAnyLoading = loadingRole !== null;
 
   const executeLogin = async (
@@ -146,6 +148,7 @@ export const Login = () => {
                 onChange={(e) => setNoHp(e.target.value)}
                 autoComplete="tel"
                 placeholder="Contoh: 081234567890"
+                data-testid="input-phone"
                 className="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
               />
             </div>
@@ -163,6 +166,7 @@ export const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
                 placeholder="••••••••"
+                data-testid="input-password"
                 className="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
               />
             </div>
@@ -182,7 +186,7 @@ export const Login = () => {
                 </button>
               </div>
             ) : error ? (
-              <div className="text-red-600 bg-red-50 border border-red-200 p-2.5 rounded-xl text-xs sm:text-sm font-medium leading-snug">
+              <div data-testid="error-message" className="text-red-600 bg-red-50 border border-red-200 p-2.5 rounded-xl text-xs sm:text-sm font-medium leading-snug">
                 {error}
               </div>
             ) : null}
@@ -191,6 +195,7 @@ export const Login = () => {
               <button
                 type="submit"
                 disabled={isAnyLoading}
+                data-testid="btn-login"
                 className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 transition-colors cursor-pointer"
               >
                 {loadingRole === 'form' ? (
@@ -218,116 +223,118 @@ export const Login = () => {
                Lupa password? <span className="text-teal-600 font-bold cursor-pointer">Hubungi Admin</span>
              </p>
 
-             {/* Demo Accounts List */}
-             <div className="pt-3 border-t border-slate-100 text-left bg-slate-50/80 p-3 rounded-xl border border-slate-200 space-y-2">
-               <div className="flex items-center justify-between">
-                 <p className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
-                   Akun Demo Siap Pakai:
-                 </p>
-                 <span className="text-[10px] text-teal-600 font-medium bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">
-                   1-Klik Masuk
-                 </span>
-               </div>
+             {/* Demo Accounts List - Only visible if ?demo=true */}
+             {showDemoAccounts && (
+               <div className="pt-3 border-t border-slate-100 text-left bg-slate-50/80 p-3 rounded-xl border border-slate-200 space-y-2">
+                 <div className="flex items-center justify-between">
+                   <p className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
+                     Akun Demo Siap Pakai:
+                   </p>
+                   <span className="text-[10px] text-teal-600 font-medium bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">
+                     1-Klik Masuk
+                   </span>
+                 </div>
 
-               {/* IT Support Demo */}
-               <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between gap-2">
-                 <div className="min-w-0">
-                   <div className="flex items-center gap-1 text-[11px] font-bold text-teal-800">
-                     <Wrench className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                     <span>IT Support & Systems</span>
+                 {/* IT Support Demo */}
+                 <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between gap-2">
+                   <div className="min-w-0">
+                     <div className="flex items-center gap-1 text-[11px] font-bold text-teal-800">
+                       <Wrench className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                       <span>IT Support & Systems</span>
+                     </div>
+                     <p className="text-[11px] text-slate-500 font-mono mt-0.5">081299998888 (it123456)</p>
                    </div>
-                   <p className="text-[11px] text-slate-500 font-mono mt-0.5">081299998888 (it123456)</p>
+                   <div className="flex items-center gap-1 shrink-0">
+                     <button
+                       type="button"
+                       disabled={isAnyLoading}
+                       onClick={() => fillFormOnly('081299998888', 'it123456')}
+                       className="px-2 py-1 text-[10px] font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                     >
+                       Isi Form
+                     </button>
+                     <button
+                       type="button"
+                       disabled={isAnyLoading}
+                       onClick={() => handleQuickLogin('081299998888', 'it123456', 'it')}
+                       className="px-2.5 py-1 text-[10px] font-bold text-teal-700 bg-teal-100 hover:bg-teal-200 border border-teal-300 rounded-lg transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                     >
+                       {loadingRole === 'it' ? (
+                         <Loader2 className="animate-spin w-3.5 h-3.5" />
+                       ) : (
+                         <>Masuk <ArrowRight className="w-3 h-3" /></>
+                       )}
+                     </button>
+                   </div>
                  </div>
-                 <div className="flex items-center gap-1 shrink-0">
-                   <button
-                     type="button"
-                     disabled={isAnyLoading}
-                     onClick={() => fillFormOnly('081299998888', 'it123456')}
-                     className="px-2 py-1 text-[10px] font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-                   >
-                     Isi Form
-                   </button>
-                   <button
-                     type="button"
-                     disabled={isAnyLoading}
-                     onClick={() => handleQuickLogin('081299998888', 'it123456', 'it')}
-                     className="px-2.5 py-1 text-[10px] font-bold text-teal-700 bg-teal-100 hover:bg-teal-200 border border-teal-300 rounded-lg transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                   >
-                     {loadingRole === 'it' ? (
-                       <Loader2 className="animate-spin w-3.5 h-3.5" />
-                     ) : (
-                       <>Masuk <ArrowRight className="w-3 h-3" /></>
-                     )}
-                   </button>
-                 </div>
-               </div>
 
-               {/* Admin Demo */}
-               <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between gap-2">
-                 <div className="min-w-0">
-                   <div className="flex items-center gap-1 text-[11px] font-bold text-amber-800">
-                     <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                     <span>Admin Koperasi</span>
+                 {/* Admin Demo */}
+                 <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between gap-2">
+                   <div className="min-w-0">
+                     <div className="flex items-center gap-1 text-[11px] font-bold text-amber-800">
+                       <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                       <span>Admin Koperasi</span>
+                     </div>
+                     <p className="text-[11px] text-slate-500 font-mono mt-0.5">081234567890 (admin123)</p>
                    </div>
-                   <p className="text-[11px] text-slate-500 font-mono mt-0.5">081234567890 (admin123)</p>
+                   <div className="flex items-center gap-1 shrink-0">
+                     <button
+                       type="button"
+                       disabled={isAnyLoading}
+                       onClick={() => fillFormOnly('081234567890', 'admin123')}
+                       className="px-2 py-1 text-[10px] font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                     >
+                       Isi Form
+                     </button>
+                     <button
+                       type="button"
+                       disabled={isAnyLoading}
+                       onClick={() => handleQuickLogin('081234567890', 'admin123', 'admin')}
+                       className="px-2.5 py-1 text-[10px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                     >
+                       {loadingRole === 'admin' ? (
+                         <Loader2 className="animate-spin w-3.5 h-3.5" />
+                       ) : (
+                         <>Masuk <ArrowRight className="w-3 h-3" /></>
+                       )}
+                     </button>
+                   </div>
                  </div>
-                 <div className="flex items-center gap-1 shrink-0">
-                   <button
-                     type="button"
-                     disabled={isAnyLoading}
-                     onClick={() => fillFormOnly('081234567890', 'admin123')}
-                     className="px-2 py-1 text-[10px] font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-                   >
-                     Isi Form
-                   </button>
-                   <button
-                     type="button"
-                     disabled={isAnyLoading}
-                     onClick={() => handleQuickLogin('081234567890', 'admin123', 'admin')}
-                     className="px-2.5 py-1 text-[10px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                   >
-                     {loadingRole === 'admin' ? (
-                       <Loader2 className="animate-spin w-3.5 h-3.5" />
-                     ) : (
-                       <>Masuk <ArrowRight className="w-3 h-3" /></>
-                     )}
-                   </button>
-                 </div>
-               </div>
 
-               {/* User Demo */}
-               <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between gap-2">
-                 <div className="min-w-0">
-                   <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-800">
-                     <UserCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                     <span>Karyawan / Anggota</span>
+                 {/* User Demo */}
+                 <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between gap-2">
+                   <div className="min-w-0">
+                     <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-800">
+                       <UserCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                       <span>Karyawan / Anggota</span>
+                     </div>
+                     <p className="text-[11px] text-slate-500 font-mono mt-0.5">081222333444 (user123)</p>
                    </div>
-                   <p className="text-[11px] text-slate-500 font-mono mt-0.5">081222333444 (user123)</p>
-                 </div>
-                 <div className="flex items-center gap-1 shrink-0">
-                   <button
-                     type="button"
-                     disabled={isAnyLoading}
-                     onClick={() => fillFormOnly('081222333444', 'user123')}
-                     className="px-2 py-1 text-[10px] font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-                   >
-                     Isi Form
-                   </button>
-                   <button
-                     type="button"
-                     disabled={isAnyLoading}
-                     onClick={() => handleQuickLogin('081222333444', 'user123', 'user')}
-                     className="px-2.5 py-1 text-[10px] font-bold text-indigo-800 bg-indigo-100 hover:bg-indigo-200 border border-indigo-300 rounded-lg transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                   >
-                     {loadingRole === 'user' ? (
-                       <Loader2 className="animate-spin w-3.5 h-3.5" />
-                     ) : (
-                       <>Masuk <ArrowRight className="w-3 h-3" /></>
-                     )}
-                   </button>
+                   <div className="flex items-center gap-1 shrink-0">
+                     <button
+                       type="button"
+                       disabled={isAnyLoading}
+                       onClick={() => fillFormOnly('081222333444', 'user123')}
+                       className="px-2 py-1 text-[10px] font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                     >
+                       Isi Form
+                     </button>
+                     <button
+                       type="button"
+                       disabled={isAnyLoading}
+                       onClick={() => handleQuickLogin('081222333444', 'user123', 'user')}
+                       className="px-2.5 py-1 text-[10px] font-bold text-indigo-800 bg-indigo-100 hover:bg-indigo-200 border border-indigo-300 rounded-lg transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                     >
+                       {loadingRole === 'user' ? (
+                         <Loader2 className="animate-spin w-3.5 h-3.5" />
+                       ) : (
+                         <>Masuk <ArrowRight className="w-3 h-3" /></>
+                       )}
+                     </button>
+                   </div>
                  </div>
                </div>
-             </div>
+             )}
           </div>
         </div>
       </main>

@@ -8,3 +8,12 @@ coverage/
 !.env.example
 .vercel/
 .vercel
+
+# Temporary automation & test scripts
+screenshot-script/
+scripts/
+docs/security_test_results.json
+
+# Local presentation materials & screenshots
+Presentasi_KOKSI/
+Materi_NotebookLM.txt

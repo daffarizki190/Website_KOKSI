@@ -57,11 +57,31 @@ export const createPool = () => {
   return global._postgresPool;
 };
 
-// Create or retrieve the pool instance.
-let pool = createPool();
+// Lazy initialization: get pool only when first needed (after dotenv loads)
+const getPool = () => {
+  // Always reset global pool so env vars are re-read fresh each time in dev
+  if (global._postgresPool) {
+    try { global._postgresPool.end(); } catch {}
+    global._postgresPool = undefined;
+  }
+  return createPool();
+};
 
-// Initialize Drizzle with the pool and schema.
-export const db = drizzle(pool, { schema });
+// Initialize Drizzle with lazy pool getter
+let _db: ReturnType<typeof drizzle> | null = null;
+const getDb = () => {
+  if (!_db) {
+    _db = drizzle(getPool(), { schema });
+  }
+  return _db;
+};
+
+// Export db as a Proxy so it initializes lazily on first property access
+export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
+  get(_target, prop) {
+    return (getDb() as any)[prop];
+  }
+});
 
 // Check if an error is a transient connection/socket error that can be safely retried
 export function isTransientDbError(error: any): boolean {

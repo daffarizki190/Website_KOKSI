@@ -12,6 +12,9 @@ import { eq, asc, desc, and, sql } from 'drizzle-orm';
 import webpush from 'web-push';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_koperasi';
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'supersecretjwtkey_koperasi')) {
+  console.warn('⚠️ [SECURITY WARNING]: JWT_SECRET is using fallback default in production! Please set a unique secret in environment variables.');
+}
 
 // Web Push Configuration
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BGVGOqnq6m-OkrL4HNRTm3y6WtAyzUjeUsbROjTFYoKk8XIQduHZ7V0CoWn1Cl5J-MdoOte8VaTsbBavSU1is1Q';
@@ -43,6 +46,9 @@ const bcryptCompare = async (s: string, hash: string): Promise<boolean> => {
 };
 
 const app = express();
+// Enable proxy trust so that client IP and headers are correctly resolved behind reverse proxy
+app.set('trust proxy', 1);
+
 app.use((req, res, next) => { console.log("=> " + req.method + " " + req.path); next(); });
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -59,10 +65,20 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// Security Hardening: Rate Limiter Memory Store for API Protection
+// Security Hardening: Rate Limiter Memory Store for API Protection with Auto-Eviction
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 1200; // Accommodates concurrent test requests while guarding against infinite loops
+
+// Auto-cleanup interval to prevent memory exhaustion DoS attacks
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of rateLimitStore.entries()) {
+    if (now > record.resetTime) {
+      rateLimitStore.delete(ip);
+    }
+  }
+}, 60 * 1000);
 
 const apiRateLimiter = (req: Request, res: Response, next: NextFunction) => {
   const clientIp = (req.headers['x-forwarded-for'] as string) || req.ip || '127.0.0.1';
@@ -1114,21 +1130,21 @@ async function ensureDatabaseSchema() {
         `);
       } catch (e) { /* column might already exist */ }
 
-      // Auto-seed default products if products table is empty
-      try {
-        const existingProds = await db.select().from(products);
-        if (existingProds.length === 0) {
-          for (const p of DEFAULT_CATALOG_PRODUCTS) {
-            await db.insert(products).values({
-              nama_barang: p.nama_barang,
-              kategori: p.kategori,
-              sub_kategori: p.sub_kategori,
-              harga: p.harga,
-              stok: p.stok
-            });
-          }
-        }
-      } catch (e) { /* silent fail on seed */ }
+      // Auto-seed default products DISABLED — admin will input real products manually
+      // try {
+      //   const existingProds = await db.select().from(products);
+      //   if (existingProds.length === 0) {
+      //     for (const p of DEFAULT_CATALOG_PRODUCTS) {
+      //       await db.insert(products).values({
+      //         nama_barang: p.nama_barang,
+      //         kategori: p.kategori,
+      //         sub_kategori: p.sub_kategori,
+      //         harga: p.harga,
+      //         stok: p.stok
+      //       });
+      //     }
+      //   }
+      // } catch (e) { /* silent fail on seed */ }
 
       // Auto-seed demo users if needed
       try {
@@ -1641,6 +1657,24 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// Smart alias: GET /api/orders — admin gets all orders, user/IT gets their own history
+// This endpoint enables the IT dashboard test panel and generic API consumers
+app.get('/api/orders', requireAuth, async (req: AuthRequest, res) => {
+  const role = req.user?.role;
+  if (role === 'admin' || role === 'it') {
+    // Forward internally to /api/orders/all handler (preserves auth context)
+    req.url = '/api/orders/all';
+    return (app as any)._router.handle(req, res, () => {
+      res.status(404).json({ error: 'Not found' });
+    });
+  }
+  // For regular users, forward to their personal order history
+  req.url = '/api/orders/history';
+  return (app as any)._router.handle(req, res, () => {
+    res.status(404).json({ error: 'Not found' });
+  });
+});
+
 app.get('/api/orders/history', requireAuth, async (req: AuthRequest, res) => {
   try {
     let userId = Number(req.user?.id);
@@ -1764,6 +1798,37 @@ app.get('/api/orders/all', requireAuth, requireAdmin, async (req: AuthRequest, r
     console.error('Fetch all orders error:', error);
     // On DB error, return empty array rather than stale in-memory data
     res.status(500).json({ error: 'Gagal mengambil data pesanan dari database. Silakan refresh.' });
+  }
+});
+
+// Admin Stats: summary metrics for dashboard analytics
+app.get('/api/admin/stats', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [allOrders, allProducts, allUsers] = await Promise.all([
+      withDbRetry(() => db.select().from(orders)),
+      withDbRetry(() => db.select().from(products)),
+      withDbRetry(() => db.select().from(users)),
+    ]);
+
+    const totalRevenue = allOrders.reduce((acc, o) => acc + (o.total_amount || 0), 0);
+    const completedOrders = allOrders.filter(o => o.status === 'Selesai').length;
+    const pendingOrders = allOrders.filter(o => o.status === 'Proses' || o.status === 'Menunggu Konfirmasi' || o.status === 'Diproses' || o.status === 'Sedang Menyiapkan').length;
+    const cancelledOrders = allOrders.filter(o => o.status === 'Dibatalkan').length;
+    const lowStockProducts = allProducts.filter(p => p.stok <= 5).length;
+
+    res.json({
+      totalOrders: allOrders.length,
+      completedOrders,
+      pendingOrders,
+      cancelledOrders,
+      totalRevenue,
+      totalProducts: allProducts.length,
+      lowStockProducts,
+      totalUsers: allUsers.length,
+    });
+  } catch (error: any) {
+    console.error('Admin stats error:', error);
+    res.status(500).json({ error: 'Gagal mengambil statistik admin.' });
   }
 });
 
