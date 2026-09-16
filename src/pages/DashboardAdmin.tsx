@@ -1142,8 +1142,8 @@ export const DashboardAdmin = () => {
           for (let r = 0; r < matrixRows.length; r++) { // Scan all rows, not just first 50
             const row = matrixRows[r];
             if (!Array.isArray(row)) continue;
-            const rowStr = row.map(cell => String(cell || '').trim().toLowerCase());
-            if (rowStr.some(cell => cell.includes('nama produk') || cell.includes('gramasi') || cell === 'nama produk & gramasi' || cell.includes('kategori perawatan'))) {
+            const rowStr = Array.from(row).map(cell => String(cell || '').trim().toLowerCase());
+            if (rowStr.some(cell => typeof cell === 'string' && (cell.includes('nama produk') || cell.includes('gramasi') || cell === 'nama produk & gramasi' || cell.includes('kategori perawatan')))) {
               isKoksiFormat = true;
               break;
             }
@@ -1161,8 +1161,8 @@ export const DashboardAdmin = () => {
             const row = matrixRows[r];
             if (!Array.isArray(row) || row.length === 0) continue;
             
-            const rowStr = row.map(cell => String(cell || '').trim().toLowerCase());
-            const nIdx = rowStr.findIndex(cell => cell.includes('nama produk') || cell.includes('nama barang'));
+            const rowStr = Array.from(row).map(cell => String(cell || '').trim().toLowerCase());
+            const nIdx = rowStr.findIndex(cell => typeof cell === 'string' && (cell.includes('nama produk') || cell.includes('nama barang')));
             
             // Is this a header row?
             if (nIdx !== -1) {
@@ -1170,8 +1170,8 @@ export const DashboardAdmin = () => {
               idxSubKat = nIdx - 1;
               
               // Find Harga column
-              let hIdx = rowStr.findIndex(cell => cell.includes('harga jual') || cell.includes('harga anggota'));
-              if (hIdx === -1) hIdx = rowStr.findIndex(cell => cell === 'harga' || cell.includes('harga'));
+              let hIdx = rowStr.findIndex(cell => typeof cell === 'string' && (cell.includes('harga jual') || cell.includes('harga anggota')));
+              if (hIdx === -1) hIdx = rowStr.findIndex(cell => typeof cell === 'string' && (cell === 'harga' || cell.includes('harga')));
               idxHarga = hIdx;
               
               // Extract Category from the header row's sub-cat column
@@ -1191,7 +1191,7 @@ export const DashboardAdmin = () => {
             const productName = String(row[idxNama] || '').trim();
             
             // Stop processing if product name is something weird like total
-            if (productName.toLowerCase().includes('total') || productName.toLowerCase().includes('daftar harga') || productName === 'nama produk & gramasi') {
+            if (productName.toLowerCase().includes('total') || productName.toLowerCase().includes('daftar harga') || productName.toLowerCase() === 'nama produk & gramasi') {
               continue;
             }
             
@@ -1233,7 +1233,7 @@ export const DashboardAdmin = () => {
               const row = matrixRows[r];
               if (!Array.isArray(row)) continue;
   
-              const rowStr = row.map(cell => String(cell || '').trim().toLowerCase());
+              const rowStr = Array.from(row).map(cell => String(cell || '').trim().toLowerCase());
               
               const nIdx = rowStr.findIndex(cell => 
                 cell === 'nama barang' || cell === 'nama' || cell === 'barang' || cell === 'nama produk' || cell === 'item' || cell === 'produk'
@@ -1242,14 +1242,14 @@ export const DashboardAdmin = () => {
               if (nIdx !== -1) {
                 idxNama = nIdx;
   
-                idxHarga = rowStr.findIndex(cell => cell.includes('harga jual') || cell === 'harga' || cell === 'price' || cell.includes('harga barang'));
+                idxHarga = rowStr.findIndex(cell => typeof cell === 'string' && (cell.includes('harga jual') || cell === 'harga' || cell === 'price' || cell.includes('harga barang')));
                 if (idxHarga === -1) {
-                  idxHarga = rowStr.findIndex(cell => cell.includes('harga') && !cell.includes('hpp') && !cell.includes('keuntungan'));
+                  idxHarga = rowStr.findIndex(cell => typeof cell === 'string' && cell.includes('harga') && !cell.includes('hpp') && !cell.includes('keuntungan'));
                 }
   
-                idxQty = rowStr.findIndex(cell => cell === 'qty' || cell === 'stok' || cell === 'stock' || cell === 'jumlah' || cell.includes('stok'));
-                idxKat = rowStr.findIndex(cell => cell === 'kategori' || cell === 'category' || cell === 'jenis');
-                idxSubKat = rowStr.findIndex(cell => cell === 'sub kategori' || cell === 'sub_kategori' || cell === 'sub category' || cell === 'subkategori' || cell.includes('sub kat'));
+                idxQty = rowStr.findIndex(cell => typeof cell === 'string' && (cell === 'qty' || cell === 'stok' || cell === 'stock' || cell === 'jumlah' || cell.includes('stok')));
+                idxKat = rowStr.findIndex(cell => typeof cell === 'string' && (cell === 'kategori' || cell === 'category' || cell === 'jenis'));
+                idxSubKat = rowStr.findIndex(cell => typeof cell === 'string' && (cell === 'sub kategori' || cell === 'sub_kategori' || cell === 'sub category' || cell === 'subkategori' || cell.includes('sub kat')));
   
                 for (let i = r + 1; i < matrixRows.length; i++) {
                   const itemRow = matrixRows[i];
