@@ -1126,7 +1126,7 @@ export const DashboardAdmin = () => {
             const row = matrixRows[r];
             if (!Array.isArray(row)) continue;
             const rowStr = row.map(cell => String(cell || '').trim().toLowerCase());
-            if (rowStr.some(cell => cell.includes('nama produk & gramasi') || cell === 'nama produk & gramasi')) {
+            if (rowStr.some(cell => cell.includes('nama produk') || cell.includes('gramasi') || cell === 'nama produk & gramasi')) {
               isKoksiFormat = true;
               break;
             }
@@ -1146,15 +1146,15 @@ export const DashboardAdmin = () => {
             if (colB.toLowerCase().startsWith('kategori ')) {
               currentCategory = colB.replace(/kategori\s+/i, '').trim();
               currentSubCategory = getSubCategoriesForCategory(currentCategory)[0] || '';
-            } else if (colB && colB.toLowerCase() !== 'nama produk & gramasi' && colB.toLowerCase() !== 'kategori' && !colC) {
+            } else if (colB && colB.toLowerCase() !== 'nama produk & gramasi' && !colB.toLowerCase().includes('nama produk') && colB.toLowerCase() !== 'kategori' && !colC) {
               currentSubCategory = colB;
-            } else if (colB && colB.toLowerCase() !== 'nama produk & gramasi' && colB.toLowerCase() !== 'kategori') {
+            } else if (colB && colB.toLowerCase() !== 'nama produk & gramasi' && !colB.toLowerCase().includes('nama produk') && colB.toLowerCase() !== 'kategori') {
               currentSubCategory = colB;
             }
             
-            if (colC && colC.toLowerCase() !== 'nama produk & gramasi' && colC.toLowerCase() !== 'nama produk') {
+            if (colC && !colC.toLowerCase().includes('nama produk') && !colC.toLowerCase().includes('daftar harga') && !colC.toLowerCase().includes('total')) {
               const hargaRaw = colE !== undefined && colE !== null && String(colE).trim() !== '-' ? colE : colD;
-              const hargaStr = String(hargaRaw || '0');
+              const hargaStr = String(hargaRaw || '0').split(',')[0].split('.')[0]; // Handle decimals before removing non-numeric
               const hargaNum = parseInt(hargaStr.replace(/[^0-9]/g, ''), 10) || 0;
               
               if (hargaNum > 0 || (colD && String(colD).trim() !== '-')) {
