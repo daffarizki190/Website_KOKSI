@@ -2356,6 +2356,64 @@ app.post('/api/products/batch', requireAuth, requireAdmin, async (req: AuthReque
   }
 });
 
+app.put('/api/products/batch-update', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const productsToUpdate = req.body.products;
+    if (!productsToUpdate || !Array.isArray(productsToUpdate) || productsToUpdate.length === 0) {
+      res.status(400).json({ error: 'Data produk kosong atau tidak valid' });
+      return;
+    }
+
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) {
+      // In-memory update
+      let updatedCount = 0;
+      for (const item of productsToUpdate) {
+        if (!item.id) continue;
+        const idx = inMemoryProducts.findIndex(p => p.id === item.id);
+        if (idx !== -1) {
+          inMemoryProducts[idx] = { 
+            ...inMemoryProducts[idx], 
+            kategori: item.kategori, 
+            sub_kategori: item.sub_kategori 
+          };
+          updatedCount++;
+        }
+      }
+      res.json({ message: 'Success', updatedCount });
+      return;
+    }
+
+    await ensureDatabaseSchema();
+    const updatePromises: any[] = [];
+    
+    for (const item of productsToUpdate) {
+      if (!item.id) continue;
+      updatePromises.push(() => db.update(products)
+        .set({
+          kategori: item.kategori,
+          sub_kategori: item.sub_kategori || null
+        })
+        .where(eq(products.id, item.id))
+      );
+    }
+
+    const chunkSize = 50;
+    for (let i = 0; i < updatePromises.length; i += chunkSize) {
+      const chunk = updatePromises.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(op => withDbRetry(op)));
+    }
+
+    res.status(200).json({
+      message: 'Berhasil mengupdate kategori produk',
+      updatedCount: updatePromises.length
+    });
+  } catch (error: any) {
+    console.error('Error batch update:', error);
+    res.status(500).json({ error: error?.message || 'Gagal mengupdate batch produk' });
+  }
+});
+
 // --- IT ROLE & INFRASTRUCTURE MONITORING ENDPOINTS ---
 
 // 1. Get comprehensive IT metrics

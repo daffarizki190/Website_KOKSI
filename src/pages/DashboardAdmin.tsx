@@ -143,6 +143,12 @@ export const DashboardAdmin = () => {
   // Monthly Export Excel Modal State
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  
+  // Category Cleanup State
+  const [isCleaningUpCategories, setIsCleaningUpCategories] = useState(false);
+  const [cleanupProgress, setCleanupProgress] = useState<{ current: number, total: number }>({ current: 0, total: 0 });
+  const [cleanupMessage, setCleanupMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
+
   const [exportMonth, setExportMonth] = useState<number>(new Date().getMonth() + 1);
   const [exportYear, setExportYear] = useState<number>(new Date().getFullYear());
   const [exportRabu, setExportRabu] = useState<string>('Semua');
@@ -458,6 +464,80 @@ export const DashboardAdmin = () => {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleCleanupCategories = async () => {
+    setIsCleaningUpCategories(true);
+    setCleanupMessage(null);
+    setCleanupProgress({ current: 0, total: 0 });
+    
+    try {
+      const authToken = token || localStorage.getItem('token');
+      
+      // Fetch latest products first to ensure we are working with fresh data
+      const resData = await fetch('/api/products', {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      const freshProducts = await resData.json();
+      
+      if (!Array.isArray(freshProducts) || freshProducts.length === 0) {
+        setIsCleaningUpCategories(false);
+        return;
+      }
+
+      const productsToUpdate = [];
+      
+      for (const p of freshProducts) {
+        const smartRes = smartCategorize(p.nama_barang);
+        if (p.kategori !== smartRes.kategori || p.sub_kategori !== smartRes.sub_kategori) {
+          productsToUpdate.push({
+            id: p.id,
+            kategori: smartRes.kategori,
+            sub_kategori: smartRes.sub_kategori
+          });
+        }
+      }
+      
+      if (productsToUpdate.length === 0) {
+        setCleanupMessage({ type: 'info', text: 'Semua kategori produk sudah rapi. Tidak ada yang perlu diupdate.' });
+        setIsCleaningUpCategories(false);
+        return;
+      }
+      
+      setCleanupProgress({ current: 0, total: productsToUpdate.length });
+      
+      const chunkSize = 50;
+      let updatedSoFar = 0;
+      
+      for (let i = 0; i < productsToUpdate.length; i += chunkSize) {
+        const chunk = productsToUpdate.slice(i, i + chunkSize);
+        
+        const res = await fetch('/api/products/batch-update', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ products: chunk })
+        });
+        
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Gagal update batch pada item ke-${i}`);
+        }
+        
+        updatedSoFar += chunk.length;
+        setCleanupProgress({ current: updatedSoFar, total: productsToUpdate.length });
+      }
+      
+      setCleanupMessage({ type: 'success', text: `Berhasil merapikan kategori untuk ${productsToUpdate.length} produk!` });
+      await fetchProducts();
+    } catch (err: any) {
+      console.error('Error cleaning up categories:', err);
+      setCleanupMessage({ type: 'error', text: err.message || 'Terjadi kesalahan saat merapikan kategori.' });
+    } finally {
+      setIsCleaningUpCategories(false);
     }
   };
 
@@ -1442,6 +1522,9 @@ export const DashboardAdmin = () => {
         if (res.ok) {
           fetchProducts();
           toast.success(resData.message || `Berhasil memproses ${formattedProducts.length} produk!`);
+          
+          // Automatically run cleanup after upload
+          handleCleanupCategories();
         } else {
           toast.error(`Gagal import produk: ${resData.error || 'Terjadi kesalahan pada server'}`);
         }
@@ -3672,18 +3755,62 @@ export const DashboardAdmin = () => {
                 </p>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-teal-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                  disabled={isCleaningUpCategories}
+                  className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-teal-600/20 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Upload className="w-4 h-4 text-white" />
                   <span>Pilih File Excel & Import</span>
                 </button>
+              </div>
+
+              {/* Cleanup Section */}
+              <div className="p-4 bg-orange-50/60 rounded-2xl border border-orange-100">
+                <p className="text-xs font-bold text-orange-950 mb-1 flex items-center gap-1.5">
+                  <RefreshCw className={`w-4 h-4 text-orange-600 ${isCleaningUpCategories ? 'animate-spin' : ''}`} />
+                  <span>3. Rapikan Kategori (Otomatis/Manual)</span>
+                </p>
+                <p className="text-[11px] text-orange-800/80 mb-3">
+                  Merapikan data kategori produk lama yang berantakan menggunakan sistem cerdas (Smart Categorizer). Otomatis berjalan setelah upload.
+                </p>
+                
+                {isCleaningUpCategories ? (
+                  <div className="space-y-2">
+                    <div className="w-full bg-orange-200/50 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-orange-500 h-2 rounded-full transition-all duration-300" 
+                        style={{ width: `${cleanupProgress.total > 0 ? Math.round((cleanupProgress.current / cleanupProgress.total) * 100) : 0}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-[10px] text-orange-700 text-center font-medium">
+                      {cleanupProgress.current > 0 ? `Memproses ${cleanupProgress.current} dari ${cleanupProgress.total} produk...` : 'Menganalisis produk...'}
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleCleanupCategories}
+                    className="w-full py-2.5 px-4 bg-orange-100 hover:bg-orange-200 active:bg-orange-300 text-orange-800 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>Jalankan Manual Sekarang</span>
+                  </button>
+                )}
+
+                {cleanupMessage && !isCleaningUpCategories && (
+                  <div className={`mt-3 p-2 rounded-lg text-[10px] font-medium border ${
+                    cleanupMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+                    cleanupMessage.type === 'error' ? 'bg-red-50 text-red-700 border-red-100' : 
+                    'bg-blue-50 text-blue-700 border-blue-100'
+                  }`}>
+                    {cleanupMessage.text}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="pt-2 border-t border-slate-100">
               <button
                 onClick={() => setIsImportModalOpen(false)}
-                className="w-full py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors cursor-pointer"
+                disabled={isCleaningUpCategories}
+                className="w-full py-2.5 bg-slate-100 disabled:opacity-50 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors cursor-pointer"
               >
                 Tutup
               </button>
