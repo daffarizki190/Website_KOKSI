@@ -1118,72 +1118,124 @@ export const DashboardAdmin = () => {
 
         let currentCategory = CATEGORY_STRUCTURES[0].name;
         let currentSubCategory = CATEGORY_STRUCTURES[0].subCategories[0] || '';
-        let idxNama = -1;
-        let idxHarga = -1;
-        let idxQty = -1;
-        let idxKat = -1;
-        let idxSubKat = -1;
 
+        // Deteksi apakah formatnya adalah template KOKSI
+        let isKoksiFormat = false;
         if (matrixRows && matrixRows.length > 0) {
-          for (let r = 0; r < matrixRows.length; r++) {
+          for (let r = 0; r < Math.min(50, matrixRows.length); r++) {
             const row = matrixRows[r];
             if (!Array.isArray(row)) continue;
-
             const rowStr = row.map(cell => String(cell || '').trim().toLowerCase());
+            if (rowStr.some(cell => cell.includes('nama produk & gramasi') || cell === 'nama produk & gramasi')) {
+              isKoksiFormat = true;
+              break;
+            }
+          }
+        }
+
+        if (isKoksiFormat) {
+          for (let r = 0; r < matrixRows.length; r++) {
+            const row = matrixRows[r];
+            if (!Array.isArray(row) || row.length === 0) continue;
             
-            const nIdx = rowStr.findIndex(cell => 
-              cell === 'nama barang' || cell === 'nama' || cell === 'barang' || cell === 'nama produk' || cell === 'item' || cell === 'produk'
-            );
-
-            if (nIdx !== -1) {
-              idxNama = nIdx;
-
-              idxHarga = rowStr.findIndex(cell => cell.includes('harga jual') || cell === 'harga' || cell === 'price' || cell.includes('harga barang'));
-              if (idxHarga === -1) {
-                idxHarga = rowStr.findIndex(cell => cell.includes('harga') && !cell.includes('hpp') && !cell.includes('keuntungan'));
-              }
-
-              idxQty = rowStr.findIndex(cell => cell === 'qty' || cell === 'stok' || cell === 'stock' || cell === 'jumlah' || cell.includes('stok'));
-              idxKat = rowStr.findIndex(cell => cell === 'kategori' || cell === 'category' || cell === 'jenis');
-              idxSubKat = rowStr.findIndex(cell => cell === 'sub kategori' || cell === 'sub_kategori' || cell === 'sub category' || cell === 'subkategori' || cell.includes('sub kat'));
-
-              for (let i = r + 1; i < matrixRows.length; i++) {
-                const itemRow = matrixRows[i];
-                if (!Array.isArray(itemRow) || itemRow.length === 0) continue;
-
-                const namaCell = String(itemRow[idxNama] || '').trim();
-                const hargaRaw = idxHarga !== -1 ? itemRow[idxHarga] : undefined;
-                const qtyRaw = idxQty !== -1 ? itemRow[idxQty] : undefined;
-                const katRaw = idxKat !== -1 ? itemRow[idxKat] : undefined;
-                const subKatRaw = idxSubKat !== -1 ? itemRow[idxSubKat] : undefined;
-
-                if (!namaCell) continue;
-
-                if (namaCell.toLowerCase().includes('daftar harga') || namaCell.toLowerCase().includes('total') || namaCell.toLowerCase() === 'nama barang') {
-                  continue;
-                }
-
-                const hargaNum = parseInt(String(hargaRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
-                const qtyNum = parseInt(String(qtyRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
-
-                if (hargaNum === 0 && qtyNum === 0 && !katRaw) {
-                  currentCategory = namaCell;
-                  continue;
-                }
-
-                const parsedKategori = String(katRaw || currentCategory || CATEGORY_STRUCTURES[0].name).trim();
-                const defaultSub = getSubCategoriesForCategory(parsedKategori)[0] || '';
-                const parsedSubKategori = String(subKatRaw || currentSubCategory || defaultSub).trim();
-
+            const colB = String(row[1] || '').trim();
+            const colC = String(row[2] || '').trim();
+            const colD = row[3]; // Harga dasar
+            const colE = row[4]; // Harga jual anggota
+            
+            if (colB.toLowerCase().startsWith('kategori ')) {
+              currentCategory = colB.replace(/kategori\s+/i, '').trim();
+              currentSubCategory = getSubCategoriesForCategory(currentCategory)[0] || '';
+            } else if (colB && colB.toLowerCase() !== 'nama produk & gramasi' && colB.toLowerCase() !== 'kategori' && !colC) {
+              currentSubCategory = colB;
+            } else if (colB && colB.toLowerCase() !== 'nama produk & gramasi' && colB.toLowerCase() !== 'kategori') {
+              currentSubCategory = colB;
+            }
+            
+            if (colC && colC.toLowerCase() !== 'nama produk & gramasi' && colC.toLowerCase() !== 'nama produk') {
+              const hargaRaw = colE !== undefined && colE !== null && String(colE).trim() !== '-' ? colE : colD;
+              const hargaStr = String(hargaRaw || '0');
+              const hargaNum = parseInt(hargaStr.replace(/[^0-9]/g, ''), 10) || 0;
+              
+              if (hargaNum > 0 || (colD && String(colD).trim() !== '-')) {
                 formattedProducts.push({
-                  nama_barang: namaCell,
-                  kategori: parsedKategori,
-                  sub_kategori: parsedSubKategori,
+                  nama_barang: colC,
+                  kategori: currentCategory,
+                  sub_kategori: currentSubCategory,
                   harga: hargaNum,
-                  stok: qtyNum
+                  stok: 0
                 });
               }
-              break;
+            }
+          }
+        } else {
+          let idxNama = -1;
+          let idxHarga = -1;
+          let idxQty = -1;
+          let idxKat = -1;
+          let idxSubKat = -1;
+
+          if (matrixRows && matrixRows.length > 0) {
+            for (let r = 0; r < matrixRows.length; r++) {
+              const row = matrixRows[r];
+              if (!Array.isArray(row)) continue;
+  
+              const rowStr = row.map(cell => String(cell || '').trim().toLowerCase());
+              
+              const nIdx = rowStr.findIndex(cell => 
+                cell === 'nama barang' || cell === 'nama' || cell === 'barang' || cell === 'nama produk' || cell === 'item' || cell === 'produk'
+              );
+  
+              if (nIdx !== -1) {
+                idxNama = nIdx;
+  
+                idxHarga = rowStr.findIndex(cell => cell.includes('harga jual') || cell === 'harga' || cell === 'price' || cell.includes('harga barang'));
+                if (idxHarga === -1) {
+                  idxHarga = rowStr.findIndex(cell => cell.includes('harga') && !cell.includes('hpp') && !cell.includes('keuntungan'));
+                }
+  
+                idxQty = rowStr.findIndex(cell => cell === 'qty' || cell === 'stok' || cell === 'stock' || cell === 'jumlah' || cell.includes('stok'));
+                idxKat = rowStr.findIndex(cell => cell === 'kategori' || cell === 'category' || cell === 'jenis');
+                idxSubKat = rowStr.findIndex(cell => cell === 'sub kategori' || cell === 'sub_kategori' || cell === 'sub category' || cell === 'subkategori' || cell.includes('sub kat'));
+  
+                for (let i = r + 1; i < matrixRows.length; i++) {
+                  const itemRow = matrixRows[i];
+                  if (!Array.isArray(itemRow) || itemRow.length === 0) continue;
+  
+                  const namaCell = String(itemRow[idxNama] || '').trim();
+                  const hargaRaw = idxHarga !== -1 ? itemRow[idxHarga] : undefined;
+                  const qtyRaw = idxQty !== -1 ? itemRow[idxQty] : undefined;
+                  const katRaw = idxKat !== -1 ? itemRow[idxKat] : undefined;
+                  const subKatRaw = idxSubKat !== -1 ? itemRow[idxSubKat] : undefined;
+  
+                  if (!namaCell) continue;
+  
+                  if (namaCell.toLowerCase().includes('daftar harga') || namaCell.toLowerCase().includes('total') || namaCell.toLowerCase() === 'nama barang') {
+                    continue;
+                  }
+  
+                  const hargaNum = parseInt(String(hargaRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
+                  const qtyNum = parseInt(String(qtyRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
+  
+                  if (hargaNum === 0 && qtyNum === 0 && !katRaw) {
+                    currentCategory = namaCell;
+                    continue;
+                  }
+  
+                  const parsedKategori = String(katRaw || currentCategory || CATEGORY_STRUCTURES[0].name).trim();
+                  const defaultSub = getSubCategoriesForCategory(parsedKategori)[0] || '';
+                  const parsedSubKategori = String(subKatRaw || currentSubCategory || defaultSub).trim();
+  
+                  formattedProducts.push({
+                    nama_barang: namaCell,
+                    kategori: parsedKategori,
+                    sub_kategori: parsedSubKategori,
+                    harga: hargaNum,
+                    stok: qtyNum
+                  });
+                }
+                break;
+              }
             }
           }
         }
