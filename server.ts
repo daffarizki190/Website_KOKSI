@@ -2305,6 +2305,9 @@ app.post('/api/products/batch', requireAuth, requireAdmin, async (req: AuthReque
     let updatedCount = 0;
     let insertedCount = 0;
 
+    const updatePromises: any[] = [];
+    const insertValues: any[] = [];
+
     for (const item of sanitized) {
       const match = existingProducts.find(
         p => p.nama_barang.trim().toLowerCase() === item.nama_barang.toLowerCase()
@@ -2312,20 +2315,34 @@ app.post('/api/products/batch', requireAuth, requireAdmin, async (req: AuthReque
 
       if (match) {
         // Update price, stock, and category for existing product
-        await withDbRetry(() => db.update(products)
+        updatePromises.push(() => db.update(products)
           .set({
             harga: item.harga,
             stok: item.stok,
             kategori: item.kategori && item.kategori !== 'Lainnya' ? item.kategori : match.kategori,
             sub_kategori: item.sub_kategori ? item.sub_kategori : match.sub_kategori
           })
-          .where(eq(products.id, match.id)));
+          .where(eq(products.id, match.id))
+        );
         updatedCount++;
       } else {
         // Insert as new product
-        await withDbRetry(() => db.insert(products).values(item));
+        insertValues.push(item);
         insertedCount++;
       }
+    }
+
+    // Process updates in chunks to avoid overwhelming the DB pool
+    const chunkSize = 50;
+    for (let i = 0; i < updatePromises.length; i += chunkSize) {
+      const chunk = updatePromises.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(op => withDbRetry(op)));
+    }
+
+    // Process inserts in chunks using Drizzle's native bulk insert
+    for (let i = 0; i < insertValues.length; i += chunkSize) {
+      const chunk = insertValues.slice(i, i + chunkSize);
+      await withDbRetry(() => db.insert(products).values(chunk));
     }
 
     res.status(200).json({
