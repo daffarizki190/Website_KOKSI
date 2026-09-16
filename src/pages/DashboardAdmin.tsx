@@ -1153,11 +1153,11 @@ export const DashboardAdmin = () => {
             }
             
             if (colC && !colC.toLowerCase().includes('nama produk') && !colC.toLowerCase().includes('daftar harga') && !colC.toLowerCase().includes('total')) {
-              const hargaRaw = colE !== undefined && colE !== null && String(colE).trim() !== '-' ? colE : colD;
+              const hargaRaw = colE !== undefined && colE !== null && String(colE).trim() !== '-' ? colE : '0';
               const hargaStr = String(hargaRaw || '0').split(',')[0].split('.')[0]; // Handle decimals before removing non-numeric
               const hargaNum = parseInt(hargaStr.replace(/[^0-9]/g, ''), 10) || 0;
               
-              if (hargaNum > 0 || (colD && String(colD).trim() !== '-')) {
+              if (hargaNum > 0) {
                 formattedProducts.push({
                   nama_barang: colC,
                   kategori: currentCategory,
