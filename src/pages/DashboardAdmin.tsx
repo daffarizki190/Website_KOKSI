@@ -1345,7 +1345,7 @@ export const DashboardAdmin = () => {
         }
       } catch (err: any) {
         console.error(err);
-        toast.error('Terjadi kesalahan saat membaca file Excel.');
+        toast.error(`Kesalahan: ${err.message || 'Terjadi kesalahan saat memproses data'}`);
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
