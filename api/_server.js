@@ -1028,33 +1028,44 @@ var DEFAULT_CATALOG_PRODUCTS = [
   { id: 14, nama_barang: "Pulpen Standard AE7 Hitam (Box 12pcs)", kategori: "Non-Food & Perlengkapan Umum", sub_kategori: "Alat Tulis Kantor (ATK) Dasar", harga: 24e3, stok: 25 },
   { id: 15, nama_barang: "Kantong Plastik Sampah HD 60x80cm (Pack)", kategori: "Non-Food & Perlengkapan Umum", sub_kategori: "Perlengkapan Plastik & Dapur", harga: 16500, stok: 35 }
 ];
+var inMemoryProducts = [...DEFAULT_CATALOG_PRODUCTS];
 app.get("/api/products", requireAuth, async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (!isDbConfigured) {
-      res.json(DEFAULT_CATALOG_PRODUCTS);
+      res.json(inMemoryProducts);
       return;
     }
-    const productList = await db.select().from(products);
+    const productList = await withDbRetry(() => db.select().from(products));
     if (productList.length === 0) {
-      res.json(DEFAULT_CATALOG_PRODUCTS);
+      res.json(inMemoryProducts);
       return;
     }
     res.json(productList);
   } catch (error) {
     console.warn("Database query during products fetch:", error);
-    res.json(DEFAULT_CATALOG_PRODUCTS);
+    res.json(inMemoryProducts);
   }
 });
 app.post("/api/products", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { nama_barang, kategori, harga, stok } = req.body;
-    const newProduct = await db.insert(products).values({
+    const { nama_barang, kategori, sub_kategori, harga, stok } = req.body;
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) {
+      const newId = inMemoryProducts.length > 0 ? Math.max(...inMemoryProducts.map((p) => p.id)) + 1 : 1;
+      const newP = { id: newId, nama_barang, kategori, sub_kategori: sub_kategori || "", harga: Number(harga), stok: Number(stok) };
+      inMemoryProducts.push(newP);
+      res.status(201).json(newP);
+      return;
+    }
+    await ensureDatabaseSchema();
+    const newProduct = await withDbRetry(() => db.insert(products).values({
       nama_barang,
       kategori,
-      harga,
-      stok
-    }).returning();
+      sub_kategori,
+      harga: Number(harga),
+      stok: Number(stok)
+    }).returning());
     await logActivity(req.user?.id || null, req.user?.nama || "Admin", "Tambah Produk", `Menambahkan produk baru: ${nama_barang} (Kategori: ${kategori})`);
     res.status(201).json(newProduct[0]);
   } catch (error) {
@@ -1063,8 +1074,19 @@ app.post("/api/products", requireAuth, requireAdmin, async (req, res) => {
 });
 app.put("/api/products/:id", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { nama_barang, kategori, harga, stok } = req.body;
-    const updated = await db.update(products).set({ nama_barang, kategori, harga, stok }).where(eq(products.id, Number(req.params.id))).returning();
+    const { nama_barang, kategori, sub_kategori, harga, stok } = req.body;
+    const productId = Number(req.params.id);
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) {
+      const idx = inMemoryProducts.findIndex((p) => p.id === productId);
+      if (idx !== -1) {
+        inMemoryProducts[idx] = { ...inMemoryProducts[idx], nama_barang, kategori, sub_kategori: sub_kategori || inMemoryProducts[idx].sub_kategori, harga: Number(harga), stok: Number(stok) };
+        res.json(inMemoryProducts[idx]);
+        return;
+      }
+    }
+    await ensureDatabaseSchema();
+    const updated = await withDbRetry(() => db.update(products).set({ nama_barang, kategori, sub_kategori, harga: Number(harga), stok: Number(stok) }).where(eq(products.id, productId)).returning());
     res.json(updated[0]);
   } catch (error) {
     res.status(500).json({ error: "Failed to update product" });
@@ -1072,10 +1094,48 @@ app.put("/api/products/:id", requireAuth, requireAdmin, async (req, res) => {
 });
 app.delete("/api/products/:id", requireAuth, requireAdmin, async (req, res) => {
   try {
-    await db.delete(products).where(eq(products.id, Number(req.params.id)));
+    const productId = Number(req.params.id);
+    if (!productId || isNaN(productId)) {
+      res.status(400).json({ error: "ID produk tidak valid" });
+      return;
+    }
+    inMemoryProducts = inMemoryProducts.filter((p) => p.id !== productId);
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) {
+      res.json({ message: "Product deleted successfully" });
+      return;
+    }
+    await ensureDatabaseSchema();
+    try {
+      await withDbRetry(() => db.delete(cartItems).where(eq(cartItems.productId, productId)));
+    } catch (cartErr) {
+      console.warn("Gagal menghapus cart_items untuk product ID:", productId, cartErr);
+    }
+    try {
+      await withDbRetry(() => db.execute(sql`ALTER TABLE order_items ALTER COLUMN product_id DROP NOT NULL;`));
+    } catch (e) {
+    }
+    try {
+      await withDbRetry(() => db.update(orderItems).set({ productId: null }).where(eq(orderItems.productId, productId)));
+    } catch (orderItemErr) {
+      console.warn("Drizzle update orderItems failed, mencoba raw SQL:", orderItemErr);
+      try {
+        await withDbRetry(() => db.execute(sql`UPDATE order_items SET product_id = NULL WHERE product_id = ${productId};`));
+      } catch (sqlErr) {
+        console.warn("Raw SQL update order_items gagal:", sqlErr);
+      }
+    }
+    await withDbRetry(() => db.delete(products).where(eq(products.id, productId)));
+    await logActivity(
+      req.user?.id || null,
+      req.user?.nama || "Admin",
+      "Hapus Produk",
+      `Menghapus produk ID #${productId}`
+    );
     res.json({ message: "Product deleted successfully" });
   } catch (error) {
-    res.status(500).json({ error: "Failed to delete product" });
+    console.error("Error deleting product:", error);
+    res.status(500).json({ error: error?.message || "Failed to delete product" });
   }
 });
 var memoryCartStore = /* @__PURE__ */ new Map();
@@ -1161,6 +1221,20 @@ async function ensureDatabaseSchema() {
       try {
         await db.execute(sql`
           ALTER TABLE order_items ADD COLUMN IF NOT EXISTS price INTEGER NOT NULL DEFAULT 0;
+        `);
+      } catch (e) {
+      }
+      try {
+        await db.execute(sql`
+          ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS cart_items_product_id_products_id_fk;
+          ALTER TABLE cart_items ADD CONSTRAINT cart_items_product_id_products_id_fk FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
+        `);
+      } catch (e) {
+      }
+      try {
+        await db.execute(sql`
+          ALTER TABLE order_items DROP CONSTRAINT IF EXISTS order_items_product_id_products_id_fk;
+          ALTER TABLE order_items ADD CONSTRAINT order_items_product_id_products_id_fk FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL;
         `);
       } catch (e) {
       }

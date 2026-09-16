@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { Loader2, UserPlus, ArrowRight, ShieldCheck, UserCheck, Wrench } from 'lucide-react';
+import { Loader2, UserPlus, ArrowRight, ShieldCheck, UserCheck, Wrench, KeyRound, ChevronDown, ChevronUp } from 'lucide-react';
 import { BelanjainLogo } from '../components/BelanjainLogo';
 
 export const Login = () => {
@@ -12,7 +12,7 @@ export const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const showDemoAccounts = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === 'true';
+  const [showDemoAccounts, setShowDemoAccounts] = useState(true);
 
   const isAnyLoading = loadingRole !== null;
 
@@ -219,21 +219,45 @@ export const Login = () => {
                Daftar Akun Baru
              </Link>
 
-             <p className="text-xs font-medium text-slate-600">
-               Lupa password? <span className="text-teal-600 font-bold cursor-pointer">Hubungi Admin</span>
-             </p>
+              <p className="text-xs font-medium text-slate-600">
+                Lupa password? <span className="text-teal-600 font-bold cursor-pointer">Hubungi Admin</span>
+              </p>
 
-             {/* Demo Accounts List - Only visible if ?demo=true */}
-             {showDemoAccounts && (
-               <div className="pt-3 border-t border-slate-100 text-left bg-slate-50/80 p-3 rounded-xl border border-slate-200 space-y-2">
-                 <div className="flex items-center justify-between">
-                   <p className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
-                     Akun Demo Siap Pakai:
-                   </p>
-                   <span className="text-[10px] text-teal-600 font-medium bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">
-                     1-Klik Masuk
-                   </span>
-                 </div>
+              {/* Demo Accounts Toggle Button */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDemoAccounts(!showDemoAccounts)}
+                  className="w-full py-2 px-3.5 bg-teal-50/80 hover:bg-teal-100/80 border border-teal-200 text-teal-800 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer shadow-xs"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Akun Demo Siap Pakai</span>
+                    <span className="text-[10px] bg-teal-600 text-white px-2 py-0.5 rounded-full font-bold">3 Akun</span>
+                  </div>
+                  {showDemoAccounts ? (
+                    <span className="flex items-center gap-1 text-[11px] text-teal-700 font-medium">
+                      Tutup <ChevronUp className="w-3.5 h-3.5" />
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[11px] text-teal-700 font-medium">
+                      Buka <ChevronDown className="w-3.5 h-3.5" />
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Demo Accounts List - Visible by default */}
+              {showDemoAccounts && (
+                <div className="pt-3 border-t border-slate-100 text-left bg-slate-50/90 p-3.5 rounded-2xl border border-slate-200/80 shadow-xs space-y-2 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
+                      Pilihan Akun Demo:
+                    </p>
+                    <span className="text-[10px] text-teal-700 font-bold bg-teal-100 px-2 py-0.5 rounded-md border border-teal-200">
+                      1-Klik Masuk
+                    </span>
+                  </div>
 
                  {/* IT Support Demo */}
                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between gap-2">

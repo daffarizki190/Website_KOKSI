@@ -966,49 +966,44 @@ app.delete('/api/users/:id', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-const DEFAULT_CATALOG_PRODUCTS = [
-  { id: 1, nama_barang: 'Beras Premium Ramos 5kg', kategori: 'Makanan & Minuman Siap Saji (F&B)', sub_kategori: 'Bahan Makanan (Sembako)', harga: 68000, stok: 45 },
-  { id: 2, nama_barang: 'Minyak Goreng Sania 2 Liter', kategori: 'Makanan & Minuman Siap Saji (F&B)', sub_kategori: 'Bahan Makanan (Sembako)', harga: 34000, stok: 60 },
-  { id: 3, nama_barang: 'Gula Pasir Gulaku 1kg', kategori: 'Makanan & Minuman Siap Saji (F&B)', sub_kategori: 'Bahan Makanan (Sembako)', harga: 17500, stok: 35 },
-  { id: 4, nama_barang: 'Indomie Goreng Spesial (Karton 40pcs)', kategori: 'Makanan & Minuman Siap Saji (F&B)', sub_kategori: 'Makanan Instan', harga: 118000, stok: 20 },
-  { id: 5, nama_barang: 'Kopi Kapal Api Spesial Mix 10s', kategori: 'Makanan & Minuman Siap Saji (F&B)', sub_kategori: 'Minuman Dingin & Kemasan', harga: 14500, stok: 80 },
-  { id: 6, nama_barang: 'Sabun Mandi Lifebuoy Total 10 4x110g', kategori: 'Perawatan Diri & Kesehatan (Personal Care)', sub_kategori: 'Perawatan Mandi & Rambut', harga: 22000, stok: 50 },
-  { id: 7, nama_barang: 'Pasta Gigi Pepsodent 190g', kategori: 'Perawatan Diri & Kesehatan (Personal Care)', sub_kategori: 'Perawatan Gigi', harga: 16000, stok: 40 },
-  { id: 8, nama_barang: 'Deterjen Rinso Molto Anti Noda 770g', kategori: 'Kebutuhan Rumah Tangga (Household)', sub_kategori: 'Pembersih Pakaian', harga: 24000, stok: 30 },
-  { id: 9, nama_barang: 'Cairan Pencuci Piring Sunlight Jeruk Nipis 700ml', kategori: 'Kebutuhan Rumah Tangga (Household)', sub_kategori: 'Pembersih Rumah', harga: 15500, stok: 55 },
-  { id: 10, nama_barang: 'Tissue Wajah Paseo 250 Sheets', kategori: 'Kebutuhan Rumah Tangga (Household)', sub_kategori: 'Perlengkapan Rumah', harga: 18000, stok: 65 },
-  { id: 11, nama_barang: 'Gudang Garam Surya 16', kategori: 'Rokok & Produk Kasir (Impulse Items)', sub_kategori: 'Rokok & Aksesori', harga: 33000, stok: 50 },
-  { id: 12, nama_barang: 'Silverqueen Chunky Bar 95g', kategori: 'Rokok & Produk Kasir (Impulse Items)', sub_kategori: 'Permen & Cokelat Kecil', harga: 25000, stok: 40 },
-  { id: 13, nama_barang: 'Baterai ABC Alkaline AA 2+1', kategori: 'Rokok & Produk Kasir (Impulse Items)', sub_kategori: 'Aksesori & Baterai', harga: 19500, stok: 30 },
-  { id: 14, nama_barang: 'Pulpen Standard AE7 Hitam (Box 12pcs)', kategori: 'Non-Food & Perlengkapan Umum', sub_kategori: 'Alat Tulis Kantor (ATK) Dasar', harga: 24000, stok: 25 },
-  { id: 15, nama_barang: 'Kantong Plastik Sampah HD 60x80cm (Pack)', kategori: 'Non-Food & Perlengkapan Umum', sub_kategori: 'Perlengkapan Plastik & Dapur', harga: 16500, stok: 35 }
-];
+const DEFAULT_CATALOG_PRODUCTS: any[] = [];
+
+let inMemoryProducts: any[] = [...DEFAULT_CATALOG_PRODUCTS];
 
 app.get('/api/products', requireAuth, async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (!isDbConfigured) {
-      res.json(DEFAULT_CATALOG_PRODUCTS);
+      res.json(inMemoryProducts);
       return;
     }
-    const productList = await db.select().from(products);
+    const productList = await withDbRetry(() => db.select().from(products));
     if (productList.length === 0) {
-      res.json(DEFAULT_CATALOG_PRODUCTS);
+      res.json(inMemoryProducts);
       return;
     }
     res.json(productList);
   } catch (error) {
     console.warn('Database query during products fetch:', error);
-    res.json(DEFAULT_CATALOG_PRODUCTS);
+    res.json(inMemoryProducts);
   }
 });
 
 app.post('/api/products', requireAuth, requireAdmin, async (req: any, res) => {
   try {
-    const { nama_barang, kategori, harga, stok } = req.body;
-    const newProduct = await db.insert(products).values({
-      nama_barang, kategori, harga, stok
-    }).returning();
+    const { nama_barang, kategori, sub_kategori, harga, stok } = req.body;
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) {
+      const newId = inMemoryProducts.length > 0 ? Math.max(...inMemoryProducts.map(p => p.id)) + 1 : 1;
+      const newP = { id: newId, nama_barang, kategori, sub_kategori: sub_kategori || '', harga: Number(harga), stok: Number(stok) };
+      inMemoryProducts.push(newP);
+      res.status(201).json(newP);
+      return;
+    }
+    await ensureDatabaseSchema();
+    const newProduct = await withDbRetry(() => db.insert(products).values({
+      nama_barang, kategori, sub_kategori, harga: Number(harga), stok: Number(stok)
+    }).returning());
     await logActivity(req.user?.id || null, req.user?.nama || 'Admin', 'Tambah Produk', `Menambahkan produk baru: ${nama_barang} (Kategori: ${kategori})`);
     res.status(201).json(newProduct[0]);
   } catch (error) {
@@ -1018,35 +1013,85 @@ app.post('/api/products', requireAuth, requireAdmin, async (req: any, res) => {
 
 app.put('/api/products/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { nama_barang, kategori, harga, stok } = req.body;
-    const updated = await db.update(products)
-      .set({ nama_barang, kategori, harga, stok })
-      .where(eq(products.id, Number(req.params.id)))
-      .returning();
+    const { nama_barang, kategori, sub_kategori, harga, stok } = req.body;
+    const productId = Number(req.params.id);
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) {
+      const idx = inMemoryProducts.findIndex(p => p.id === productId);
+      if (idx !== -1) {
+        inMemoryProducts[idx] = { ...inMemoryProducts[idx], nama_barang, kategori, sub_kategori: sub_kategori || inMemoryProducts[idx].sub_kategori, harga: Number(harga), stok: Number(stok) };
+        res.json(inMemoryProducts[idx]);
+        return;
+      }
+    }
+    await ensureDatabaseSchema();
+    const updated = await withDbRetry(() => db.update(products)
+      .set({ nama_barang, kategori, sub_kategori, harga: Number(harga), stok: Number(stok) })
+      .where(eq(products.id, productId))
+      .returning());
     res.json(updated[0]);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update product' });
   }
 });
 
-app.delete('/api/products/:id', requireAuth, requireAdmin, async (req, res) => {
+app.delete('/api/products/:id', requireAuth, requireAdmin, async (req: any, res) => {
   try {
     const productId = Number(req.params.id);
-    
-    // Hapus barang dari keranjang (cart_items) agar tidak ada Foreign Key error
-    await db.delete(cartItems).where(eq(cartItems.productId, productId));
-    
-    // Putuskan relasi dari riwayat pesanan (order_items) dengan mengeset productId ke null
-    // (hal ini aman karena productId memang diset nullable di schema untuk menjaga riwayat pesanan)
-    await db.update(orderItems).set({ productId: null }).where(eq(orderItems.productId, productId));
-    
-    // Hapus produk utama
-    await db.delete(products).where(eq(products.id, productId));
-    
+    if (!productId || isNaN(productId)) {
+      res.status(400).json({ error: 'ID produk tidak valid' });
+      return;
+    }
+
+    // Selalu hapus dari cache / in-memory store
+    inMemoryProducts = inMemoryProducts.filter(p => p.id !== productId);
+
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) {
+      res.json({ message: 'Product deleted successfully' });
+      return;
+    }
+
+    await ensureDatabaseSchema();
+
+    // 1. Hapus barang dari keranjang (cart_items) agar tidak ada Foreign Key error
+    try {
+      await withDbRetry(() => db.delete(cartItems).where(eq(cartItems.productId, productId)));
+    } catch (cartErr) {
+      console.warn('Gagal menghapus cart_items untuk product ID:', productId, cartErr);
+    }
+
+    // 2. Pastikan kolom product_id pada order_items nullable
+    try {
+      await withDbRetry(() => db.execute(sql`ALTER TABLE order_items ALTER COLUMN product_id DROP NOT NULL;`));
+    } catch (e) { /* sudah nullable */ }
+
+    // 3. Putuskan relasi dari riwayat pesanan (order_items) dengan mengeset productId ke null
+    try {
+      await withDbRetry(() => db.update(orderItems).set({ productId: null }).where(eq(orderItems.productId, productId)));
+    } catch (orderItemErr) {
+      console.warn('Drizzle update orderItems failed, mencoba raw SQL:', orderItemErr);
+      try {
+        await withDbRetry(() => db.execute(sql`UPDATE order_items SET product_id = NULL WHERE product_id = ${productId};`));
+      } catch (sqlErr) {
+        console.warn('Raw SQL update order_items gagal:', sqlErr);
+      }
+    }
+
+    // 4. Hapus produk utama dari tabel products
+    await withDbRetry(() => db.delete(products).where(eq(products.id, productId)));
+
+    await logActivity(
+      req.user?.id || null,
+      req.user?.nama || 'Admin',
+      'Hapus Produk',
+      `Menghapus produk ID #${productId}`
+    );
+
     res.json({ message: 'Product deleted successfully' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting product:', error);
-    res.status(500).json({ error: 'Failed to delete product' });
+    res.status(500).json({ error: error?.message || 'Failed to delete product' });
   }
 });
 
@@ -1141,6 +1186,21 @@ async function ensureDatabaseSchema() {
           ALTER TABLE order_items ADD COLUMN IF NOT EXISTS price INTEGER NOT NULL DEFAULT 0;
         `);
       } catch (e) { /* column might already exist */ }
+
+      // Update foreign key constraints so deleting products will not fail
+      try {
+        await db.execute(sql`
+          ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS cart_items_product_id_products_id_fk;
+          ALTER TABLE cart_items ADD CONSTRAINT cart_items_product_id_products_id_fk FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
+        `);
+      } catch (e) { }
+
+      try {
+        await db.execute(sql`
+          ALTER TABLE order_items DROP CONSTRAINT IF EXISTS order_items_product_id_products_id_fk;
+          ALTER TABLE order_items ADD CONSTRAINT order_items_product_id_products_id_fk FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL;
+        `);
+      } catch (e) { }
 
       // Auto-seed default products DISABLED — admin will input real products manually
       // try {

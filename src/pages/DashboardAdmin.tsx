@@ -572,18 +572,24 @@ export const DashboardAdmin = () => {
 
   const handleDeleteProductConfirmed = async () => {
     if (!deleteProductConfirmModal) return;
+    const targetId = deleteProductConfirmModal.id;
     try {
       const authToken = token || localStorage.getItem('token');
-      const res = await fetch(`/api/products/${deleteProductConfirmModal.id}`, {
+      const res = await fetch(`/api/products/${targetId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${authToken}` }
+        headers: { 
+          'Authorization': `Bearer ${authToken}`,
+          'Accept': 'application/json'
+        }
       });
       if (res.ok) {
-        fetchProducts();
+        setProducts(prev => prev.filter(p => p.id !== targetId));
         setDeleteProductConfirmModal(null);
+        fetchProducts();
         toast.success('Produk berhasil dihapus!');
       } else {
-        toast.error('Gagal menghapus produk');
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Gagal menghapus produk');
       }
     } catch (err) {
       console.error(err);
@@ -797,15 +803,21 @@ export const DashboardAdmin = () => {
     if (!isConfirmed) return;
 
     try {
+      const authToken = token || localStorage.getItem('token');
       const res = await fetch(`/api/products/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { 
+          'Authorization': `Bearer ${authToken}`,
+          'Accept': 'application/json'
+        }
       });
       if (res.ok) {
+        setProducts(prev => prev.filter(p => p.id !== id));
         fetchProducts();
         toast.success('Produk berhasil dihapus!');
       } else {
-        toast.error('Gagal menghapus produk');
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Gagal menghapus produk');
       }
     } catch (err) {
       console.error(err);
