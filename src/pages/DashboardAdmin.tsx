@@ -1133,185 +1133,267 @@ export const DashboardAdmin = () => {
           const ws = wb.Sheets[wsname];
           const matrixRows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
-          let currentCategory = CATEGORY_STRUCTURES[0].name;
-          let currentSubCategory = CATEGORY_STRUCTURES[0].subCategories[0] || '';
-
-        // Deteksi apakah formatnya adalah template KOKSI
-        let isKoksiFormat = false;
-        if (matrixRows && matrixRows.length > 0) {
-          for (let r = 0; r < matrixRows.length; r++) { // Scan all rows, not just first 50
-            const row = matrixRows[r];
-            if (!Array.isArray(row)) continue;
-            const rowStr = Array.from(row).map(cell => String(cell || '').trim().toLowerCase());
-            if (rowStr.some(cell => typeof cell === 'string' && (cell.includes('nama produk') || cell.includes('gramasi') || cell === 'nama produk & gramasi' || cell.includes('kategori perawatan')))) {
-              isKoksiFormat = true;
-              break;
-            }
+        // ========== UNIVERSAL EXCEL AUTO-DETECTION PARSER ==========
+        // Handles: KOKSI supplier format, BelanjaIn Saza template, and any arbitrary Excel
+        
+        // --- Helper functions ---
+        const safeStr = (v: any): string => String(v ?? '').trim();
+        const safeStrLow = (v: any): string => safeStr(v).toLowerCase();
+        
+        // Keyword dictionaries for column detection
+        const NAMA_KEYWORDS = ['nama produk & gramasi', 'nama produk', 'nama barang', 'product name', 'nama', 'item', 'produk', 'barang'];
+        const HARGA_KEYWORDS = ['harga jual ke saza', 'harga jual', 'harga anggota', 'harga barang', 'harga', 'price'];
+        const HARGA_EXCLUDE = ['hpp', 'keuntungan', 'modal', 'beli'];
+        const SUBKAT_KEYWORDS = ['sub-kategori', 'sub kategori', 'sub_kategori', 'sub category', 'subkategori', 'sub kat'];
+        const KAT_KEYWORDS = ['kategori', 'category', 'jenis'];
+        const QTY_KEYWORDS = ['qty', 'stok', 'stock', 'jumlah'];
+        const SKIP_ROW_KEYWORDS = ['total', 'daftar harga', 'jumlah', 'grand total', 'sub total', 'subtotal'];
+        
+        // Fuzzy match a string to CATEGORY_STRUCTURES
+        const matchCategory = (text: string): string | null => {
+          const lower = text.toLowerCase();
+          for (const cat of CATEGORY_STRUCTURES) {
+            if (lower.includes(cat.name.toLowerCase()) || cat.name.toLowerCase().includes(lower)) return cat.name;
+            // Check partial keywords
+            const keywords = cat.name.toLowerCase().split(/[&()\s]+/).filter(w => w.length > 2);
+            if (keywords.some(kw => lower.includes(kw))) return cat.name;
           }
-        }
-
-        if (isKoksiFormat) {
-          let currentCategory = CATEGORY_STRUCTURES[0].name;
-          let currentSubCategory = '';
-          let idxNama = -1;
-          let idxSubKat = -1;
-          let idxHarga = -1;
-
-          for (let r = 0; r < matrixRows.length; r++) {
-            const row = matrixRows[r];
-            if (!Array.isArray(row) || row.length === 0) continue;
-            
-            const rowStr = Array.from(row).map(cell => String(cell || '').trim().toLowerCase());
-            const nIdx = rowStr.findIndex(cell => typeof cell === 'string' && (cell.includes('nama produk') || cell.includes('nama barang')));
-            
-            // Is this a header row?
-            if (nIdx !== -1) {
-              idxNama = nIdx;
-              idxSubKat = nIdx - 1;
-              
-              // Find Harga column
-              let hIdx = rowStr.findIndex(cell => typeof cell === 'string' && (cell.includes('harga jual') || cell.includes('harga anggota')));
-              if (hIdx === -1) hIdx = rowStr.findIndex(cell => typeof cell === 'string' && (cell === 'harga' || cell.includes('harga')));
-              idxHarga = hIdx;
-              
-              // Extract Category from the header row's sub-cat column
-              if (idxSubKat >= 0) {
-                const catHeader = String(row[idxSubKat] || '').trim();
-                if (catHeader.toLowerCase().includes('kategori')) {
-                  currentCategory = catHeader.replace(/kategori\s+/i, '').trim();
-                }
+          return null;
+        };
+        
+        // Fuzzy match sub-category → returns { subCategory, parentCategory }
+        const matchSubCategory = (text: string): { sub: string; parent: string } | null => {
+          const lower = text.toLowerCase();
+          for (const cat of CATEGORY_STRUCTURES) {
+            for (const sub of cat.subCategories) {
+              if (lower.includes(sub.toLowerCase()) || sub.toLowerCase().includes(lower)) {
+                return { sub: sub, parent: cat.name };
               }
-              continue; // Skip the header row itself
-            }
-            
-            // If we haven't found a header yet, skip
-            if (idxNama === -1) continue;
-            
-            // Data row processing
-            const productName = String(row[idxNama] || '').trim();
-            
-            // Stop processing if product name is something weird like total
-            if (productName.toLowerCase().includes('total') || productName.toLowerCase().includes('daftar harga') || productName.toLowerCase() === 'nama produk & gramasi') {
-              continue;
-            }
-            
-            // Extract subcategory (remember, merged cells only have it on the first row)
-            const subCatCell = idxSubKat >= 0 ? String(row[idxSubKat] || '').trim() : '';
-            if (subCatCell) {
-              // Only update if it's not a numbering (like "1", "2") and not empty
-              if (!/^\d+$/.test(subCatCell) && subCatCell.toLowerCase() !== 'no') {
-                currentSubCategory = subCatCell;
+              const keywords = sub.toLowerCase().split(/[&()\s]+/).filter(w => w.length > 2);
+              if (keywords.length > 0 && keywords.some(kw => lower.includes(kw))) {
+                return { sub: sub, parent: cat.name };
               }
             }
-            
-            // If product name is empty, it's not a product row
-            if (!productName || productName.length < 2) continue;
-            
-            // Extract price
-            const priceRaw = idxHarga !== -1 ? row[idxHarga] : undefined;
-            // Parse price string safely
-            const priceStr = String(priceRaw !== undefined && priceRaw !== null && String(priceRaw).trim() !== '-' ? priceRaw : '0').split(',')[0];
-            const priceNum = parseInt(priceStr.replace(/[^0-9]/g, ''), 10) || 0;
-            
-            formattedProducts.push({
-              nama_barang: productName,
-              kategori: currentCategory || 'Lainnya',
-              sub_kategori: currentSubCategory || '',
-              harga: priceNum,
-              stok: 0
-            });
           }
-        } else {
-          let idxNama = -1;
-          let idxHarga = -1;
-          let idxQty = -1;
-          let idxKat = -1;
-          let idxSubKat = -1;
-
-          if (matrixRows && matrixRows.length > 0) {
-            for (let r = 0; r < matrixRows.length; r++) {
-              const row = matrixRows[r];
-              if (!Array.isArray(row)) continue;
-  
-              const rowStr = Array.from(row).map(cell => String(cell || '').trim().toLowerCase());
-              
-              const nIdx = rowStr.findIndex(cell => 
-                cell === 'nama barang' || cell === 'nama' || cell === 'barang' || cell === 'nama produk' || cell === 'item' || cell === 'produk'
-              );
-  
-              if (nIdx !== -1) {
-                idxNama = nIdx;
-  
-                idxHarga = rowStr.findIndex(cell => typeof cell === 'string' && (cell.includes('harga jual') || cell === 'harga' || cell === 'price' || cell.includes('harga barang')));
-                if (idxHarga === -1) {
-                  idxHarga = rowStr.findIndex(cell => typeof cell === 'string' && cell.includes('harga') && !cell.includes('hpp') && !cell.includes('keuntungan'));
-                }
-  
-                idxQty = rowStr.findIndex(cell => typeof cell === 'string' && (cell === 'qty' || cell === 'stok' || cell === 'stock' || cell === 'jumlah' || cell.includes('stok')));
-                idxKat = rowStr.findIndex(cell => typeof cell === 'string' && (cell === 'kategori' || cell === 'category' || cell === 'jenis'));
-                idxSubKat = rowStr.findIndex(cell => typeof cell === 'string' && (cell === 'sub kategori' || cell === 'sub_kategori' || cell === 'sub category' || cell === 'subkategori' || cell.includes('sub kat')));
-  
-                for (let i = r + 1; i < matrixRows.length; i++) {
-                  const itemRow = matrixRows[i];
-                  if (!Array.isArray(itemRow) || itemRow.length === 0) continue;
-  
-                  const namaCell = String(itemRow[idxNama] || '').trim();
-                  const hargaRaw = idxHarga !== -1 ? itemRow[idxHarga] : undefined;
-                  const qtyRaw = idxQty !== -1 ? itemRow[idxQty] : undefined;
-                  const katRaw = idxKat !== -1 ? itemRow[idxKat] : undefined;
-                  const subKatRaw = idxSubKat !== -1 ? itemRow[idxSubKat] : undefined;
-  
-                  if (!namaCell) continue;
-  
-                  if (namaCell.toLowerCase().includes('daftar harga') || namaCell.toLowerCase().includes('total') || namaCell.toLowerCase() === 'nama barang') {
-                    continue;
+          return null;
+        };
+        
+        // Find column index by keyword match
+        const findColIndex = (rowStr: string[], keywords: string[], exclude?: string[]): number => {
+          // First pass: exact match (longest keyword first for specificity)
+          const sortedKw = [...keywords].sort((a, b) => b.length - a.length);
+          for (const kw of sortedKw) {
+            const idx = rowStr.findIndex(cell => cell === kw);
+            if (idx !== -1) return idx;
+          }
+          // Second pass: includes match
+          for (const kw of sortedKw) {
+            const idx = rowStr.findIndex(cell => cell.includes(kw) && (!exclude || !exclude.some(ex => cell.includes(ex))));
+            if (idx !== -1) return idx;
+          }
+          return -1;
+        };
+        
+        // Check if a row is a header row (contains nama keyword)
+        const isHeaderRow = (rowStr: string[]): boolean => {
+          return NAMA_KEYWORDS.some(kw => rowStr.some(cell => cell === kw || cell.includes(kw)));
+        };
+        
+        // Check if a row looks like a section/category title (only 1-2 non-empty cells, text-only, no numbers that look like prices)
+        const isSectionTitleRow = (row: any[], idxNama: number, idxHarga: number): boolean => {
+          const nonEmpty = Array.from(row).filter(c => safeStr(c).length > 0);
+          if (nonEmpty.length > 3) return false;
+          const namaVal = safeStr(row[idxNama]);
+          const hargaVal = idxHarga >= 0 ? safeStr(row[idxHarga]) : '';
+          // If there's a significant price, it's not a section title
+          if (hargaVal && parseInt(hargaVal.replace(/[^0-9]/g, ''), 10) > 0) return false;
+          // If the name is too short, it's not useful as a section
+          if (namaVal.length < 3) return false;
+          // If it matches a known category or subcategory, it is a section title
+          if (matchCategory(namaVal) || matchSubCategory(namaVal)) return true;
+          return false;
+        };
+        
+        // --- Main parsing logic: process each sheet ---
+        let currentCat = CATEGORY_STRUCTURES[0].name;
+        let currentSubCat = '';
+        
+        // Track column positions (can reset per section/header)
+        let idxNama = -1;
+        let idxHarga = -1;
+        let idxQty = -1;
+        let idxKat = -1;
+        let idxSubKat = -1;
+        
+        for (let r = 0; r < matrixRows.length; r++) {
+          const rawRow = matrixRows[r];
+          if (!Array.isArray(rawRow) || rawRow.length === 0) continue;
+          const row = Array.from(rawRow); // handle sparse arrays
+          const rowStr = row.map(safeStrLow);
+          
+          // --- Check if this row is a header row ---
+          if (isHeaderRow(rowStr)) {
+            idxNama = findColIndex(rowStr, NAMA_KEYWORDS);
+            idxHarga = findColIndex(rowStr, HARGA_KEYWORDS, HARGA_EXCLUDE);
+            idxQty = findColIndex(rowStr, QTY_KEYWORDS);
+            idxKat = findColIndex(rowStr, KAT_KEYWORDS);
+            idxSubKat = findColIndex(rowStr, SUBKAT_KEYWORDS);
+            
+            // KOKSI format: header contains "Kategori [SubName]" in one of the cells
+            // e.g. "Kategori Pembersih Pakaian" or "Kategori Rokok & Aksesori"
+            for (let c = 0; c < row.length; c++) {
+              const cellVal = safeStr(row[c]);
+              const cellLow = cellVal.toLowerCase();
+              if (cellLow.startsWith('kategori ') && c !== idxKat) {
+                // This cell contains embedded category info
+                const catName = cellVal.replace(/^kategori\s+/i, '').trim();
+                // Try to find parent category from this subcategory-like name
+                const subMatch = matchSubCategory(catName);
+                if (subMatch) {
+                  currentCat = subMatch.parent;
+                  currentSubCat = subMatch.sub;
+                } else {
+                  const catMatch = matchCategory(catName);
+                  if (catMatch) {
+                    currentCat = catMatch;
+                    currentSubCat = '';
+                  } else {
+                    // Use as-is subcategory, keep current category
+                    currentSubCat = catName;
                   }
-  
-                  const hargaNum = parseInt(String(hargaRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
-                  const qtyNum = parseInt(String(qtyRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
-  
-                  if (hargaNum === 0 && qtyNum === 0 && !katRaw) {
-                    currentCategory = namaCell;
-                    continue;
-                  }
-  
-                  const parsedKategori = String(katRaw || currentCategory || 'Lainnya').trim();
-                  const parsedSubKategori = String(subKatRaw || currentSubCategory || '').trim();
-  
-                  formattedProducts.push({
-                    nama_barang: namaCell,
-                    kategori: parsedKategori,
-                    sub_kategori: parsedSubKategori,
-                    harga: hargaNum,
-                    stok: qtyNum
-                  });
                 }
-                break;
+              }
+            }
+            
+            continue; // Skip the header row, don't add as product
+          }
+          
+          // --- If no header found yet, skip ---
+          if (idxNama === -1) continue;
+          
+          // --- Extract product name ---
+          const productName = safeStr(row[idxNama]);
+          if (!productName || productName.length < 2) continue;
+          const productNameLow = productName.toLowerCase();
+          
+          // --- Skip meta-rows (totals, repeated headers, etc.) ---
+          if (SKIP_ROW_KEYWORDS.some(kw => productNameLow.includes(kw))) continue;
+          if (NAMA_KEYWORDS.some(kw => productNameLow === kw)) continue;
+          
+          // --- Check if this is a section/category title row ---
+          if (isSectionTitleRow(row, idxNama, idxHarga)) {
+            // Try to identify what category/subcategory this is
+            const subMatch = matchSubCategory(productName);
+            if (subMatch) {
+              currentCat = subMatch.parent;
+              currentSubCat = subMatch.sub;
+            } else {
+              const catMatch = matchCategory(productName);
+              if (catMatch) {
+                currentCat = catMatch;
+                currentSubCat = '';
+              } else {
+                // Unknown section name, use as sub-category
+                currentSubCat = productName;
+              }
+            }
+            continue;
+          }
+          
+          // --- Extract sub-category from dedicated column (KOKSI: merged cell to the left) ---
+          if (idxSubKat >= 0) {
+            const subVal = safeStr(row[idxSubKat]);
+            if (subVal && !/^\d+$/.test(subVal) && subVal.toLowerCase() !== 'no') {
+              // Try to match against known sub-categories
+              const subMatch = matchSubCategory(subVal);
+              if (subMatch) {
+                currentSubCat = subMatch.sub;
+                currentCat = subMatch.parent;
+              } else {
+                currentSubCat = subVal;
+              }
+            }
+          } else if (idxNama > 0) {
+            // KOKSI format fallback: sub-category is often in the column left of nama
+            const leftColIdx = idxNama - 1;
+            const leftVal = safeStr(row[leftColIdx]);
+            if (leftVal && !/^\d+$/.test(leftVal) && leftVal.toLowerCase() !== 'no' && leftVal.length > 2) {
+              const subMatch = matchSubCategory(leftVal);
+              if (subMatch) {
+                currentSubCat = subMatch.sub;
+                currentCat = subMatch.parent;
+              } else if (!parseInt(leftVal, 10)) {
+                // Not a number, could be a sub-category name
+                currentSubCat = leftVal;
               }
             }
           }
+          
+          // --- Extract category from dedicated column ---
+          if (idxKat >= 0) {
+            const katVal = safeStr(row[idxKat]);
+            if (katVal && katVal.length > 1) {
+              const catMatch = matchCategory(katVal);
+              currentCat = catMatch || katVal;
+            }
+          }
+          
+          // --- Extract price ---
+          let priceNum = 0;
+          if (idxHarga >= 0) {
+            const priceRaw = row[idxHarga];
+            if (priceRaw !== undefined && priceRaw !== null) {
+              const priceStr = String(priceRaw).trim();
+              if (priceStr !== '-' && priceStr !== '') {
+                priceNum = parseInt(priceStr.split(',')[0].replace(/[^0-9]/g, ''), 10) || 0;
+              }
+            }
+          }
+          
+          // --- Extract quantity ---
+          let qtyNum = 0;
+          if (idxQty >= 0) {
+            const qtyRaw = row[idxQty];
+            if (qtyRaw !== undefined && qtyRaw !== null) {
+              qtyNum = parseInt(String(qtyRaw).replace(/[^0-9]/g, ''), 10) || 0;
+            }
+          }
+          
+          // --- Push the product ---
+          formattedProducts.push({
+            nama_barang: productName,
+            kategori: currentCat || 'Lainnya',
+            sub_kategori: currentSubCat || '',
+            harga: priceNum,
+            stok: qtyNum
+          });
         }
-
+        
+        // --- Fallback: if nothing was parsed, try sheet_to_json with named keys ---
         if (formattedProducts.length === 0) {
           const objectData = XLSX.utils.sheet_to_json(ws) as any[];
           if (objectData && objectData.length > 0) {
             objectData.forEach(item => {
-              const nama = getRowValue(item, ['nama_barang', 'nama barang', 'nama', 'barang', 'nama produk', 'product name', 'item', 'produk']);
+              const nama = getRowValue(item, ['nama_barang', 'nama barang', 'nama', 'barang', 'nama produk', 'product name', 'item', 'produk', 'nama produk & gramasi']);
               const kategori = getRowValue(item, ['kategori', 'category', 'jenis', 'kat']) || CATEGORY_STRUCTURES[0].name;
-              const subKategori = getRowValue(item, ['sub_kategori', 'sub kategori', 'sub category', 'subkategori', 'sub_kat', 'subkat']) || '';
-              const hargaRaw = getRowValue(item, ['harga jual ke saza', 'harga jual', 'harga', 'harga barang', 'price']);
+              const subKategori = getRowValue(item, ['sub_kategori', 'sub kategori', 'sub category', 'subkategori', 'sub_kat', 'subkat', 'sub-kategori']) || '';
+              const hargaRaw = getRowValue(item, ['harga jual ke saza', 'harga jual', 'harga anggota', 'harga barang', 'harga', 'price']);
               const stokRaw = getRowValue(item, ['qty', 'stok', 'stock', 'jumlah', 'stok barang']);
 
               const hargaNum = parseInt(String(hargaRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
               const stokNum = parseInt(String(stokRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
 
               if (nama && String(nama).trim().length > 0) {
+                const cleanNama = String(nama).trim();
                 const cleanKat = String(kategori).trim();
-                const cleanSub = String(subKategori).trim() || '';
-
+                const cleanSub = String(subKategori).trim();
+                
+                // Apply fuzzy matching
+                const catMatch = matchCategory(cleanKat);
+                
                 formattedProducts.push({
-                  nama_barang: String(nama).trim(),
-                  kategori: cleanKat,
+                  nama_barang: cleanNama,
+                  kategori: catMatch || cleanKat,
                   sub_kategori: cleanSub,
                   harga: hargaNum,
                   stok: stokNum
