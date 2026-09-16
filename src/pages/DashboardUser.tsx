@@ -286,7 +286,8 @@ export const DashboardUser = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      setProducts(data);
+      const validProducts = Array.isArray(data) ? data.filter((p: any) => p.harga && p.harga > 0) : data;
+      setProducts(validProducts);
     } catch (err) {
       console.error(err);
     }
