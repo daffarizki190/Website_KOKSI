@@ -9,7 +9,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { BelanjainLogo } from '../components/BelanjainLogo';
-import { CATEGORY_STRUCTURES } from '../data/categories';
+
 import { Product, CartItem } from '../types';
 
 export const DashboardUser = () => {
@@ -293,24 +293,21 @@ export const DashboardUser = () => {
   };
 
   const handleQuantityChange = (id: number, delta: number) => {
-    const prod = products.find(p => p.id === id);
-    const maxStock = prod ? prod.stok : 999;
     setQuantities(prev => {
       const current = prev[id] || 1;
-      const next = Math.max(1, Math.min(Math.max(1, maxStock), current + delta));
+      const next = Math.max(1, current + delta);
       return { ...prev, [id]: next };
     });
   };
 
   const addToCart = async (product: Product) => {
-    if (product.stok <= 0) return;
-    const qty = Math.min(product.stok, quantities[product.id] || 1);
+    const qty = quantities[product.id] || 1;
     
     // Optimistic UI update: Immediately update cart state
     setCart(prev => {
       const exist = prev.find(item => item.id === product.id);
       if (exist) {
-        return prev.map(item => item.id === product.id ? { ...item, quantity: Math.min(product.stok, item.quantity + qty) } : item);
+        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + qty } : item);
       }
       return [...prev, { ...product, quantity: qty }];
     });
@@ -418,14 +415,6 @@ export const DashboardUser = () => {
           console.warn('Failed to cache created order:', e);
         }
 
-        // Decrement local product stock immediately for seamless UX
-        setProducts(prev => prev.map(p => {
-          const cItem = cart.find(c => c.id === p.id);
-          if (cItem) {
-            return { ...p, stok: Math.max(0, p.stok - cItem.quantity) };
-          }
-          return p;
-        }));
         fetchProducts();
 
         setCart([]);
@@ -471,16 +460,36 @@ export const DashboardUser = () => {
     });
   }, [products, selectedCategory, selectedSubCategory, searchQuery]);
 
+  const dynamicCategories = useMemo(() => {
+    const catMap = new Map<string, Set<string>>();
+    products.forEach(p => {
+      const k = p.kategori ? String(p.kategori).trim() : 'Lainnya';
+      const sk = p.sub_kategori ? String(p.sub_kategori).trim() : '';
+      if (!catMap.has(k)) {
+        catMap.set(k, new Set());
+      }
+      if (sk) {
+        catMap.get(k)!.add(sk);
+      }
+    });
+
+    return Array.from(catMap.entries()).map(([name, subs]) => ({
+      id: name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+      name,
+      subCategories: Array.from(subs).sort()
+    })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [products]);
+
   // Current active subcategories based on selected main category
   const activeSubCategories = useMemo(() => {
     if (selectedCategory === 'Semua') {
       const allSubs = new Set<string>();
-      CATEGORY_STRUCTURES.forEach(cat => cat.subCategories.forEach(s => allSubs.add(s)));
-      return Array.from(allSubs);
+      dynamicCategories.forEach(cat => cat.subCategories.forEach(s => allSubs.add(s)));
+      return Array.from(allSubs).sort();
     }
-    const current = CATEGORY_STRUCTURES.find(c => c.name === selectedCategory);
+    const current = dynamicCategories.find(c => c.name === selectedCategory);
     return current ? current.subCategories : [];
-  }, [selectedCategory]);
+  }, [selectedCategory, dynamicCategories]);
 
   const handleCategorySelect = (catName: string) => {
     setSelectedCategory(catName);
@@ -606,7 +615,7 @@ export const DashboardUser = () => {
               <Layers className="w-3.5 h-3.5" />
               <span>Semua</span>
             </button>
-            {CATEGORY_STRUCTURES.map((cat) => {
+            {dynamicCategories.map((cat) => {
               const isSelected = selectedCategory === cat.name;
               return (
                 <button
@@ -699,19 +708,10 @@ export const DashboardUser = () => {
                     className="bg-white rounded-2xl border border-slate-200/80 p-3.5 flex flex-col justify-between hover:border-teal-300 hover:shadow-md transition-all shadow-xs"
                   >
                     <div>
-                      {/* Top: Category Tag & Stock Status */}
+                      {/* Top: Category Tag */}
                       <div className="flex items-center justify-between gap-2 mb-1.5">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border truncate max-w-[180px] ${theme.bg} ${theme.text} ${theme.border}`}>
                           {product.sub_kategori || product.kategori}
-                        </span>
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                          product.stok <= 0
-                            ? 'bg-red-100 text-red-700 font-black'
-                            : product.stok < 10 
-                              ? 'bg-amber-100 text-amber-800' 
-                              : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {product.stok <= 0 ? 'Stok Habis' : `Stok: ${product.stok}`}
                         </span>
                       </div>
 
@@ -732,11 +732,10 @@ export const DashboardUser = () => {
 
                       {/* Stepper & Tambah Button */}
                       <div className="flex items-center gap-1.5">
-                        <div className={`flex items-center bg-slate-100 rounded-xl border border-slate-200/80 p-0.5 ${product.stok <= 0 ? 'opacity-40 pointer-events-none' : ''}`}>
+                        <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200/80 p-0.5">
                           <button 
                             onClick={() => handleQuantityChange(product.id, -1)}
-                            disabled={product.stok <= 0}
-                            className="w-7 h-7 flex items-center justify-center hover:bg-white text-slate-700 transition-colors rounded-lg cursor-pointer disabled:cursor-not-allowed"
+                            className="w-7 h-7 flex items-center justify-center hover:bg-white text-slate-700 transition-colors rounded-lg cursor-pointer"
                             title="Kurangi"
                           >
                             <Minus className="w-3 h-3" />
@@ -746,8 +745,7 @@ export const DashboardUser = () => {
                           </span>
                           <button 
                             onClick={() => handleQuantityChange(product.id, 1)}
-                            disabled={product.stok <= 0}
-                            className="w-7 h-7 flex items-center justify-center hover:bg-white text-slate-700 transition-colors rounded-lg cursor-pointer disabled:cursor-not-allowed"
+                            className="w-7 h-7 flex items-center justify-center hover:bg-white text-slate-700 transition-colors rounded-lg cursor-pointer"
                             title="Tambah"
                           >
                             <Plus className="w-3 h-3" />
@@ -756,18 +754,14 @@ export const DashboardUser = () => {
                         
                         <button
                           onClick={() => addToCart(product)}
-                          disabled={!canOrder || product.stok <= 0}
+                          disabled={!canOrder}
                           className={`h-8 px-3.5 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
-                            product.stok <= 0
-                              ? 'bg-slate-400'
-                              : addedProductId === product.id 
-                                ? 'bg-emerald-600' 
-                                : 'bg-teal-600 hover:bg-teal-700 active:scale-95'
+                            addedProductId === product.id 
+                              ? 'bg-emerald-600' 
+                              : 'bg-teal-600 hover:bg-teal-700 active:scale-95'
                           }`}
                         >
-                          {product.stok <= 0 ? (
-                            <span>Habis</span>
-                          ) : addedProductId === product.id ? (
+                          {addedProductId === product.id ? (
                             <>
                               <Check className="w-3.5 h-3.5" />
                               <span>Masuk</span>
@@ -775,7 +769,7 @@ export const DashboardUser = () => {
                           ) : (
                             <>
                               <Plus className="w-3.5 h-3.5" />
-                              <span>Beli</span>
+                              <span>Tambah</span>
                             </>
                           )}
                         </button>
