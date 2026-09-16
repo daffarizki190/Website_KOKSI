@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { SalesTrendChart } from '../components/SalesTrendChart';
 import { CATEGORY_STRUCTURES } from '../data/categories';
+import { smartCategorize } from '../data/smartCategorizer';
 
 interface Product {
   id: number;
@@ -1360,10 +1361,21 @@ export const DashboardAdmin = () => {
           }
           
           // --- Push the product ---
+          
+          // Apply smart categorization based on the actual product name
+          const smartCat = smartCategorize(productName);
+          let finalCat = currentCat;
+          let finalSubCat = currentSubCat;
+          
+          if (smartCat) {
+            finalCat = smartCat.kategori;
+            finalSubCat = smartCat.sub_kategori;
+          }
+          
           formattedProducts.push({
             nama_barang: productName,
-            kategori: currentCat || 'Lainnya',
-            sub_kategori: currentSubCat || '',
+            kategori: finalCat || 'Lainnya',
+            sub_kategori: finalSubCat || '',
             harga: priceNum,
             stok: qtyNum
           });
@@ -1390,11 +1402,19 @@ export const DashboardAdmin = () => {
                 
                 // Apply fuzzy matching
                 const catMatch = matchCategory(cleanKat);
+                let finalCat = catMatch || cleanKat || 'Lainnya';
+                let finalSubCat = cleanSub;
+                
+                const smartCat = smartCategorize(cleanNama);
+                if (smartCat) {
+                  finalCat = smartCat.kategori;
+                  finalSubCat = smartCat.sub_kategori;
+                }
                 
                 formattedProducts.push({
                   nama_barang: cleanNama,
-                  kategori: catMatch || cleanKat,
-                  sub_kategori: cleanSub,
+                  kategori: finalCat,
+                  sub_kategori: finalSubCat,
                   harga: hargaNum,
                   stok: stokNum
                 });
