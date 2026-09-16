@@ -16,11 +16,7 @@ import XLSX from 'xlsx-js-style';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { SalesTrendChart } from '../components/SalesTrendChart';
-import { 
-  CATEGORY_STRUCTURES, 
-  ALL_MAIN_CATEGORIES, 
-  getSubCategoriesForCategory 
-} from '../data/categories';
+import { CATEGORY_STRUCTURES } from '../data/categories';
 
 interface Product {
   id: number;
@@ -95,6 +91,25 @@ export const DashboardAdmin = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   
   const [printingOrderId, setPrintingOrderId] = useState<number | null>(null);
+
+  const dynamicCategories = useMemo(() => {
+    const catMap = new Map<string, Set<string>>();
+    products.forEach(p => {
+      const k = p.kategori ? String(p.kategori).trim() : 'Lainnya';
+      const sk = p.sub_kategori ? String(p.sub_kategori).trim() : '';
+      if (!catMap.has(k)) {
+        catMap.set(k, new Set());
+      }
+      if (sk) {
+        catMap.get(k)!.add(sk);
+      }
+    });
+
+    return Array.from(catMap.entries()).map(([name, subs]) => ({
+      name,
+      subCategories: Array.from(subs).sort()
+    })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [products]);
   
   useEffect(() => {
     if (printingOrderId !== null) {
@@ -386,8 +401,8 @@ export const DashboardAdmin = () => {
   // Product Form state
   const [formData, setFormData] = useState({
     nama_barang: '',
-    kategori: CATEGORY_STRUCTURES[0].name,
-    sub_kategori: CATEGORY_STRUCTURES[0].subCategories[0] || '',
+    kategori: dynamicCategories[0]?.name || 'Umum',
+    sub_kategori: dynamicCategories[0]?.subCategories[0] || '',
     harga: 0,
     stok: 0
   });
@@ -765,13 +780,14 @@ export const DashboardAdmin = () => {
 
   const openAddModal = () => {
     setEditingProduct(null);
-    const initialCategory = CATEGORY_STRUCTURES[0].name;
-    const initialSubCategory = CATEGORY_STRUCTURES[0].subCategories[0] || '';
-    setFormData({ 
-      nama_barang: '', 
+    const initialCategory = dynamicCategories[0]?.name || 'Umum';
+    const initialSubCategory = dynamicCategories[0]?.subCategories[0] || '';
+    
+    setFormData({
+      nama_barang: '',
       kategori: initialCategory, 
       sub_kategori: initialSubCategory, 
-      harga: 0, 
+      harga: 0,
       stok: 0 
     });
     setIsModalOpen(true);
@@ -779,10 +795,11 @@ export const DashboardAdmin = () => {
 
   const openEditModal = (p: Product) => {
     setEditingProduct(p);
-    const cat = p.kategori || CATEGORY_STRUCTURES[0].name;
-    const availableSubs = getSubCategoriesForCategory(cat);
-    const subCat = p.sub_kategori || availableSubs[0] || '';
+    const cat = p.kategori || 'Umum';
+    const subCat = p.sub_kategori || '';
+    
     setFormData({
+      id: p.id,
       nama_barang: p.nama_barang,
       kategori: cat,
       sub_kategori: subCat,
@@ -1110,23 +1127,23 @@ export const DashboardAdmin = () => {
       try {
         const ab = evt.target?.result;
         const wb = XLSX.read(ab, { type: 'array' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-
-        const matrixRows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
         const formattedProducts: { nama_barang: string; kategori: string; sub_kategori?: string; harga: number; stok: number }[] = [];
 
-        let currentCategory = CATEGORY_STRUCTURES[0].name;
-        let currentSubCategory = CATEGORY_STRUCTURES[0].subCategories[0] || '';
+        for (const wsname of wb.SheetNames) {
+          const ws = wb.Sheets[wsname];
+          const matrixRows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+
+          let currentCategory = CATEGORY_STRUCTURES[0].name;
+          let currentSubCategory = CATEGORY_STRUCTURES[0].subCategories[0] || '';
 
         // Deteksi apakah formatnya adalah template KOKSI
         let isKoksiFormat = false;
         if (matrixRows && matrixRows.length > 0) {
-          for (let r = 0; r < Math.min(50, matrixRows.length); r++) {
+          for (let r = 0; r < matrixRows.length; r++) { // Scan all rows, not just first 50
             const row = matrixRows[r];
             if (!Array.isArray(row)) continue;
             const rowStr = row.map(cell => String(cell || '').trim().toLowerCase());
-            if (rowStr.some(cell => cell.includes('nama produk') || cell.includes('gramasi') || cell === 'nama produk & gramasi')) {
+            if (rowStr.some(cell => cell.includes('nama produk') || cell.includes('gramasi') || cell === 'nama produk & gramasi' || cell.includes('kategori perawatan'))) {
               isKoksiFormat = true;
               break;
             }
@@ -1134,39 +1151,75 @@ export const DashboardAdmin = () => {
         }
 
         if (isKoksiFormat) {
+          let currentCategory = CATEGORY_STRUCTURES[0].name;
+          let currentSubCategory = '';
+          let idxNama = -1;
+          let idxSubKat = -1;
+          let idxHarga = -1;
+
           for (let r = 0; r < matrixRows.length; r++) {
             const row = matrixRows[r];
             if (!Array.isArray(row) || row.length === 0) continue;
             
-            const colB = String(row[1] || '').trim();
-            const colC = String(row[2] || '').trim();
-            const colD = row[3]; // Harga dasar
-            const colE = row[4]; // Harga jual anggota
+            const rowStr = row.map(cell => String(cell || '').trim().toLowerCase());
+            const nIdx = rowStr.findIndex(cell => cell.includes('nama produk') || cell.includes('nama barang'));
             
-            if (colB.toLowerCase().startsWith('kategori ')) {
-              currentCategory = colB.replace(/kategori\s+/i, '').trim();
-              currentSubCategory = getSubCategoriesForCategory(currentCategory)[0] || '';
-            } else if (colB && colB.toLowerCase() !== 'nama produk & gramasi' && !colB.toLowerCase().includes('nama produk') && colB.toLowerCase() !== 'kategori' && !colC) {
-              currentSubCategory = colB;
-            } else if (colB && colB.toLowerCase() !== 'nama produk & gramasi' && !colB.toLowerCase().includes('nama produk') && colB.toLowerCase() !== 'kategori') {
-              currentSubCategory = colB;
+            // Is this a header row?
+            if (nIdx !== -1) {
+              idxNama = nIdx;
+              idxSubKat = nIdx - 1;
+              
+              // Find Harga column
+              let hIdx = rowStr.findIndex(cell => cell.includes('harga jual') || cell.includes('harga anggota'));
+              if (hIdx === -1) hIdx = rowStr.findIndex(cell => cell === 'harga' || cell.includes('harga'));
+              idxHarga = hIdx;
+              
+              // Extract Category from the header row's sub-cat column
+              if (idxSubKat >= 0) {
+                const catHeader = String(row[idxSubKat] || '').trim();
+                if (catHeader.toLowerCase().includes('kategori')) {
+                  currentCategory = catHeader.replace(/kategori\s+/i, '').trim();
+                }
+              }
+              continue; // Skip the header row itself
             }
             
-            if (colC && !colC.toLowerCase().includes('nama produk') && !colC.toLowerCase().includes('daftar harga') && !colC.toLowerCase().includes('total')) {
-              const hargaRaw = colE !== undefined && colE !== null && String(colE).trim() !== '-' ? colE : '0';
-              const hargaStr = String(hargaRaw || '0').split(',')[0].split('.')[0]; // Handle decimals before removing non-numeric
-              const hargaNum = parseInt(hargaStr.replace(/[^0-9]/g, ''), 10) || 0;
-              
-              if (hargaNum > 0) {
-                formattedProducts.push({
-                  nama_barang: colC,
-                  kategori: currentCategory,
-                  sub_kategori: currentSubCategory,
-                  harga: hargaNum,
-                  stok: 0
-                });
+            // If we haven't found a header yet, skip
+            if (idxNama === -1) continue;
+            
+            // Data row processing
+            const productName = String(row[idxNama] || '').trim();
+            
+            // Stop processing if product name is something weird like total
+            if (productName.toLowerCase().includes('total') || productName.toLowerCase().includes('daftar harga') || productName === 'nama produk & gramasi') {
+              continue;
+            }
+            
+            // Extract subcategory (remember, merged cells only have it on the first row)
+            const subCatCell = idxSubKat >= 0 ? String(row[idxSubKat] || '').trim() : '';
+            if (subCatCell) {
+              // Only update if it's not a numbering (like "1", "2") and not empty
+              if (!/^\d+$/.test(subCatCell) && subCatCell.toLowerCase() !== 'no') {
+                currentSubCategory = subCatCell;
               }
             }
+            
+            // If product name is empty, it's not a product row
+            if (!productName || productName.length < 2) continue;
+            
+            // Extract price
+            const priceRaw = idxHarga !== -1 ? row[idxHarga] : undefined;
+            // Parse price string safely
+            const priceStr = String(priceRaw !== undefined && priceRaw !== null && String(priceRaw).trim() !== '-' ? priceRaw : '0').split(',')[0];
+            const priceNum = parseInt(priceStr.replace(/[^0-9]/g, ''), 10) || 0;
+            
+            formattedProducts.push({
+              nama_barang: productName,
+              kategori: currentCategory || 'Lainnya',
+              sub_kategori: currentSubCategory || '',
+              harga: priceNum,
+              stok: 0
+            });
           }
         } else {
           let idxNama = -1;
@@ -1222,9 +1275,8 @@ export const DashboardAdmin = () => {
                     continue;
                   }
   
-                  const parsedKategori = String(katRaw || currentCategory || CATEGORY_STRUCTURES[0].name).trim();
-                  const defaultSub = getSubCategoriesForCategory(parsedKategori)[0] || '';
-                  const parsedSubKategori = String(subKatRaw || currentSubCategory || defaultSub).trim();
+                  const parsedKategori = String(katRaw || currentCategory || 'Lainnya').trim();
+                  const parsedSubKategori = String(subKatRaw || currentSubCategory || '').trim();
   
                   formattedProducts.push({
                     nama_barang: namaCell,
@@ -1255,8 +1307,7 @@ export const DashboardAdmin = () => {
 
               if (nama && String(nama).trim().length > 0) {
                 const cleanKat = String(kategori).trim();
-                const defaultSub = getSubCategoriesForCategory(cleanKat)[0] || '';
-                const cleanSub = String(subKategori).trim() || defaultSub;
+                const cleanSub = String(subKategori).trim() || '';
 
                 formattedProducts.push({
                   nama_barang: String(nama).trim(),
@@ -1269,6 +1320,7 @@ export const DashboardAdmin = () => {
             });
           }
         }
+        } // end of sheets loop
 
         if (formattedProducts.length === 0) {
           toast.warning('Tidak ditemukan data produk yang valid di Excel.');
@@ -2555,25 +2607,29 @@ export const DashboardAdmin = () => {
                   }}
                   className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 >
-                  <option value="Semua">Semua Kategori ({ALL_MAIN_CATEGORIES.length})</option>
-                  {ALL_MAIN_CATEGORIES.map((catName) => (
-                    <option key={catName} value={catName}>{catName}</option>
+                  <option value="Semua">Semua Kategori ({dynamicCategories.length})</option>
+                  {dynamicCategories.map((cat) => (
+                    <option key={cat.name} value={cat.name}>{cat.name}</option>
                   ))}
                 </select>
               </div>
 
               {/* Sub-Category Filter */}
               {productCategoryFilter !== 'Semua' && (
-                <div className="w-full sm:w-auto">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Filter Sub Kategori</label>
                   <select
                     value={productSubCategoryFilter}
                     onChange={(e) => setProductSubCategoryFilter(e.target.value)}
-                    className="w-full sm:w-auto px-3 py-2 bg-teal-50 border border-teal-200 rounded-xl text-xs font-bold text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-teal-500 transition-all shadow-sm"
+                    disabled={productCategoryFilter === 'Semua'}
                   >
-                    <option value="Semua">Semua Sub-Kategori</option>
-                    {getSubCategoriesForCategory(productCategoryFilter).map((subName) => (
-                      <option key={subName} value={subName}>{subName}</option>
-                    ))}
+                    <option value="Semua">Semua Sub Kategori</option>
+                    {productCategoryFilter !== 'Semua' && (
+                      dynamicCategories.find(c => c.name === productCategoryFilter)?.subCategories.map((subName) => (
+                        <option key={subName} value={subName}>{subName}</option>
+                      ))
+                    )}
                   </select>
                 </div>
               )}
@@ -2624,9 +2680,6 @@ export const DashboardAdmin = () => {
                         </div>
                         <div className="text-right shrink-0">
                           <p className="text-sm font-black text-teal-700">Rp {p.harga.toLocaleString('id-ID')}</p>
-                          <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold ${p.stok < 10 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>
-                            Stok: {p.stok}
-                          </span>
                         </div>
                       </div>
 
@@ -2662,7 +2715,6 @@ export const DashboardAdmin = () => {
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Kategori</th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Sub-Kategori</th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Harga</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Stok</th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Aksi</th>
                     </tr>
                   </thead>
@@ -2693,11 +2745,6 @@ export const DashboardAdmin = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm font-bold text-teal-700 text-right">Rp {p.harga.toLocaleString('id-ID')}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700 text-right">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-extrabold ${p.stok < 10 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>
-                            {p.stok}
-                          </span>
-                        </td>
                         <td className="px-6 py-4">
                           <div className="flex justify-center space-x-3">
                             <button onClick={() => openEditModal(p)} className="text-slate-400 hover:text-teal-600 p-2 bg-slate-50 hover:bg-teal-50 rounded-lg transition-colors cursor-pointer" title="Edit Produk">
@@ -3265,40 +3312,45 @@ export const DashboardAdmin = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Kategori Utama</label>
-                <select
+                <input
+                  type="text"
+                  list="kategori-options"
+                  required
+                  placeholder="Contoh: F&B"
                   value={formData.kategori}
                   onChange={(e) => {
                     const newCat = e.target.value;
-                    const availableSubs = getSubCategoriesForCategory(newCat);
+                    const availableSubs = dynamicCategories.find(c => c.name === newCat)?.subCategories || [];
                     setFormData({
                       ...formData,
                       kategori: newCat,
-                      sub_kategori: availableSubs[0] || ''
+                      sub_kategori: availableSubs[0] || formData.sub_kategori
                     });
                   }}
                   className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 sm:text-sm font-bold text-slate-800 transition-colors"
-                >
-                  {CATEGORY_STRUCTURES.map((cat) => (
-                    <option key={cat.id} value={cat.name}>
-                      {cat.id}. {cat.name}
-                    </option>
+                />
+                <datalist id="kategori-options">
+                  {dynamicCategories.map((cat) => (
+                    <option key={cat.name} value={cat.name} />
                   ))}
-                </select>
+                </datalist>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Sub-Kategori</label>
-                <select
+                <input
+                  type="text"
+                  list="sub-kategori-options"
+                  placeholder="Opsional"
                   value={formData.sub_kategori}
                   onChange={(e) => setFormData({...formData, sub_kategori: e.target.value})}
                   className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 sm:text-sm font-semibold text-slate-800 transition-colors"
-                >
-                  {getSubCategoriesForCategory(formData.kategori).map((subName) => (
-                    <option key={subName} value={subName}>
-                      {subName}
-                    </option>
+                />
+                <datalist id="sub-kategori-options">
+                  {dynamicCategories.find(c => c.name === formData.kategori)?.subCategories.map((subName) => (
+                    <option key={subName} value={subName} />
                   ))}
-                </select>
+                </datalist>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
