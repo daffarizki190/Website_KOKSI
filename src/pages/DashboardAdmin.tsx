@@ -3484,7 +3484,24 @@ export const DashboardAdmin = () => {
                   required
                   placeholder="Contoh: Pocari Sweat 500ml"
                   value={formData.nama_barang}
-                  onChange={(e) => setFormData({...formData, nama_barang: e.target.value})}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    let newCat = formData.kategori;
+                    let newSub = formData.sub_kategori;
+
+                    const smartCat = smartCategorize(newName);
+                    if (smartCat) {
+                      newCat = smartCat.kategori;
+                      newSub = smartCat.sub_kategori;
+                    }
+
+                    setFormData({
+                      ...formData, 
+                      nama_barang: newName,
+                      kategori: newCat,
+                      sub_kategori: newSub
+                    });
+                  }}
                   className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
                 />
               </div>
