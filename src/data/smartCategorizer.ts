@@ -41,7 +41,7 @@ const KEYWORD_RULES: KeywordRule[] = [
       'nescafe', 'kopiko', 'good day', 'kapal api', 'torabika', 'abc',
       'floridina', 'pulpy orange', 'minute maid', 'buavita',
       'bear brand', 'cap kaki tiga', 'larutan', 'adem sari',
-      'kratingdaeng', 'extra joss', 'm-150', 'you c 1000', 'kukubima',
+      'kratingdaeng', 'extra joss', 'm-150', 'you c 1000', 'you c1000', 'kukubima',
       'cimory', 'yakult', 'milkuat', 'milku'
     ]
   },
