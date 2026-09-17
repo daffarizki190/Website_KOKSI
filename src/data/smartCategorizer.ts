@@ -33,7 +33,7 @@ const KEYWORD_RULES: KeywordRule[] = [
       'botol', 'kaleng', 'gelas', 'pouch'
     ],
     brands: [
-      'aqua', 'le minerale', 'pristine', 'ades', 'vit', 'club',
+      'aqua', 'le minerale', 'pristine', 'ades', 'vit', 'club', 'cleo',
       'coca cola', 'coca-cola', 'pepsi', 'fanta', 'sprite', '7up',
       'pocari', 'pocari sweat', 'mizone', 'hydro coco',
       'tehbotol', 'teh botol sosro', 'teh pucuk', 'teh javana', 'teh kotak', 'fruit tea',
@@ -409,19 +409,26 @@ export function smartCategorize(productName: string): { kategori: string; sub_ka
 
   let bestMatch: { kategori: string; sub_kategori: string; score: number } | null = null;
 
+  // Helper function to escape special characters for RegExp
+  const escapeRegExp = (string: string) => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  };
+
   for (const rule of KEYWORD_RULES) {
     let score = 0;
 
     // Check brand matches (higher weight — brands are very specific)
     for (const brand of rule.brands) {
-      if (nameLow.includes(brand)) {
+      const regex = new RegExp(`\\b${escapeRegExp(brand)}\\b`, 'i');
+      if (regex.test(nameLow)) {
         score += 10 + brand.length; // Longer brand = more specific = higher score
       }
     }
 
     // Check keyword matches
     for (const kw of rule.keywords) {
-      if (nameLow.includes(kw)) {
+      const regex = new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i');
+      if (regex.test(nameLow)) {
         score += 5 + kw.length;
       }
     }
