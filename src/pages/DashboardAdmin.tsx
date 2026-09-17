@@ -1148,49 +1148,43 @@ export const DashboardAdmin = () => {
         'Nama Barang': 'Pocari Sweat 500ml', 
         'Kategori': 'Makanan & Minuman Siap Saji (F&B)', 
         'Sub Kategori': 'Minuman Dingin & Kemasan',
-        'Satuan': 'Botol', 
-        'Qty': 50, 
-        'HARGA JUAL': 8000 
+        'Harga': 8000,
+        'Stok': 50
       },
       { 
         'Nama Barang': 'Beras Setra Ramos 5kg', 
         'Kategori': 'Makanan & Minuman Siap Saji (F&B)', 
         'Sub Kategori': 'Bahan Makanan (Sembako)',
-        'Satuan': 'Karung', 
-        'Qty': 40, 
-        'HARGA JUAL': 75000 
+        'Harga': 75000,
+        'Stok': 40
       },
       { 
         'Nama Barang': 'Lifebuoy Sabun Cair 450ml', 
         'Kategori': 'Perawatan Diri & Kesehatan (Personal Care)', 
         'Sub Kategori': 'Perawatan Mandi & Rambut',
-        'Satuan': 'Pouch', 
-        'Qty': 30, 
-        'HARGA JUAL': 24000 
+        'Harga': 24000,
+        'Stok': 30
       },
       { 
         'Nama Barang': 'Rinso Matic Front Load 1kg', 
         'Kategori': 'Kebutuhan Rumah Tangga (Household)', 
         'Sub Kategori': 'Pembersih Pakaian',
-        'Satuan': 'Bungkus', 
-        'Qty': 25, 
-        'HARGA JUAL': 32000 
+        'Harga': 32000,
+        'Stok': 25
       },
       { 
         'Nama Barang': 'SilverQueen Almond 58g', 
         'Kategori': 'Rokok & Produk Kasir (Impulse Items)', 
         'Sub Kategori': 'Permen & Cokelat Kecil',
-        'Satuan': 'Pcs', 
-        'Qty': 60, 
-        'HARGA JUAL': 16500 
+        'Harga': 16500,
+        'Stok': 60
       },
       { 
         'Nama Barang': 'Buku Tulis Sinar Dunia A5', 
         'Kategori': 'Non-Food & Perlengkapan Umum', 
         'Sub Kategori': 'Alat Tulis Kantor (ATK) Dasar',
-        'Satuan': 'Pack', 
-        'Qty': 20, 
-        'HARGA JUAL': 45000 
+        'Harga': 45000,
+        'Stok': 20
       }
     ];
     const ws = XLSX.utils.json_to_sheet(templateData);
