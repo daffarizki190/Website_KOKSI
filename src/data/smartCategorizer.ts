@@ -83,7 +83,7 @@ const KEYWORD_RULES: KeywordRule[] = [
       'abc', 'gaga', 'mamee',
       'energen', 'milo', 'quaker',
       'pronas', 'fiesta', 'farmhouse', 'bernardi',
-      'kobe', 'boncabe'
+      'kobe', 'boncabe', 'so nice', 'kanzler', 'champ', 'so good'
     ]
   },
   {
