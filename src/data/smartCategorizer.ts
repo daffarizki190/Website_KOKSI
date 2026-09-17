@@ -26,23 +26,24 @@ const KEYWORD_RULES: KeywordRule[] = [
     subCategory: 'Minuman Dingin & Kemasan',
     keywords: [
       'air mineral', 'teh botol', 'teh kotak', 'teh pucuk', 'teh gelas',
-      'jus', 'juice', 'susu uht', 'isotonik', 'minuman', 'soda',
-      'cola', 'fanta', 'sprite', 'kopi botol', 'kopi kaleng', 'kopi sachet',
+      'jus', 'juice', 'susu uht', 'isotonik', 'minuman soda', 'minuman ringan',
+      'cola', 'kopi botol', 'kopi kaleng', 'kopi sachet', 'minuman kopi',
       'cappuccino', 'latte', 'energi drink', 'energy drink',
-      'es teh', 'sirup', 'nectar', 'yakult', 'cimory',
-      'botol', 'kaleng', 'gelas', 'pouch'
+      'es teh', 'sirup', 'nectar', 'minuman isotonik',
+      'minuman kemasan', 'minuman dingin'
     ],
     brands: [
       'aqua', 'le minerale', 'pristine', 'ades', 'vit', 'club', 'cleo',
       'coca cola', 'coca-cola', 'pepsi', 'fanta', 'sprite', '7up',
       'pocari', 'pocari sweat', 'mizone', 'hydro coco',
       'tehbotol', 'teh botol sosro', 'teh pucuk', 'teh javana', 'teh kotak', 'fruit tea',
-      'ultra milk', 'ultra', 'diamond', 'greenfields',
-      'nescafe', 'kopiko', 'good day', 'kapal api', 'torabika', 'abc',
+      // NOTE: 'ultra milk', 'ultra', 'greenfields' dipindah ke Susu & Olahan Susu
+      // NOTE: 'abc' dipindah ke Bahan Makanan untuk avoid ambiguity
+      'diamond minuman', 'nescafe', 'kopiko', 'good day', 'kapal api', 'torabika',
       'floridina', 'pulpy orange', 'minute maid', 'buavita',
       'bear brand', 'cap kaki tiga', 'larutan', 'adem sari',
       'kratingdaeng', 'extra joss', 'm-150', 'you c 1000', 'you c1000', 'kukubima',
-      'cimory', 'yakult', 'milkuat', 'milku'
+      'cimory drink', 'yakult', 'milkuat', 'milku'
     ]
   },
   {
@@ -89,24 +90,33 @@ const KEYWORD_RULES: KeywordRule[] = [
   {
     subCategory: 'Bahan Makanan (Sembako)',
     keywords: [
-      'beras', 'gula', 'minyak goreng', 'tepung', 'garam',
+      'beras', 'beras putih', 'beras pulen', 'beras premium', 'beras lokal',
+      'pandan wangi', 'rojolele', 'cianjur', 'mentik wangi', 'ir 64', 'ir64',
+      'gula', 'gula pasir', 'gula merah', 'gula aren',
+      'minyak goreng', 'tepung', 'tepung terigu', 'garam',
       'kecap', 'saus', 'saos', 'sambal', 'cuka',
       'santan', 'kelapa', 'bumbu', 'rempah', 'merica', 'lada',
-      'penyedap', 'kaldu', 'vetsin',
+      'penyedap', 'kaldu', 'vetsin', 'msg',
       'margarin', 'mentega', 'butter', 'selai', 'jam',
       'telur', 'tahu', 'tempe', 'oncom',
-      'madu', 'meses', 'coklat bubuk', 'susu kental'
+      'madu', 'meses', 'coklat bubuk', 'susu kental',
+      '5 kg', '10 kg', '20 kg', '25 kg' // kemasan besar = ciri khas sembako
     ],
     brands: [
       'rose brand', 'sania', 'bimoli', 'filma', 'tropical', 'fortune',
       'gulaku', 'gula kristal',
       'segitiga biru', 'bogasari', 'cakra kembar',
+      // NOTE: 'abc' tetap di sini sebagai primary (ABC kecap, saus, dll)
       'abc', 'bango', 'sedaap', 'kikkoman',
       'indofood', 'heinz', 'del monte',
       'royco', 'masako', 'sajiku', 'kokita',
       'blue band', 'palmia', 'forvita',
       'morin', 'skippy', 'nutella', 'ceres',
-      'frisian flag', 'indomilk', 'carnation', 'cap enaak'
+      'frisian flag', 'indomilk', 'carnation', 'cap enaak',
+      // Beras lokal — brand yang sering muncul di format KOKSI
+      'ramos', 'pandan wangi cap panda', 'cap panda', 'bmw cianjur',
+      'cap ikan lele', 'cap ayam', 'cap kuda', 'cap gentong',
+      'mentari', 'dolog', 'bulog', 'slyp', 'setra ramos'
     ]
   },
   {
@@ -114,17 +124,20 @@ const KEYWORD_RULES: KeywordRule[] = [
     keywords: [
       'susu bubuk', 'susu formula', 'susu pertumbuhan', 'susu anak',
       'susu ibu hamil', 'susu dewasa', 'susu segar',
+      'susu uht', 'susu cair', 'susu evaporasi',
       'keju', 'cheese', 'yogurt', 'yoghurt',
       'mentega', 'butter', 'margarin',
-      'krim', 'cream', 'whipping', 'krimer',
-      'susu evaporasi', 'susu cair'
+      'krim', 'cream', 'whipping', 'krimer'
     ],
     brands: [
       'dancow', 'bebelac', 'sgm', 'lactogrow', 'nutrilon',
       'pediasure', 'sustagen', 'ensure', 'entrasol', 'anlene', 'hilo',
       'kraft', 'cheddar', 'prochiz', 'belcube',
       'cimory yogurt', 'heavenly blush', 'biokul',
-      'anchor', 'elle & vire', 'greenfields'
+      'anchor', 'elle & vire', 'greenfields',
+      // Dipindah dari Minuman Dingin — lebih spesifik di sini
+      'ultra milk', 'ultra', 'diamond', 'indomilk susu',
+      'zee', 'susu zee', 'morinaga', 'morinaga chil'
     ]
   },
 
@@ -237,7 +250,8 @@ const KEYWORD_RULES: KeywordRule[] = [
     brands: [
       'rinso', 'attack', 'daia', 'surf', 'so klin',
       'molto', 'downy', 'comfort', 'snuggle',
-      'bayclin', 'vanish', 'wipol', 'proclin',
+      'bayclin', 'vanish', 'proclin',
+      // NOTE: 'wipol' dipindah ke Pembersih Rumah (karbol/disinfektan)
       'gentle gen', 'ariel', 'tide'
     ]
   },
@@ -255,8 +269,9 @@ const KEYWORD_RULES: KeywordRule[] = [
     ],
     brands: [
       'sunlight', 'mama lemon', 'mama lime', 'ekonomi',
-      'super pell', 'superpell', 'so klin lantai', 'wipol',
-      'mr muscle', 'vixal', 'hit', 'cling',
+      'super pell', 'superpell', 'so klin lantai',
+      // 'wipol' primary ada di sini (pembersih lantai/karbol)
+      'wipol', 'mr muscle', 'vixal', 'hit', 'cling',
       'harpic', 'domestos', 'wpc',
       'sos', 'yuri', 'primo'
     ]
@@ -295,7 +310,8 @@ const KEYWORD_RULES: KeywordRule[] = [
     ],
     brands: [
       'scotch-brite', 'scotch brite', '3m',
-      'lion star', 'nagoya', 'bagus sikat',
+      // NOTE: 'lion star' dipindah ke Perlengkapan Plastik & Dapur (ember, baskom dll)
+      'nagoya', 'bagus sikat',
       'krisbow', 'ace hardware'
     ]
   },
@@ -395,7 +411,8 @@ const KEYWORD_RULES: KeywordRule[] = [
     brands: [
       'supertwin', 'starindo', 'sip',
       'total protect', 'best fresh', 'delkochoice', 'bagus wrap',
-      'lion star', 'golden dragon'
+      // 'lion star' primary ada di sini (ember, baskom, wadah plastik)
+      'lion star', 'golden dragon', 'maspion'
     ]
   }
 ];

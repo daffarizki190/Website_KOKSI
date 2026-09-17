@@ -1229,9 +1229,11 @@ export const DashboardAdmin = () => {
           const lower = text.toLowerCase();
           for (const cat of CATEGORY_STRUCTURES) {
             if (lower.includes(cat.name.toLowerCase()) || cat.name.toLowerCase().includes(lower)) return cat.name;
-            // Check partial keywords
-            const keywords = cat.name.toLowerCase().split(/[&()\s]+/).filter(w => w.length > 2);
-            if (keywords.some(kw => lower.includes(kw))) return cat.name;
+            // Check partial keywords — require tokens longer than 5 chars to reduce false positives
+            const keywords = cat.name.toLowerCase().split(/[&()\s]+/).filter(w => w.length > 5);
+            const matchCount = keywords.filter(kw => lower.includes(kw)).length;
+            // Need at least 2 keyword matches, or the text is long enough to be a full category name
+            if (matchCount >= 2) return cat.name;
           }
           return null;
         };
@@ -1241,11 +1243,20 @@ export const DashboardAdmin = () => {
           const lower = text.toLowerCase();
           for (const cat of CATEGORY_STRUCTURES) {
             for (const sub of cat.subCategories) {
+              // Exact / full-string match: always trusted
               if (lower.includes(sub.toLowerCase()) || sub.toLowerCase().includes(lower)) {
                 return { sub: sub, parent: cat.name };
               }
-              const keywords = sub.toLowerCase().split(/[&()\s]+/).filter(w => w.length > 2);
-              if (keywords.length > 0 && keywords.some(kw => lower.includes(kw))) {
+              // Partial token match: only if tokens are long (>4 chars) AND at least 2 match
+              // This prevents single-word accidents like 'dingin', 'manis', 'ringan'
+              const keywords = sub.toLowerCase().split(/[&()\s]+/).filter(w => w.length > 4);
+              if (keywords.length >= 2) {
+                const matchCount = keywords.filter(kw => lower.includes(kw)).length;
+                if (matchCount >= 2) {
+                  return { sub: sub, parent: cat.name };
+                }
+              } else if (keywords.length === 1 && keywords[0].length > 7 && lower.includes(keywords[0])) {
+                // Single very long token (>7 chars) is specific enough
                 return { sub: sub, parent: cat.name };
               }
             }
@@ -1299,6 +1310,8 @@ export const DashboardAdmin = () => {
         let idxQty = -1;
         let idxKat = -1;
         let idxSubKat = -1;
+        // KOKSI format flag: Col A = Sub-Kategori (parent cat lookup), Col C = section label (NOT a DB category column)
+        let isKoksiFormat = false;
         
         for (let r = 0; r < matrixRows.length; r++) {
           const rawRow = matrixRows[r];
@@ -1314,28 +1327,35 @@ export const DashboardAdmin = () => {
             idxKat = findColIndex(rowStr, KAT_KEYWORDS);
             idxSubKat = findColIndex(rowStr, SUBKAT_KEYWORDS);
             
-            // KOKSI format: header contains "Kategori [SubName]" in one of the cells
-            // e.g. "Kategori Pembersih Pakaian" or "Kategori Rokok & Aksesori"
+            // KOKSI supplier format:
+            // Header Col C = "Kategori [SubCategoryName]" (e.g. "Kategori Pembersih Pakaian")
+            // This encodes both the current sub-category AND lets us look up the parent category.
+            // After extraction we set idxKat = -1 so data rows in Col C (section labels like
+            // "Deterjen Cair/Bubuk") are NOT mistakenly used as the DB category.
             for (let c = 0; c < row.length; c++) {
               const cellVal = safeStr(row[c]);
               const cellLow = cellVal.toLowerCase();
-              if (cellLow.startsWith('kategori ') && c !== idxKat) {
-                // This cell contains embedded category info
+              if (cellLow.startsWith('kategori ')) {
                 const catName = cellVal.replace(/^kategori\s+/i, '').trim();
-                // Try to find parent category from this subcategory-like name
-                const subMatch = matchSubCategory(catName);
-                if (subMatch) {
-                  currentCat = subMatch.parent;
-                  currentSubCat = subMatch.sub;
-                } else {
-                  const catMatch = matchCategory(catName);
-                  if (catMatch) {
-                    currentCat = catMatch;
-                    currentSubCat = '';
+                if (catName.length > 0) {
+                  // Try to find parent category from this sub-category-like name
+                  const subMatch = matchSubCategory(catName);
+                  if (subMatch) {
+                    currentCat = subMatch.parent;
+                    currentSubCat = subMatch.sub;
                   } else {
-                    // Use as-is subcategory, keep current category
-                    currentSubCat = catName;
+                    const catMatch = matchCategory(catName);
+                    if (catMatch) {
+                      currentCat = catMatch;
+                      currentSubCat = '';
+                    } else {
+                      // Use as-is sub-category, keep current parent
+                      currentSubCat = catName;
+                    }
                   }
+                  // Mark KOKSI format: Col C is a section-label column, not a DB category column
+                  isKoksiFormat = true;
+                  idxKat = -1; // Prevent data rows from reading Col C as category
                 }
               }
             }
@@ -1375,43 +1395,50 @@ export const DashboardAdmin = () => {
             continue;
           }
           
-          // --- Extract sub-category from dedicated column (KOKSI: merged cell to the left) ---
-          if (idxSubKat >= 0) {
-            const subVal = safeStr(row[idxSubKat]);
-            if (subVal && !/^\d+$/.test(subVal) && subVal.toLowerCase() !== 'no') {
-              // Try to match against known sub-categories
-              const subMatch = matchSubCategory(subVal);
-              if (subMatch) {
-                currentSubCat = subMatch.sub;
-                currentCat = subMatch.parent;
-              } else {
-                currentSubCat = subVal;
-              }
+          // --- Universal Category & Sub-Category Extractor ---
+          // Strategy: scan EVERY cell in the row (skip product name, price, qty columns).
+          // For each non-empty, non-numeric cell value:
+          //   1. Strip "Kategori " prefix if present (KOKSI header format)
+          //   2. Try sub-category match FIRST (most specific — also resolves parent category)
+          //   3. If no sub-category match, try main-category match (updates only parent)
+          //   4. If neither → it's a section label (e.g. "Deterjen Cair/Bubuk") — IGNORE
+          // This approach is column-order agnostic and handles both 5-col and 6-col formats.
+          const SKIP_CELL_EXACT = new Set(['no', 'sub-kategori', 'sub kategori', 'kategori', 'harga', 'nama', '-', 'rp']);
+          for (let c = 0; c < row.length; c++) {
+            if (c === idxNama || c === idxHarga || c === idxQty) continue; // skip data columns
+            let cellVal = safeStr(row[c]);
+            if (!cellVal || cellVal.length < 2) continue;
+            if (/^\d[\d.,\s]*$/.test(cellVal)) continue; // skip pure numbers / prices
+            const cellLow = cellVal.toLowerCase();
+            if (SKIP_CELL_EXACT.has(cellLow)) continue; // skip header labels themselves
+            
+            // Strip "Kategori " prefix (e.g. "Kategori Pembersih Pakaian" → "Pembersih Pakaian")
+            if (cellLow.startsWith('kategori ')) {
+              cellVal = cellVal.replace(/^kategori\s+/i, '').trim();
+              if (!cellVal) continue;
             }
-          } else if (idxNama > 0) {
-            // KOKSI format fallback: sub-category is often in the column left of nama
-            const leftColIdx = idxNama - 1;
-            const leftVal = safeStr(row[leftColIdx]);
-            if (leftVal && !/^\d+$/.test(leftVal) && leftVal.toLowerCase() !== 'no' && leftVal.length > 2) {
-              const subMatch = matchSubCategory(leftVal);
-              if (subMatch) {
-                currentSubCat = subMatch.sub;
-                currentCat = subMatch.parent;
-              } else if (!parseInt(leftVal, 10)) {
-                // Not a number, could be a sub-category name
-                currentSubCat = leftVal;
-              }
+            
+            // Priority 1: match as a known sub-category → resolves BOTH sub_kategori + kategori
+            const subMatch = matchSubCategory(cellVal);
+            if (subMatch) {
+              currentCat = subMatch.parent;
+              currentSubCat = subMatch.sub;
+              continue;
             }
+            
+            // Priority 2: match as a known main category → updates parent only
+            const catMatch = matchCategory(cellVal);
+            if (catMatch) {
+              currentCat = catMatch;
+              // Don't reset currentSubCat — preserve sub if already set from a previous row
+              continue;
+            }
+            
+            // Priority 3: unrecognized value (e.g. "Deterjen Cair/Bubuk", "Rokok SKM Full Flavor")
+            // → it's a granular section label that has no equivalent in CATEGORY_STRUCTURES
+            // → safely ignored; currentCat/currentSubCat carry forward from last match
           }
-          
-          // --- Extract category from dedicated column ---
-          if (idxKat >= 0) {
-            const katVal = safeStr(row[idxKat]);
-            if (katVal && katVal.length > 1) {
-              const catMatch = matchCategory(katVal);
-              currentCat = catMatch || katVal;
-            }
-          }
+
           
           // --- Extract price ---
           let priceNum = 0;
@@ -1436,8 +1463,15 @@ export const DashboardAdmin = () => {
           
           // --- Push the product ---
           
-          // Apply smart categorization based on the actual product name
-          const smartCat = smartCategorize(productName);
+          // smartCategorize is used ONLY as a fallback:
+          //   - If Excel already provided a known category/sub-category (KOKSI format), trust it.
+          //   - If currentCat is still the default first category AND currentSubCat is empty,
+          //     it means the Excel gave us no category signal → let AI categorize instead.
+          const excelHasKnownCat = CATEGORY_STRUCTURES.some(c => c.name === currentCat &&
+            c.name !== CATEGORY_STRUCTURES[0].name) || // non-default parent cat was set
+            CATEGORY_STRUCTURES.some(c => c.subCategories.some(s => s === currentSubCat)); // known sub-cat
+          
+          const smartCat = (!excelHasKnownCat) ? smartCategorize(productName) : null;
           let finalCat = currentCat;
           let finalSubCat = currentSubCat;
           
