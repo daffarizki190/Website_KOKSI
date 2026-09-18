@@ -5125,9 +5125,9 @@ export const DashboardAdmin = () => {
                         <AlertCircle className="w-3.5 h-3.5" /> Panduan Perbaikan
                       </p>
                       <ul className="text-[11px] text-amber-700 space-y-0.5 list-disc list-inside">
-                        <li>Kolom <strong>Kategori</strong> harus: <em>Makanan &amp; Minuman Siap Saji (F&amp;B)</em> atau <em>Perawatan Diri &amp; Kesehatan (Personal Care)</em></li>
+                        <li>Gunakan <strong>Format KOKSI Supplier</strong> dengan kolom <strong>Nama Produk &amp; Gramasi</strong> dan <strong>Harga Jual ke Anggota</strong></li>
+                        <li>Pastikan Kategori sesuai: <em>Makanan &amp; Minuman Siap Saji (F&amp;B)</em> atau <em>Perawatan Diri &amp; Kesehatan (Personal Care)</em></li>
                         <li>Kolom <strong>Harga</strong> tidak boleh 0 atau kosong</li>
-                        <li>Kolom <strong>Nama Barang</strong> minimal 2 karakter</li>
                         <li>Tidak boleh ada nama barang yang sama dalam satu file</li>
                       </ul>
                     </div>
