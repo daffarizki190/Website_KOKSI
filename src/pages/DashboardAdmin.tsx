@@ -1247,19 +1247,21 @@ export const DashboardAdmin = () => {
           const ws = wb.Sheets[wsname];
           const matrixRows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
-          // --- Pre-check: sheet harus punya kolom Nama Produk + Harga di 30 baris pertama ---
+          // --- Pre-check: sheet harus punya kolom Nama Produk + Harga Jual ke Anggota di 30 baris pertama ---
           const checkRows = matrixRows.slice(0, 30);
           const hasNamaCol  = checkRows.some(row => Array.isArray(row) && row.some(cell => {
             const v = String(cell ?? '').toLowerCase();
             return v.includes('nama produk') || v.includes('nama barang') || (v.includes('nama') && (v.includes('produk') || v.includes('barang')));
           }));
-          const hasHargaCol = checkRows.some(row => Array.isArray(row) && row.some(cell => {
+          
+          // KOKSI Format STRICT check
+          const hasHargaAnggotaCol = checkRows.some(row => Array.isArray(row) && row.some(cell => {
             const v = String(cell ?? '').toLowerCase();
-            return (v.includes('harga') || v.includes('price')) && !['dasar', 'koksi', 'hpp'].some(ex => v.includes(ex));
+            return v.includes('harga jual ke anggota');
           }));
           
-          if (!hasNamaCol || !hasHargaCol) {
-            console.log(`[Parser] Sheet "${wsname}" dilewati (tidak ditemukan kolom Nama Produk dan Harga yang valid).`);
+          if (!hasNamaCol || !hasHargaAnggotaCol) {
+            console.log(`[Parser] Sheet "${wsname}" dilewati (Template tidak sesuai ketentuan: tidak ada kolom 'Harga Jual ke Anggota').`);
             continue;
           }
 
