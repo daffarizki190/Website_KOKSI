@@ -28,6 +28,24 @@ interface Product {
   stok: number;
 }
 
+interface ImportResultItem {
+  nama_barang: string;
+  kategori?: string;
+  sub_kategori?: string | null;
+  harga?: number;
+  stok?: number;
+  alasan?: string; // only for rejected
+}
+
+interface ImportResult {
+  inserted: ImportResultItem[];
+  updated:  ImportResultItem[];
+  rejected: ImportResultItem[];
+  insertedCount: number;
+  updatedCount:  number;
+  rejectedCount: number;
+}
+
 interface OrderItem {
   id: number;
   productId: number;
@@ -143,6 +161,10 @@ export const DashboardAdmin = () => {
   // Monthly Export Excel Modal State
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  // Import Result Notification Modal
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importResultTab, setImportResultTab] = useState<'inserted' | 'updated' | 'rejected'>('inserted');
   
   // Category Cleanup State
   const [isCleaningUpCategories, setIsCleaningUpCategories] = useState(false);
@@ -1143,54 +1165,63 @@ export const DashboardAdmin = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const templateData = [
-      { 
-        'Nama Barang': 'Pocari Sweat 500ml', 
-        'Kategori': 'Makanan & Minuman Siap Saji (F&B)', 
-        'Sub Kategori': 'Minuman Dingin & Kemasan',
-        'Harga': 8000,
-        'Stok': 50
-      },
-      { 
-        'Nama Barang': 'Beras Setra Ramos 5kg', 
-        'Kategori': 'Makanan & Minuman Siap Saji (F&B)', 
-        'Sub Kategori': 'Bahan Makanan (Sembako)',
-        'Harga': 75000,
-        'Stok': 40
-      },
-      { 
-        'Nama Barang': 'Lifebuoy Sabun Cair 450ml', 
-        'Kategori': 'Perawatan Diri & Kesehatan (Personal Care)', 
-        'Sub Kategori': 'Perawatan Mandi & Rambut',
-        'Harga': 24000,
-        'Stok': 30
-      },
-      { 
-        'Nama Barang': 'Rinso Matic Front Load 1kg', 
-        'Kategori': 'Kebutuhan Rumah Tangga (Household)', 
-        'Sub Kategori': 'Pembersih Pakaian',
-        'Harga': 32000,
-        'Stok': 25
-      },
-      { 
-        'Nama Barang': 'SilverQueen Almond 58g', 
-        'Kategori': 'Rokok & Produk Kasir (Impulse Items)', 
-        'Sub Kategori': 'Permen & Cokelat Kecil',
-        'Harga': 16500,
-        'Stok': 60
-      },
-      { 
-        'Nama Barang': 'Buku Tulis Sinar Dunia A5', 
-        'Kategori': 'Non-Food & Perlengkapan Umum', 
-        'Sub Kategori': 'Alat Tulis Kantor (ATK) Dasar',
-        'Harga': 45000,
-        'Stok': 20
-      }
+    // ===== SHEET 1: Contoh file format KOKSI Supplier (Minuman/F&B) =====
+    // Format ini PERSIS seperti yang diterima dari supplier KOKSI
+    const templateFnb = [
+      // Header baris pertama
+      ['No', 'Kategori Minuman', 'Nama Produk & Gramasi', 'Harga Dasar', 'Harga Jual ke KOKSI', 'Harga Jual ke Anggota'],
+      // --- Air Mineral ---
+      [1,   'Air Mineral',  'Aqua 600 ml',              2400,  3500,  4500],
+      ['',  '',             'Aqua 1.500 ml',             5550,  6000,  7000],
+      ['',  '',             'Le Minerale 600 ml',        2670,  3500,  4500],
+      ['',  '',             'Cleo 550 ml',               2775,  4000,  5000],
+      // --- Teh Ready to Drink ---
+      [2,   'Teh Ready to Drink', 'Teh Pucuk Harum 350 ml', 3620, 3500, 4500],
+      ['',  '',             'Tehbotol Sosro 450 ml',     6350,  7500,  8500],
+      ['',  '',             'Frestea Jasmine 350 ml',    4475,  4500,  5500],
+      // --- Minuman Berkarbonasi ---
+      [3,   'Minuman Berkarbonasi', 'Coca Cola 330 ml', 4500, 5000, 6000],
+      ['',  '',             'Sprite 330 ml',             4500,  5000,  6000],
+      // --- Kopi RTD ---
+      [4,   'Kopi RTD',    'Good Day Cappuccino 250 ml', 3800, 4000, 5000],
+      ['',  '',             'Nescafe Ready 240 ml',      5200,  6000,  7000],
     ];
-    const ws = XLSX.utils.json_to_sheet(templateData);
+
+    // ===== SHEET 2: Contoh file format KOKSI Supplier (Personal Care) =====
+    const templatePc = [
+      ['No', 'Kategori Perawatan', 'Nama Produk & Gramasi', 'Harga Dasar', 'Harga Jual ke KOKSI', 'Harga Jual ke Anggota'],
+      [1,   'Sabun & Shampo', 'Lifebuoy Sabun Batang 85g',   3500,  5000,  6000],
+      ['',  '',               'Sunsilk Shampo 160 ml',       12000, 14000, 16000],
+      ['',  '',               'Clear Shampo 160 ml',         13000, 15000, 17000],
+      [2,   'Pasta Gigi',     'Pepsodent Action 123 190g',   10000, 13000, 15000],
+      ['',  '',               'Close Up Deep Action 160g',   10000, 12000, 14000],
+      [3,   'Deodoran',       'Rexona Men Stick 45g',        20000, 23000, 26000],
+      ['',  '',               'Dove Original Roll On 50 ml', 22000, 25000, 28000],
+    ];
+
+    // ===== SHEET 3: Panduan Kolom =====
+    const panduan = [
+      { 'Kolom': 'No',                    'Keterangan': 'Nomor urut kategori (boleh kosong untuk baris lanjutan)', 'Wajib?': 'Tidak' },
+      { 'Kolom': 'Kategori Minuman/Perawatan', 'Keterangan': 'Nama sub-kategori — sel bisa digabung (merged) untuk satu grup', 'Wajib?': 'Ya' },
+      { 'Kolom': 'Nama Produk & Gramasi', 'Keterangan': 'Nama lengkap produk termasuk ukuran/gramasi', 'Wajib?': 'Ya' },
+      { 'Kolom': 'Harga Dasar',           'Keterangan': 'Harga pokok — DIABAIKAN oleh sistem', 'Wajib?': 'Tidak' },
+      { 'Kolom': 'Harga Jual ke KOKSI',   'Keterangan': 'Harga grosir — DIABAIKAN oleh sistem', 'Wajib?': 'Tidak' },
+      { 'Kolom': 'Harga Jual ke Anggota', 'Keterangan': '✓ Harga yang tampil di aplikasi untuk member Siemens — WAJIB', 'Wajib?': 'Ya (UTAMA)' },
+    ];
+
+    const ws1  = XLSX.utils.aoa_to_sheet(templateFnb);
+    const ws2  = XLSX.utils.aoa_to_sheet(templatePc);
+    const ws3  = XLSX.utils.json_to_sheet(panduan);
+
+    ws1['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 38 }, { wch: 14 }, { wch: 20 }, { wch: 22 }];
+    ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 38 }, { wch: 14 }, { wch: 20 }, { wch: 22 }];
+    ws3['!cols'] = [{ wch: 30 }, { wch: 60 }, { wch: 12 }];
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Template Produk');
-    XLSX.writeFile(wb, 'Template_Import_Produk_BelanjaIn_Saza.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws1, 'Contoh F&B');
+    XLSX.utils.book_append_sheet(wb, ws2, 'Contoh Personal Care');
+    XLSX.utils.book_append_sheet(wb, ws3, 'Panduan Kolom');
+    XLSX.writeFile(wb, 'Contoh_Format_KOKSI_Supplier.xlsx');
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1216,9 +1247,11 @@ export const DashboardAdmin = () => {
         const safeStrLow = (v: any): string => safeStr(v).toLowerCase();
         
         // Keyword dictionaries for column detection
+        // Format yang diterima: Format KOKSI Supplier
+        // Kolom harga: prioritas utama = "Harga Jual ke Anggota"
         const NAMA_KEYWORDS = ['nama produk & gramasi', 'nama produk', 'nama barang', 'product name', 'nama', 'item', 'produk', 'barang'];
-        const HARGA_KEYWORDS = ['harga jual ke saza', 'harga jual', 'harga anggota', 'harga barang', 'harga', 'price'];
-        const HARGA_EXCLUDE = ['hpp', 'keuntungan', 'modal', 'beli'];
+        const HARGA_KEYWORDS = ['harga jual ke anggota', 'harga jual ke saza', 'harga anggota', 'harga jual', 'harga barang', 'harga', 'price'];
+        const HARGA_EXCLUDE = ['hpp', 'keuntungan', 'modal', 'beli', 'dasar', 'koksi'];
         const SUBKAT_KEYWORDS = ['sub-kategori', 'sub kategori', 'sub_kategori', 'sub category', 'subkategori', 'sub kat'];
         const KAT_KEYWORDS = ['kategori', 'category', 'jenis'];
         const QTY_KEYWORDS = ['qty', 'stok', 'stock', 'jumlah'];
@@ -1533,7 +1566,7 @@ export const DashboardAdmin = () => {
         } // end of sheets loop
 
         if (formattedProducts.length === 0) {
-          toast.warning('Tidak ditemukan data produk yang valid di Excel.');
+          toast.warning('Tidak ditemukan data produk yang valid. Pastikan file menggunakan format KOKSI supplier (kolom: Nama Produk & Gramasi, Harga Jual ke Anggota, Kategori).');
           return;
         }
 
@@ -1549,10 +1582,19 @@ export const DashboardAdmin = () => {
         const resData = await res.json().catch(() => ({}));
         if (res.ok) {
           fetchProducts();
-          toast.success(resData.message || `Berhasil memproses ${formattedProducts.length} produk!`);
-          
-          // Automatically run cleanup after upload
-          handleCleanupCategories();
+          // Tampilkan modal notifikasi detail hasil import
+          const result: ImportResult = {
+            inserted:      resData.inserted      || [],
+            updated:       resData.updated       || [],
+            rejected:      resData.rejected      || [],
+            insertedCount: resData.insertedCount || 0,
+            updatedCount:  resData.updatedCount  || 0,
+            rejectedCount: resData.rejectedCount || 0,
+          };
+          setImportResult(result);
+          // Default tab: tunjukkan rejected jika ada, kalau tidak ke inserted
+          setImportResultTab(result.rejectedCount > 0 ? 'rejected' : result.insertedCount > 0 ? 'inserted' : 'updated');
+          setIsImportModalOpen(false);
         } else {
           toast.error(`Gagal import produk: ${resData.error || 'Terjadi kesalahan pada server'}`);
         }
@@ -3789,14 +3831,40 @@ export const DashboardAdmin = () => {
                 </button>
               </div>
 
+              {/* Format yang Diterima */}
+              <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200">
+                <p className="text-xs font-bold text-amber-900 mb-2 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600" />
+                  <span>Format yang Diterima: KOKSI Supplier</span>
+                </p>
+                <p className="text-[11px] text-amber-800 mb-2">
+                  Sistem <strong>hanya menerima</strong> format Excel dari supplier KOKSI. Kolom yang diperlukan:
+                </p>
+                <div className="grid grid-cols-1 gap-1 mb-2">
+                  {[
+                    ['Kategori / Kategori Minuman', 'Sub-kategori produk (misal: Air Mineral)'],
+                    ['Nama Produk & Gramasi', 'Nama lengkap produk'],
+                    ['Harga Jual ke Anggota', 'Harga yang ditampilkan ke member ✓'],
+                  ].map(([col, desc]) => (
+                    <div key={col} className="flex items-start gap-2">
+                      <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                      <span className="text-[11px] text-amber-900"><strong>{col}</strong> — {desc}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-1 p-2 bg-amber-100 rounded-xl">
+                  <p className="text-[10px] text-amber-700 font-semibold">⚠ Kolom &quot;Harga Dasar&quot; dan &quot;Harga Jual ke KOKSI&quot; diabaikan. Hanya &quot;Harga Jual ke Anggota&quot; yang dipakai.</p>
+                </div>
+              </div>
+
               {/* Upload File */}
               <div className="p-4 bg-teal-50/60 rounded-2xl border border-teal-100">
                 <p className="text-xs font-bold text-teal-950 mb-1 flex items-center gap-1.5">
                   <Upload className="w-4 h-4 text-teal-700" />
-                  <span>2. Upload File Excel Anda</span>
+                  <span>Upload File Excel Supplier</span>
                 </p>
                 <p className="text-[11px] text-teal-800/80 mb-3">
-                  Pilih file Excel yang telah diisi untuk mengimpor produk secara otomatis ke database.
+                  Pilih file Excel format KOKSI supplier untuk mengimpor produk ke database.
                 </p>
                 <button
                   onClick={() => fileInputRef.current?.click()}
@@ -4807,6 +4875,229 @@ export const DashboardAdmin = () => {
                 <span>{isSavingUser ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL NOTIFIKASI HASIL IMPORT EXCEL ===================== */}
+      {importResult && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center">
+                  <FileSpreadsheet className="w-6 h-6 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Hasil Import Produk</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    {importResult.insertedCount} baru &nbsp;·&nbsp; {importResult.updatedCount} diperbarui &nbsp;·&nbsp; {importResult.rejectedCount} ditolak
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setImportResult(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Summary badges */}
+            <div className="flex gap-3 px-6 py-3 bg-slate-50 border-b border-slate-100 shrink-0">
+              <button
+                onClick={() => setImportResultTab('inserted')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
+                  importResultTab === 'inserted'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
+                    : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+                }`}
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                Produk Baru
+                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${importResultTab === 'inserted' ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
+                  {importResult.insertedCount}
+                </span>
+              </button>
+              <button
+                onClick={() => setImportResultTab('updated')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
+                  importResultTab === 'updated'
+                    ? 'bg-sky-600 text-white border-sky-600 shadow-sm shadow-sky-600/30'
+                    : 'bg-white text-sky-700 border-sky-200 hover:bg-sky-50'
+                }`}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Diperbarui
+                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${importResultTab === 'updated' ? 'bg-sky-500 text-white' : 'bg-sky-100 text-sky-700'}`}>
+                  {importResult.updatedCount}
+                </span>
+              </button>
+              <button
+                onClick={() => setImportResultTab('rejected')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
+                  importResultTab === 'rejected'
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-sm shadow-rose-600/30'
+                    : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
+                }`}
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                Ditolak
+                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${importResultTab === 'rejected' ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-700'}`}>
+                  {importResult.rejectedCount}
+                </span>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="overflow-y-auto flex-1 px-6 py-4">
+
+              {/* --- Tab: Produk Baru --- */}
+              {importResultTab === 'inserted' && (
+                importResult.inserted.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                    <Package className="w-10 h-10 mb-2 opacity-40" />
+                    <p className="text-sm font-medium">Tidak ada produk baru yang ditambahkan.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-slate-500 font-semibold mb-2 uppercase tracking-wide">
+                      {importResult.insertedCount} produk berhasil ditambahkan ke database
+                    </p>
+                    <div className="overflow-x-auto rounded-xl border border-emerald-100">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-emerald-50 text-emerald-800">
+                            <th className="px-3 py-2 text-left font-bold">#</th>
+                            <th className="px-3 py-2 text-left font-bold">Nama Barang</th>
+                            <th className="px-3 py-2 text-left font-bold">Sub Kategori</th>
+                            <th className="px-3 py-2 text-right font-bold">Harga</th>
+                            <th className="px-3 py-2 text-right font-bold">Stok</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importResult.inserted.map((item, idx) => (
+                            <tr key={idx} className={`border-t border-emerald-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-emerald-50/30'}`}>
+                              <td className="px-3 py-2 text-slate-400 font-medium">{idx + 1}</td>
+                              <td className="px-3 py-2 text-slate-800 font-semibold">{item.nama_barang}</td>
+                              <td className="px-3 py-2 text-slate-500">{item.sub_kategori || <span className="text-slate-300 italic">—</span>}</td>
+                              <td className="px-3 py-2 text-right text-slate-700 font-medium">Rp {(item.harga ?? 0).toLocaleString('id-ID')}</td>
+                              <td className="px-3 py-2 text-right text-slate-600">{item.stok ?? 0}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* --- Tab: Diperbarui --- */}
+              {importResultTab === 'updated' && (
+                importResult.updated.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                    <RefreshCw className="w-10 h-10 mb-2 opacity-40" />
+                    <p className="text-sm font-medium">Tidak ada produk yang diperbarui.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-slate-500 font-semibold mb-2 uppercase tracking-wide">
+                      {importResult.updatedCount} produk yang sudah ada diperbarui harga & stoknya
+                    </p>
+                    <div className="overflow-x-auto rounded-xl border border-sky-100">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-sky-50 text-sky-800">
+                            <th className="px-3 py-2 text-left font-bold">#</th>
+                            <th className="px-3 py-2 text-left font-bold">Nama Barang</th>
+                            <th className="px-3 py-2 text-left font-bold">Sub Kategori</th>
+                            <th className="px-3 py-2 text-right font-bold">Harga</th>
+                            <th className="px-3 py-2 text-right font-bold">Stok</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importResult.updated.map((item, idx) => (
+                            <tr key={idx} className={`border-t border-sky-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-sky-50/30'}`}>
+                              <td className="px-3 py-2 text-slate-400 font-medium">{idx + 1}</td>
+                              <td className="px-3 py-2 text-slate-800 font-semibold">{item.nama_barang}</td>
+                              <td className="px-3 py-2 text-slate-500">{item.sub_kategori || <span className="text-slate-300 italic">—</span>}</td>
+                              <td className="px-3 py-2 text-right text-slate-700 font-medium">Rp {(item.harga ?? 0).toLocaleString('id-ID')}</td>
+                              <td className="px-3 py-2 text-right text-slate-600">{item.stok ?? 0}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* --- Tab: Ditolak --- */}
+              {importResultTab === 'rejected' && (
+                importResult.rejected.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-emerald-500">
+                    <CheckCircle className="w-10 h-10 mb-2" />
+                    <p className="text-sm font-semibold text-slate-600">Tidak ada produk yang ditolak. Semua data valid!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-slate-500 font-semibold mb-2 uppercase tracking-wide">
+                      {importResult.rejectedCount} produk tidak dapat diimport — periksa dan perbaiki file Excel Anda
+                    </p>
+                    <div className="overflow-x-auto rounded-xl border border-rose-100">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-rose-50 text-rose-800">
+                            <th className="px-3 py-2 text-left font-bold">#</th>
+                            <th className="px-3 py-2 text-left font-bold">Nama Barang</th>
+                            <th className="px-3 py-2 text-left font-bold">Alasan Ditolak</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importResult.rejected.map((item, idx) => (
+                            <tr key={idx} className={`border-t border-rose-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-rose-50/30'}`}>
+                              <td className="px-3 py-2 text-slate-400 font-medium">{idx + 1}</td>
+                              <td className="px-3 py-2 text-slate-800 font-semibold align-top">{item.nama_barang}</td>
+                              <td className="px-3 py-2 text-rose-700 align-top">
+                                <span className="inline-flex items-start gap-1">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500 mt-0.5 shrink-0" />
+                                  {item.alasan}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Panduan perbaikan */}
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                      <p className="text-[11px] font-bold text-amber-800 mb-1 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> Panduan Perbaikan
+                      </p>
+                      <ul className="text-[11px] text-amber-700 space-y-0.5 list-disc list-inside">
+                        <li>Kolom <strong>Kategori</strong> harus: <em>Makanan &amp; Minuman Siap Saji (F&amp;B)</em> atau <em>Perawatan Diri &amp; Kesehatan (Personal Care)</em></li>
+                        <li>Kolom <strong>Harga</strong> tidak boleh 0 atau kosong</li>
+                        <li>Kolom <strong>Nama Barang</strong> minimal 2 karakter</li>
+                        <li>Tidak boleh ada nama barang yang sama dalam satu file</li>
+                      </ul>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 shrink-0">
+              <button
+                onClick={() => setImportResult(null)}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+
           </div>
         </div>
       )}

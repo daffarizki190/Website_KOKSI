@@ -2278,6 +2278,12 @@ app.post('/api/orders/verify-barcode', requireAuth, async (req: AuthRequest, res
   }
 });
 
+// Kategori yang diizinkan untuk diimport saat ini
+const ALLOWED_IMPORT_CATEGORIES = [
+  'Makanan & Minuman Siap Saji (F&B)',
+  'Perawatan Diri & Kesehatan (Personal Care)'
+];
+
 app.post('/api/products/batch', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const newProducts = req.body.products;
@@ -2286,69 +2292,109 @@ app.post('/api/products/batch', requireAuth, requireAdmin, async (req: AuthReque
       return;
     }
 
-    const sanitized = newProducts.map((p: any) => ({
-      nama_barang: String(p.nama_barang || '').trim(),
-      kategori: String(p.kategori || 'Makanan & Minuman Siap Saji (F&B)').trim(),
-      sub_kategori: p.sub_kategori ? String(p.sub_kategori).trim() : null,
-      harga: Math.max(0, parseInt(p.harga, 10) || 0),
-      stok: Math.max(0, parseInt(p.stok, 10) || 0)
-    })).filter(p => p.nama_barang.length > 0);
+    // --- Validasi & Klasifikasi setiap produk ---
+    type ProductRow = { nama_barang: string; kategori: string; sub_kategori: string | null; harga: number; stok: number };
+    type RejectedRow = { nama_barang: string; alasan: string; kategori?: string };
 
-    if (sanitized.length === 0) {
-      res.status(400).json({ error: 'Tidak ada produk valid yang dapat diimport' });
-      return;
+    const validItems: ProductRow[] = [];
+    const rejectedItems: RejectedRow[] = [];
+    const seenNames = new Set<string>();
+
+    for (const p of newProducts) {
+      const nama = String(p.nama_barang || '').trim();
+      const kat  = String(p.kategori   || '').trim();
+      const sub  = p.sub_kategori ? String(p.sub_kategori).trim() : null;
+      const harga = Math.max(0, parseInt(p.harga, 10) || 0);
+      const stok  = Math.max(0, parseInt(p.stok,  10) || 0);
+
+      // Validasi: nama kosong
+      if (!nama || nama.length < 2) {
+        rejectedItems.push({ nama_barang: nama || '(nama kosong)', alasan: 'Nama barang kosong atau terlalu pendek (min. 2 karakter).' });
+        continue;
+      }
+
+      // Validasi: duplikat dalam file
+      const namaKey = nama.toLowerCase();
+      if (seenNames.has(namaKey)) {
+        rejectedItems.push({ nama_barang: nama, alasan: 'Nama produk duplikat di dalam file Excel — hanya satu baris yang diproses.' });
+        continue;
+      }
+      seenNames.add(namaKey);
+
+      // Validasi: harga 0
+      if (harga === 0) {
+        rejectedItems.push({ nama_barang: nama, alasan: 'Harga tidak boleh 0. Isi kolom Harga dengan nilai yang benar.', kategori: kat });
+        continue;
+      }
+
+      // Validasi: kategori harus masuk whitelist
+      const katMatch = ALLOWED_IMPORT_CATEGORIES.find(
+        allowed => allowed.toLowerCase() === kat.toLowerCase() || kat.toLowerCase().includes(allowed.toLowerCase().split('(')[0].trim().toLowerCase())
+      );
+      if (!katMatch) {
+        const alasan = kat
+          ? `Kategori "${kat}" belum aktif. Saat ini hanya menerima: ${ALLOWED_IMPORT_CATEGORIES.join(' dan ')}.`
+          : `Kolom Kategori kosong. Isi dengan salah satu dari: ${ALLOWED_IMPORT_CATEGORIES.join(' atau ')}.`;
+        rejectedItems.push({ nama_barang: nama, alasan, kategori: kat });
+        continue;
+      }
+
+      validItems.push({ nama_barang: nama, kategori: katMatch, sub_kategori: sub, harga, stok });
     }
 
-    // Fetch existing products to match by product name (case-insensitive)
+    // --- Proses valid items ke DB ---
     const existingProducts = await withDbRetry(() => db.select().from(products));
-    
-    let updatedCount = 0;
-    let insertedCount = 0;
 
-    const updatePromises: any[] = [];
-    const insertValues: any[] = [];
+    const insertedItems: ProductRow[] = [];
+    const updatedItems:  ProductRow[] = [];
+    const updatePromises: (() => Promise<any>)[] = [];
+    const insertValues: ProductRow[] = [];
 
-    for (const item of sanitized) {
+    for (const item of validItems) {
       const match = existingProducts.find(
         p => p.nama_barang.trim().toLowerCase() === item.nama_barang.toLowerCase()
       );
 
       if (match) {
-        // Update price, stock, and category for existing product
+        const updatedKat = item.kategori !== 'Lainnya' ? item.kategori : match.kategori;
+        const updatedSub = item.sub_kategori ?? match.sub_kategori;
         updatePromises.push(() => db.update(products)
-          .set({
-            harga: item.harga,
-            stok: item.stok,
-            kategori: item.kategori && item.kategori !== 'Lainnya' ? item.kategori : match.kategori,
-            sub_kategori: item.sub_kategori ? item.sub_kategori : match.sub_kategori
-          })
+          .set({ harga: item.harga, stok: item.stok, kategori: updatedKat, sub_kategori: updatedSub })
           .where(eq(products.id, match.id))
         );
-        updatedCount++;
+        updatedItems.push({ ...item, kategori: updatedKat, sub_kategori: updatedSub });
       } else {
-        // Insert as new product
         insertValues.push(item);
-        insertedCount++;
+        insertedItems.push(item);
       }
     }
 
-    // Process updates in chunks to avoid overwhelming the DB pool
     const chunkSize = 50;
     for (let i = 0; i < updatePromises.length; i += chunkSize) {
       const chunk = updatePromises.slice(i, i + chunkSize);
       await Promise.all(chunk.map(op => withDbRetry(op)));
     }
-
-    // Process inserts in chunks using Drizzle's native bulk insert
     for (let i = 0; i < insertValues.length; i += chunkSize) {
       const chunk = insertValues.slice(i, i + chunkSize);
       await withDbRetry(() => db.insert(products).values(chunk));
     }
 
+    const actorName = (req as any).user?.name || (req as any).user?.nama || 'Admin';
+    await logActivity(
+      (req as any).user?.id || null,
+      actorName,
+      'Import Produk Excel',
+      `Baru: ${insertedItems.length}, Diperbarui: ${updatedItems.length}, Ditolak: ${rejectedItems.length} produk.`
+    );
+
     res.status(200).json({
-      message: `Berhasil mengimport data: ${insertedCount} produk baru ditambahkan, ${updatedCount} produk diperbarui!`,
-      insertedCount,
-      updatedCount
+      message: `Import selesai: ${insertedItems.length} baru, ${updatedItems.length} diperbarui, ${rejectedItems.length} ditolak.`,
+      insertedCount: insertedItems.length,
+      updatedCount:  updatedItems.length,
+      rejectedCount: rejectedItems.length,
+      inserted: insertedItems,
+      updated:  updatedItems,
+      rejected: rejectedItems
     });
   } catch (error: any) {
     console.error('Error batch insert/update:', error);
