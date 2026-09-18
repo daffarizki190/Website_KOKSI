@@ -1236,8 +1236,31 @@ export const DashboardAdmin = () => {
         const formattedProducts: { nama_barang: string; kategori: string; sub_kategori?: string; harga: number; stok: number }[] = [];
 
         for (const wsname of wb.SheetNames) {
+          // --- Skip sheet yang bukan data produk KOKSI ---
+          const wsnameLow = wsname.toLowerCase();
+          const SKIP_SHEET_KEYWORDS = ['referensi', 'panduan', 'petunjuk', 'keterangan', 'info', 'catatan', 'note', 'readme', 'instruksi', 'guide', 'help', 'rekap', 'summary'];
+          if (SKIP_SHEET_KEYWORDS.some(kw => wsnameLow.includes(kw))) {
+            console.log(`[Parser] Sheet "${wsname}" dilewati (bukan sheet data produk).`);
+            continue;
+          }
+
           const ws = wb.Sheets[wsname];
           const matrixRows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+
+          // --- Pre-check: sheet harus punya kolom Nama Produk + Harga di 30 baris pertama ---
+          const checkRows = matrixRows.slice(0, 30);
+          const hasNamaCol  = checkRows.some(row => row.some(cell => {
+            const v = String(cell ?? '').toLowerCase();
+            return v.includes('nama produk') || v.includes('nama barang') || v.includes('nama') && (v.includes('produk') || v.includes('barang'));
+          }));
+          const hasHargaCol = checkRows.some(row => row.some(cell => {
+            const v = String(cell ?? '').toLowerCase();
+            return (v.includes('harga') || v.includes('price')) && !['dasar', 'koksi', 'hpp'].some(ex => v.includes(ex));
+          }));
+          if (!hasNamaCol || !hasHargaCol) {
+            console.log(`[Parser] Sheet "${wsname}" dilewati (tidak ditemukan kolom Nama Produk dan Harga yang valid).`);
+            continue;
+          }
 
         // ========== UNIVERSAL EXCEL AUTO-DETECTION PARSER ==========
         // Handles: KOKSI supplier format, BelanjaIn Saza template, and any arbitrary Excel
