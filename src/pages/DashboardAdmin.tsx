@@ -1234,6 +1234,7 @@ export const DashboardAdmin = () => {
         const ab = evt.target?.result;
         const wb = XLSX.read(ab, { type: 'array' });
         const formattedProducts: { nama_barang: string; kategori: string; sub_kategori?: string; harga: number; stok: number }[] = [];
+        const frontendRejected: { nama_barang: string; alasan: string; kategori?: string }[] = [];
 
         for (const wsname of wb.SheetNames) {
           // --- Skip sheet yang bukan data produk KOKSI ---
@@ -1241,6 +1242,11 @@ export const DashboardAdmin = () => {
           const SKIP_SHEET_KEYWORDS = ['referensi', 'panduan', 'petunjuk', 'keterangan', 'info', 'catatan', 'note', 'readme', 'instruksi', 'guide', 'help', 'rekap', 'summary'];
           if (SKIP_SHEET_KEYWORDS.some(kw => wsnameLow.includes(kw))) {
             console.log(`[Parser] Sheet "${wsname}" dilewati (bukan sheet data produk).`);
+            frontendRejected.push({
+              nama_barang: `[Sheet: ${wsname}]`,
+              alasan: `Sheet dilewati (bukan sheet data produk).`,
+              kategori: '-'
+            });
             continue;
           }
 
@@ -1262,6 +1268,11 @@ export const DashboardAdmin = () => {
           
           if (!hasNamaCol || !hasHargaAnggotaCol) {
             console.log(`[Parser] Sheet "${wsname}" dilewati (Template tidak sesuai ketentuan: tidak ada kolom 'Harga Jual ke Anggota').`);
+            frontendRejected.push({
+              nama_barang: `[Sheet: ${wsname}]`,
+              alasan: `Template sheet tidak sesuai ketentuan (Harus format KOKSI dengan kolom 'Harga Jual ke Anggota').`,
+              kategori: '-'
+            });
             continue;
           }
 
@@ -1591,8 +1602,19 @@ export const DashboardAdmin = () => {
         }
         } // end of sheets loop
 
-        if (formattedProducts.length === 0) {
+        if (formattedProducts.length === 0 && frontendRejected.length === 0) {
           toast.warning('Tidak ditemukan data produk yang valid. Pastikan file menggunakan format KOKSI supplier (kolom: Nama Produk & Gramasi, Harga Jual ke Anggota, Kategori).');
+          return;
+        }
+
+        if (formattedProducts.length === 0 && frontendRejected.length > 0) {
+          // If no products parsed but we have rejected sheets, show the modal directly
+          setImportResult({
+            inserted: [], updated: [], rejected: frontendRejected,
+            insertedCount: 0, updatedCount: 0, rejectedCount: frontendRejected.length
+          });
+          setImportResultTab('rejected');
+          setIsImportModalOpen(false);
           return;
         }
 
@@ -1612,10 +1634,10 @@ export const DashboardAdmin = () => {
           const result: ImportResult = {
             inserted:      resData.inserted      || [],
             updated:       resData.updated       || [],
-            rejected:      resData.rejected      || [],
+            rejected:      [...frontendRejected, ...(resData.rejected || [])],
             insertedCount: resData.insertedCount || 0,
             updatedCount:  resData.updatedCount  || 0,
-            rejectedCount: resData.rejectedCount || 0,
+            rejectedCount: (resData.rejectedCount || 0) + frontendRejected.length,
           };
           setImportResult(result);
           // Default tab: tunjukkan rejected jika ada, kalau tidak ke inserted

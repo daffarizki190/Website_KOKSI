@@ -2333,7 +2333,7 @@ app.post('/api/products/batch', requireAuth, requireAdmin, async (req: AuthReque
       );
       if (!katMatch) {
         const alasan = kat
-          ? `Kategori "${kat}" belum aktif. Saat ini hanya menerima: ${ALLOWED_IMPORT_CATEGORIES.join(' dan ')}.`
+          ? `Kategori "${kat}" belum aktif, atau format template tidak sesuai ketentuan.`
           : `Kolom Kategori kosong. Isi dengan salah satu dari: ${ALLOWED_IMPORT_CATEGORIES.join(' atau ')}.`;
         rejectedItems.push({ nama_barang: nama, alasan, kategori: kat });
         continue;
