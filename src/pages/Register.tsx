@@ -161,6 +161,16 @@ export const Register = () => {
       return;
     }
 
+    if (!/[A-Z]/.test(formData.password)) {
+      setError('Password harus mengandung minimal 1 huruf kapital (huruf besar)');
+      return;
+    }
+
+    if (!/[0-9]/.test(formData.password)) {
+      setError('Password harus mengandung minimal 1 angka');
+      return;
+    }
+
     const cleanNoHp = formData.no_hp.trim().replace(/[\s-]/g, '');
     if (!/^[0-9]{9,15}$/.test(cleanNoHp)) {
       setError('Nomor HP tidak valid. Masukkan angka 9 - 15 digit');
@@ -304,7 +314,7 @@ export const Register = () => {
                       name="password"
                       type={showPassword ? 'text' : 'password'}
                       required
-                      placeholder="Min 6 karakter"
+                      placeholder="Min 6 karakter, 1 kapital & 1 angka"
                       value={formData.password}
                       onChange={handleChange}
                       className="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm pr-10"

@@ -372,6 +372,20 @@ app.post('/api/auth/register', async (req, res) => {
       return;
     }
 
+    const passStr = password.toString().trim();
+    if (passStr.length < 6) {
+      res.status(400).json({ error: 'Password minimal 6 karakter' });
+      return;
+    }
+    if (!/[A-Z]/.test(passStr)) {
+      res.status(400).json({ error: 'Password harus mengandung minimal 1 huruf kapital (huruf besar)' });
+      return;
+    }
+    if (!/[0-9]/.test(passStr)) {
+      res.status(400).json({ error: 'Password harus mengandung minimal 1 angka' });
+      return;
+    }
+
     const cleanNoHp = normalizePhone(no_hp);
     if (!/^[0-9]{9,15}$/.test(cleanNoHp)) {
       res.status(400).json({ error: 'Nomor HP tidak valid. Harus berisi 9 - 15 digit angka' });
