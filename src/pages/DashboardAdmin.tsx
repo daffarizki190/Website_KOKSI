@@ -260,15 +260,35 @@ export const DashboardAdmin = () => {
   const [editSuccess, setEditSuccess] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  // Demo Ordering Toggle
-  const [isDemoOrderingEnabled, setIsDemoOrderingEnabled] = useState(
-    localStorage.getItem('demo_ordering_enabled') === 'true'
-  );
+  // Demo Ordering Toggle (Global)
+  const [isDemoOrderingEnabled, setIsDemoOrderingEnabled] = useState(false);
 
-  const toggleDemoOrdering = () => {
+  useEffect(() => {
+    fetch('/api/settings/demo-mode')
+      .then(res => res.json())
+      .then(data => setIsDemoOrderingEnabled(data.demoMode))
+      .catch(console.error);
+  }, []);
+
+  const toggleDemoOrdering = async () => {
     const newVal = !isDemoOrderingEnabled;
     setIsDemoOrderingEnabled(newVal);
+    // Also save locally for fallback
     localStorage.setItem('demo_ordering_enabled', newVal.toString());
+    
+    try {
+      const token = localStorage.getItem('token');
+      await fetch('/api/settings/demo-mode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ demoMode: newVal })
+      });
+    } catch (err) {
+      console.error('Gagal update demo mode ke server', err);
+    }
   };
 
   const handleOpenProfileModal = () => {

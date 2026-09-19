@@ -1487,12 +1487,28 @@ const demoOrdersStore: Array<{
   user?: any;
 }> = [];
 
+// GLOBAL STATE FOR DEMO MODE
+let globalDemoMode = false;
+
+app.get('/api/settings/demo-mode', (req, res) => {
+  res.json({ demoMode: globalDemoMode });
+});
+
+app.post('/api/settings/demo-mode', requireAuth, (req, res) => {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'it') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  const { demoMode } = req.body;
+  globalDemoMode = !!demoMode;
+  res.json({ success: true, demoMode: globalDemoMode });
+});
+
 app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
   const { items, total_amount } = req.body;
   let userId = Number(req.user?.id);
 
-  // Cek Hari Pemesanan (Hanya Senin dan Selasa), kecuali dalam Mode Demo
-  const isDemoMode = req.headers['x-demo-mode'] === 'true';
+  // Cek Hari Pemesanan (Hanya Senin dan Selasa), kecuali dalam Mode Demo Global
+  const isDemoMode = globalDemoMode || req.headers['x-demo-mode'] === 'true';
   const jakartaTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
   const dayOfWeek = new Date(jakartaTime).getDay(); // 0=Minggu, 1=Senin, 2=Selasa, dst.
   
@@ -1598,9 +1614,10 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
           prodList = [newProd];
         }
 
-        if (prodList[0].stok < reqQty) {
-          throw new Error(`Stok "${prodList[0].nama_barang}" tidak mencukupi (tersisa: ${prodList[0].stok}, diminta: ${reqQty}).`);
-        }
+        // PENGECEKAN STOK DINONAKTIFKAN (Semua barang selalu tersedia)
+        // if (prodList[0].stok < reqQty) {
+        //   throw new Error(`Stok "${prodList[0].nama_barang}" tidak mencukupi (tersisa: ${prodList[0].stok}, diminta: ${reqQty}).`);
+        // }
       }
 
       // 2. Insert order record

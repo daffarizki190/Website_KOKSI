@@ -47,14 +47,23 @@ export const DashboardUser = () => {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
-  const isOrderingClosed = useMemo(() => {
-    // Cek apakah Mode Demo aktif (hanya berlaku di browser yang sama)
-    const isDemo = localStorage.getItem('demo_ordering_enabled') === 'true';
-    if (isDemo) return false;
-
+  const [isOrderingClosed, setIsOrderingClosed] = useState(() => {
     const jakartaTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
     const dayOfWeek = new Date(jakartaTime).getDay();
     return dayOfWeek !== 1 && dayOfWeek !== 2;
+  });
+
+  useEffect(() => {
+    // Fetch global demo mode state
+    fetch('/api/settings/demo-mode')
+      .then(res => res.json())
+      .then(data => {
+        if (data.demoMode) {
+          setIsOrderingClosed(false);
+          setShowClosedModal(false);
+        }
+      })
+      .catch(console.error);
   }, []);
 
   const [showClosedModal, setShowClosedModal] = useState(() => {
@@ -219,9 +228,8 @@ export const DashboardUser = () => {
   // Checkout & Ordering State
   const [isCheckoutConfirmOpen, setIsCheckoutConfirmOpen] = useState(false);
   const dayOfWeek = new Date().getDay();
-  // 1 = Monday, 2 = Tuesday (Bisa diaktifkan kapan saja atau via Mode Demo)
-  const isOrderingTime = dayOfWeek === 1 || dayOfWeek === 2;
-  const isDemoOrderingEnabled = localStorage.getItem('demo_ordering_enabled') !== 'false';
+  // Mode Demo button indicator removal
+  // We can just rely on the backend now for the actual ordering limitation
   // Selalu izinkan pemesanan & tambah keranjang (canOrder = true)
   const canOrder = true;
 
@@ -374,8 +382,7 @@ export const DashboardUser = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token || localStorage.getItem('token')}`,
-          'X-Demo-Mode': localStorage.getItem('demo_ordering_enabled') === 'true' ? 'true' : 'false'
+          Authorization: `Bearer ${token || localStorage.getItem('token')}`
         },
         body: JSON.stringify({ items, total_amount })
       });
