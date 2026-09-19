@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { BelanjainLogo } from '../components/BelanjainLogo';
 
 export const Register = () => {
@@ -26,6 +26,8 @@ export const Register = () => {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -297,30 +299,48 @@ export const Register = () => {
                   <label className="block text-xs font-medium text-slate-700 mb-1">
                     Password <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    name="password"
-                    type="password"
-                    required
-                    placeholder="Min 6 karakter"
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                  />
+                  <div className="relative">
+                    <input
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      placeholder="Min 6 karakter"
+                      value={formData.password}
+                      onChange={handleChange}
+                      className="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
                     Konfirmasi Password <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    name="confirmPassword"
-                    type="password"
-                    required
-                    placeholder="Ulangi password"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    className="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                  />
+                  <div className="relative">
+                    <input
+                      name="confirmPassword"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      placeholder="Ulangi password"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      className="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
