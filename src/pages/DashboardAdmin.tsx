@@ -1281,9 +1281,14 @@ export const DashboardAdmin = () => {
           }));
           
           // KOKSI Format STRICT check
-          const hasHargaAnggotaCol = checkRows.some(row => Array.isArray(row) && row.some(cell => {
+          let globalIdxHarga = -1;
+          const hasHargaAnggotaCol = checkRows.some(row => Array.isArray(row) && row.some((cell, idx) => {
             const v = String(cell ?? '').toLowerCase();
-            return v.includes('harga jual ke anggota');
+            if (v.includes('harga jual ke anggota')) {
+              globalIdxHarga = idx;
+              return true;
+            }
+            return false;
           }));
           
           if (!hasNamaCol || !hasHargaAnggotaCol) {
@@ -1411,11 +1416,17 @@ export const DashboardAdmin = () => {
           
           // --- Check if this row is a header row ---
           if (isHeaderRow(rowStr)) {
-            idxNama = findColIndex(rowStr, NAMA_KEYWORDS);
-            idxHarga = findColIndex(rowStr, HARGA_KEYWORDS, HARGA_EXCLUDE);
-            idxQty = findColIndex(rowStr, QTY_KEYWORDS);
-            idxKat = findColIndex(rowStr, KAT_KEYWORDS);
-            idxSubKat = findColIndex(rowStr, SUBKAT_KEYWORDS);
+            const newIdxNama = findColIndex(rowStr, NAMA_KEYWORDS);
+            const newIdxHarga = globalIdxHarga !== -1 ? globalIdxHarga : findColIndex(rowStr, HARGA_KEYWORDS, HARGA_EXCLUDE);
+            const newIdxQty = findColIndex(rowStr, QTY_KEYWORDS);
+            const newIdxKat = findColIndex(rowStr, KAT_KEYWORDS);
+            const newIdxSubKat = findColIndex(rowStr, SUBKAT_KEYWORDS);
+            
+            if (newIdxNama !== -1) idxNama = newIdxNama;
+            if (newIdxHarga !== -1) idxHarga = newIdxHarga;
+            if (newIdxQty !== -1) idxQty = newIdxQty;
+            if (newIdxKat !== -1) idxKat = newIdxKat;
+            if (newIdxSubKat !== -1) idxSubKat = newIdxSubKat;
             
             // KOKSI supplier format:
             // Header Col C = "Kategori [SubCategoryName]" (e.g. "Kategori Pembersih Pakaian")
