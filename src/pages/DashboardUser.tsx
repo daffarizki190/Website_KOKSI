@@ -46,6 +46,7 @@ export const DashboardUser = () => {
   const [checkoutSuccessOrder, setCheckoutSuccessOrder] = useState<any | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isDemoModeActive, setIsDemoModeActive] = useState(false);
 
   const [isOrderingClosed, setIsOrderingClosed] = useState(() => {
     const jakartaTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
@@ -61,6 +62,7 @@ export const DashboardUser = () => {
         if (data.demoMode) {
           setIsOrderingClosed(false);
           setShowClosedModal(false);
+          setIsDemoModeActive(true);
         }
       })
       .catch(console.error);
@@ -382,6 +384,7 @@ export const DashboardUser = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-demo-mode': isDemoModeActive ? 'true' : 'false',
           Authorization: `Bearer ${token || localStorage.getItem('token')}`
         },
         body: JSON.stringify({ items, total_amount })
