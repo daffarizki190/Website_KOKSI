@@ -3013,7 +3013,11 @@ export const DashboardAdmin = () => {
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-sm font-black text-teal-700">Rp {p.harga.toLocaleString('id-ID')}</p>
+                          {p.harga > 0 ? (
+                            <p className="text-sm font-black text-teal-700">Rp {p.harga.toLocaleString('id-ID')}</p>
+                          ) : (
+                            <p className="text-sm font-black text-slate-400">-</p>
+                          )}
                         </div>
                       </div>
 
@@ -3078,7 +3082,10 @@ export const DashboardAdmin = () => {
                             {p.sub_kategori || '-'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm font-bold text-teal-700 text-right">Rp {p.harga.toLocaleString('id-ID')}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-teal-700 text-right">
+                          {p.harga > 0 ? `Rp ${p.harga.toLocaleString('id-ID')}` : <span className="text-slate-400">-</span>}
+                        </td>
+
                         <td className="px-6 py-4">
                           <div className="flex justify-center space-x-3">
                             <button onClick={() => openEditModal(p)} className="text-slate-400 hover:text-teal-600 p-2 bg-slate-50 hover:bg-teal-50 rounded-lg transition-colors cursor-pointer" title="Edit Produk">

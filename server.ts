@@ -2338,11 +2338,11 @@ app.post('/api/products/batch', requireAuth, requireAdmin, async (req: AuthReque
       }
       seenNames.add(namaKey);
 
-      // Validasi: harga 0
-      if (harga === 0) {
-        rejectedItems.push({ nama_barang: nama, alasan: 'Harga tidak boleh 0. Isi kolom Harga dengan nilai yang benar.', kategori: kat });
-        continue;
-      }
+      // Validasi: harga 0 (Dihapus agar produk yang tidak ada harga bisa diupdate jadi 0)
+      // if (harga === 0) {
+      //   rejectedItems.push({ nama_barang: nama, alasan: 'Harga tidak boleh 0. Isi kolom Harga dengan nilai yang benar.', kategori: kat });
+      //   continue;
+      // }
 
       // Validasi: kategori harus masuk whitelist
       const katMatch = ALLOWED_IMPORT_CATEGORIES.find(
