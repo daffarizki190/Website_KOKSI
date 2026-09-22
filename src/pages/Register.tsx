@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Loader2, ArrowLeft, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle, Eye, EyeOff, Check, XCircle } from 'lucide-react';
 import { BelanjainLogo } from '../components/BelanjainLogo';
 
 export const Register = () => {
@@ -29,6 +29,7 @@ export const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const [isConfirmPasswordFocused, setIsConfirmPasswordFocused] = useState(false);
   const navigate = useNavigate();
 
   const calculatePasswordScore = (pass: string) => {
@@ -41,11 +42,12 @@ export const Register = () => {
   
   const passwordScore = calculatePasswordScore(formData.password);
   const passwordProgress = (passwordScore / 3) * 100;
+  const passwordsMatch = formData.confirmPassword.length > 0 && formData.password === formData.confirmPassword;
   
   let progressColor = 'bg-slate-200';
-  if (passwordScore === 1) progressColor = 'bg-red-500';
-  else if (passwordScore === 2) progressColor = 'bg-yellow-500';
-  else if (passwordScore === 3) progressColor = 'bg-teal-500';
+  if (passwordScore === 1) progressColor = 'bg-gradient-to-r from-rose-500 to-red-400';
+  else if (passwordScore === 2) progressColor = 'bg-gradient-to-r from-amber-500 to-yellow-400';
+  else if (passwordScore === 3) progressColor = 'bg-gradient-to-r from-emerald-500 to-teal-400';
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -351,25 +353,40 @@ export const Register = () => {
                   {/* Animasi Info & Progress Password */}
                   <div 
                     className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                      isPasswordFocused || (formData.password.length > 0 && passwordScore < 3) ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
+                      isPasswordFocused || (formData.password.length > 0 && passwordScore < 3) ? 'max-h-48 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
                     }`}
                   >
-                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                      <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mb-2">
+                    <div className="bg-white p-3.5 rounded-xl border border-slate-200/70 shadow-[0_4px_12px_-4px_rgba(0,0,0,0.05)]">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Kekuatan Password</span>
+                        <span className={`text-[10px] font-bold ${passwordScore === 3 ? 'text-emerald-500' : (passwordScore === 2 ? 'text-amber-500' : 'text-rose-500')}`}>
+                          {passwordScore === 3 ? 'Kuat' : (passwordScore === 2 ? 'Sedang' : 'Lemah')}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden mb-3">
                         <div 
                           className={`h-full rounded-full transition-all duration-500 ease-out ${progressColor}`}
                           style={{ width: `${passwordProgress}%` }}
                         ></div>
                       </div>
-                      <ul className="text-[10px] space-y-1">
-                        <li className={`flex items-center transition-colors duration-300 ${formData.password.length >= 6 ? 'text-teal-600' : 'text-slate-500'}`}>
-                          <CheckCircle className="w-3 h-3 mr-1.5 shrink-0" /> Minimal 6 karakter
+                      <ul className="space-y-2">
+                        <li className={`flex items-center transition-all duration-300 text-[11px] sm:text-xs ${formData.password.length >= 6 ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>
+                          <div className={`mr-2.5 flex items-center justify-center w-4 h-4 rounded-full transition-all duration-300 ${formData.password.length >= 6 ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'}`}>
+                            {formData.password.length >= 6 ? <Check className="w-2.5 h-2.5" strokeWidth={3} /> : <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />}
+                          </div>
+                          Minimal 6 karakter
                         </li>
-                        <li className={`flex items-center transition-colors duration-300 ${/[A-Z]/.test(formData.password) ? 'text-teal-600' : 'text-slate-500'}`}>
-                          <CheckCircle className="w-3 h-3 mr-1.5 shrink-0" /> 1 Huruf kapital
+                        <li className={`flex items-center transition-all duration-300 text-[11px] sm:text-xs ${/[A-Z]/.test(formData.password) ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>
+                          <div className={`mr-2.5 flex items-center justify-center w-4 h-4 rounded-full transition-all duration-300 ${/[A-Z]/.test(formData.password) ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'}`}>
+                            {/[A-Z]/.test(formData.password) ? <Check className="w-2.5 h-2.5" strokeWidth={3} /> : <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />}
+                          </div>
+                          Minimal 1 Huruf kapital
                         </li>
-                        <li className={`flex items-center transition-colors duration-300 ${/[0-9]/.test(formData.password) ? 'text-teal-600' : 'text-slate-500'}`}>
-                          <CheckCircle className="w-3 h-3 mr-1.5 shrink-0" /> 1 Angka
+                        <li className={`flex items-center transition-all duration-300 text-[11px] sm:text-xs ${/[0-9]/.test(formData.password) ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>
+                          <div className={`mr-2.5 flex items-center justify-center w-4 h-4 rounded-full transition-all duration-300 ${/[0-9]/.test(formData.password) ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'}`}>
+                            {/[0-9]/.test(formData.password) ? <Check className="w-2.5 h-2.5" strokeWidth={3} /> : <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />}
+                          </div>
+                          Minimal 1 Angka
                         </li>
                       </ul>
                     </div>
@@ -388,15 +405,34 @@ export const Register = () => {
                       placeholder="Ulangi password"
                       value={formData.confirmPassword}
                       onChange={handleChange}
+                      onFocus={() => setIsConfirmPasswordFocused(true)}
+                      onBlur={() => setIsConfirmPasswordFocused(false)}
                       className="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm pr-10"
                     />
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
                     >
                       {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
+                  </div>
+                  
+                  {/* Animasi Info Konfirmasi Password */}
+                  <div 
+                    className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                      isConfirmPasswordFocused || (formData.confirmPassword.length > 0 && !passwordsMatch) ? 'max-h-20 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
+                    }`}
+                  >
+                    <div className="bg-white p-3 rounded-xl border border-slate-200/70 shadow-[0_4px_12px_-4px_rgba(0,0,0,0.05)]">
+                      <div className={`flex items-center transition-all duration-300 text-[11px] sm:text-xs ${passwordsMatch ? 'text-slate-700 font-medium' : (formData.confirmPassword.length > 0 ? 'text-rose-600 font-medium' : 'text-slate-400')}`}>
+                        <div className={`mr-2.5 flex items-center justify-center w-4 h-4 rounded-full transition-all duration-300 ${passwordsMatch ? 'bg-emerald-100 text-emerald-600' : (formData.confirmPassword.length > 0 ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-300')}`}>
+                          {passwordsMatch ? <Check className="w-2.5 h-2.5" strokeWidth={3} /> : (formData.confirmPassword.length > 0 ? <XCircle className="w-2.5 h-2.5" strokeWidth={2.5} /> : <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />)}
+                        </div>
+                        {passwordsMatch ? 'Kombinasi password cocok' : 'Password belum cocok'}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
