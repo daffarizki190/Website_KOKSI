@@ -28,7 +28,24 @@ export const Register = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const navigate = useNavigate();
+
+  const calculatePasswordScore = (pass: string) => {
+    let score = 0;
+    if (pass.length >= 6) score += 1;
+    if (/[A-Z]/.test(pass)) score += 1;
+    if (/[0-9]/.test(pass)) score += 1;
+    return score;
+  };
+  
+  const passwordScore = calculatePasswordScore(formData.password);
+  const passwordProgress = (passwordScore / 3) * 100;
+  
+  let progressColor = 'bg-slate-200';
+  if (passwordScore === 1) progressColor = 'bg-red-500';
+  else if (passwordScore === 2) progressColor = 'bg-yellow-500';
+  else if (passwordScore === 3) progressColor = 'bg-teal-500';
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -317,15 +334,45 @@ export const Register = () => {
                       placeholder="Min 6 karakter, 1 kapital & 1 angka"
                       value={formData.password}
                       onChange={handleChange}
+                      onFocus={() => setIsPasswordFocused(true)}
+                      onBlur={() => setIsPasswordFocused(false)}
                       className="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm pr-10"
                     />
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
+                  </div>
+                  
+                  {/* Animasi Info & Progress Password */}
+                  <div 
+                    className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                      isPasswordFocused || (formData.password.length > 0 && passwordScore < 3) ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
+                    }`}
+                  >
+                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mb-2">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ease-out ${progressColor}`}
+                          style={{ width: `${passwordProgress}%` }}
+                        ></div>
+                      </div>
+                      <ul className="text-[10px] space-y-1">
+                        <li className={`flex items-center transition-colors duration-300 ${formData.password.length >= 6 ? 'text-teal-600' : 'text-slate-500'}`}>
+                          <CheckCircle className="w-3 h-3 mr-1.5 shrink-0" /> Minimal 6 karakter
+                        </li>
+                        <li className={`flex items-center transition-colors duration-300 ${/[A-Z]/.test(formData.password) ? 'text-teal-600' : 'text-slate-500'}`}>
+                          <CheckCircle className="w-3 h-3 mr-1.5 shrink-0" /> 1 Huruf kapital
+                        </li>
+                        <li className={`flex items-center transition-colors duration-300 ${/[0-9]/.test(formData.password) ? 'text-teal-600' : 'text-slate-500'}`}>
+                          <CheckCircle className="w-3 h-3 mr-1.5 shrink-0" /> 1 Angka
+                        </li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
 
