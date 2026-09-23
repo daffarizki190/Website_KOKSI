@@ -1754,20 +1754,20 @@ export const DashboardAdmin = () => {
       });
 
       // Construct AOA Matrix without blank gap rows
-      const r0 = ['BELANJAIN SAZA - PT. SIEMENS INDONESIA', '', '', '', '', '', '', '', '', ''];
-      const r1 = ['LAPORAN REKAPITULASI DATA TRANSAKSI PENJUALAN', '', '', '', '', '', '', '', '', ''];
-      const r2 = [`Periode: ${periodTitle}   |   Dicetak: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale: idLocale })} WIB`, '', '', '', '', '', '', '', '', ''];
+      const r0 = ['BELANJAIN SAZA - PT. SIEMENS INDONESIA', '', '', '', '', '', '', '', '', '', ''];
+      const r1 = ['LAPORAN REKAPITULASI DATA TRANSAKSI PENJUALAN', '', '', '', '', '', '', '', '', '', ''];
+      const r2 = [`Periode: ${periodTitle}   |   Dicetak: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale: idLocale })} WIB`, '', '', '', '', '', '', '', '', '', ''];
 
       const r3 = [
         'TOTAL TRANSAKSI', '', '',
         'TOTAL ITEM TERJUAL', '', '',
-        'TOTAL OMZET PENJUALAN', '', '', ''
+        'TOTAL OMZET PENJUALAN', '', '', '', ''
       ];
 
       const r4 = [
         `${filteredOrders.length} Transaksi`, '', '',
         `${totalItemsCount.toLocaleString('id-ID')} Pcs`, '', '',
-        totalRevenue, '', '', ''
+        totalRevenue, '', '', '', ''
       ];
 
       const r5 = [
@@ -1930,15 +1930,15 @@ export const DashboardAdmin = () => {
 
       // Merges
       ws['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 9 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 10 } },
         { s: { r: 3, c: 0 }, e: { r: 3, c: 2 } },
         { s: { r: 4, c: 0 }, e: { r: 4, c: 2 } },
         { s: { r: 3, c: 3 }, e: { r: 3, c: 5 } },
         { s: { r: 4, c: 3 }, e: { r: 4, c: 5 } },
-        { s: { r: 3, c: 6 }, e: { r: 3, c: 9 } },
-        { s: { r: 4, c: 6 }, e: { r: 4, c: 9 } },
+        { s: { r: 3, c: 6 }, e: { r: 3, c: 10 } },
+        { s: { r: 4, c: 6 }, e: { r: 4, c: 10 } },
         { s: { r: footerRowIdx, c: 0 }, e: { r: footerRowIdx, c: 5 } },
         ...orderMerges
       ];
@@ -1954,7 +1954,8 @@ export const DashboardAdmin = () => {
         { wch: 8 },   // QTY
         { wch: 18 },  // HARGA SATUAN (RP)
         { wch: 18 },  // TOTAL HARGA (RP)
-        { wch: 22 }   // STATUS PESANAN
+        { wch: 22 },  // STATUS PESANAN
+        { wch: 22 }   // TOTAL PEMBAYARAN (RP)
       ];
 
       // Row heights
@@ -1975,7 +1976,7 @@ export const DashboardAdmin = () => {
 
       // Styling Cells
       // Row 0
-      for (let c = 0; c <= 9; c++) {
+      for (let c = 0; c <= 10; c++) {
         const addr = XLSX.utils.encode_cell({ r: 0, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
         ws[addr].s = {
@@ -1986,7 +1987,7 @@ export const DashboardAdmin = () => {
       }
 
       // Row 1
-      for (let c = 0; c <= 9; c++) {
+      for (let c = 0; c <= 10; c++) {
         const addr = XLSX.utils.encode_cell({ r: 1, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
         ws[addr].s = {
@@ -1997,7 +1998,7 @@ export const DashboardAdmin = () => {
       }
 
       // Row 2
-      for (let c = 0; c <= 9; c++) {
+      for (let c = 0; c <= 10; c++) {
         const addr = XLSX.utils.encode_cell({ r: 2, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
         ws[addr].s = {
@@ -2008,7 +2009,7 @@ export const DashboardAdmin = () => {
       }
 
       // KPI Boxes (Rows 3 & 4)
-      for (let c = 0; c <= 9; c++) {
+      for (let c = 0; c <= 10; c++) {
         const lAddr = XLSX.utils.encode_cell({ r: 3, c });
         const vAddr = XLSX.utils.encode_cell({ r: 4, c });
 
@@ -2036,7 +2037,7 @@ export const DashboardAdmin = () => {
       }
 
       // Table Headers (Row 5)
-      for (let c = 0; c <= 9; c++) {
+      for (let c = 0; c <= 10; c++) {
         const addr = XLSX.utils.encode_cell({ r: 5, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
         ws[addr].s = {
@@ -2063,7 +2064,7 @@ export const DashboardAdmin = () => {
         const rowBg = isEvenUser ? 'FFFFFF' : 'F8FAFC';
         const isUserLastRow = userGroup ? r === userGroup.end : false;
 
-        for (let c = 0; c <= 9; c++) {
+        for (let c = 0; c <= 10; c++) {
           const addr = XLSX.utils.encode_cell({ r, c });
           if (!ws[addr]) ws[addr] = { v: '', t: 's' };
           const cell = ws[addr];
@@ -2124,7 +2125,7 @@ export const DashboardAdmin = () => {
 
       // Footer Row
       ws['!rows'][footerRowIdx] = { hpt: 26 };
-      for (let c = 0; c <= 9; c++) {
+      for (let c = 0; c <= 10; c++) {
         const addr = XLSX.utils.encode_cell({ r: footerRowIdx, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
 
@@ -2811,43 +2812,43 @@ export const DashboardAdmin = () => {
 
                       {/* Professional Thermal Receipt Design (Print Only) */}
                       {printingOrderId === order.id && createPortal(
-                        <div className="print-section text-black bg-white" style={{ fontFamily: 'monospace' }}>
-                          <div className="w-full max-w-3xl mx-auto px-8 py-6 border border-slate-200 rounded-lg no-print-border">
-                            <div className="text-center mb-4">
+                        <div className="print-section text-black bg-white flex justify-center py-10" style={{ fontFamily: 'monospace' }}>
+                          <div className="w-full max-w-md px-12 py-10 border border-slate-200 rounded-lg shadow-sm no-print-border">
+                            <div className="text-center mb-6">
                               <h2 className="font-extrabold text-xl mb-1">BELANJAIN SAZA DI KOKSI</h2>
                               <p className="text-xs font-bold">Koperasi Karyawan Siemens Indonesia (KOKSI)</p>
                               <p className="text-xs">PT. Siemens Indonesia</p>
-                              <div className="border-b-2 border-dashed border-black my-3"></div>
+                              <div className="border-b-2 border-dashed border-black my-4"></div>
                             </div>
-                            <div className="mb-4 text-xs space-y-1">
+                            <div className="mb-4 text-xs space-y-1.5">
                               <div className="flex justify-between"><span>No Order:</span> <span className="font-bold">#{order.id}</span></div>
                               <div className="flex justify-between"><span>Tanggal:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
                               <div className="flex justify-between"><span>Pemesan:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
                               <div className="flex justify-between"><span>Dept:</span> <span>{order.user?.departemen || '-'}</span></div>
                               <div className="flex justify-between"><span>No. HP:</span> <span>{order.user?.no_hp || '-'}</span></div>
                             </div>
-                            <div className="border-b-2 border-dashed border-black my-3"></div>
+                            <div className="border-b-2 border-dashed border-black my-4"></div>
                             <div className="mb-4">
                               <table className="w-full text-xs">
                                 <thead>
                                   <tr className="border-b border-black">
-                                    <th className="text-left py-1 w-7/12">Item</th>
-                                    <th className="text-center py-1 w-2/12">Qty</th>
-                                    <th className="text-right py-1 w-3/12">Total</th>
+                                    <th className="text-left py-1.5 w-7/12">Item</th>
+                                    <th className="text-center py-1.5 w-2/12">Qty</th>
+                                    <th className="text-right py-1.5 w-3/12">Total</th>
                                   </tr>
                                 </thead>
                                 <tbody className="align-top">
                                   {order.items.map((item, idx) => (
                                     <tr key={idx} className="border-b border-dashed border-gray-300">
-                                      <td className="py-2 pr-2">{item.product?.nama_barang} <br/><span className="text-[10px] text-gray-500">@ Rp {item.price.toLocaleString('id-ID')}</span></td>
-                                      <td className="text-center py-2">{item.quantity}</td>
-                                      <td className="text-right py-2">{(item.price * item.quantity).toLocaleString('id-ID')}</td>
+                                      <td className="py-2.5 pr-2">{item.product?.nama_barang} <br/><span className="text-[10px] text-gray-500">@ Rp {item.price.toLocaleString('id-ID')}</span></td>
+                                      <td className="text-center py-2.5">{item.quantity}</td>
+                                      <td className="text-right py-2.5">{(item.price * item.quantity).toLocaleString('id-ID')}</td>
                                     </tr>
                                   ))}
                                 </tbody>
                               </table>
                             </div>
-                            <div className="border-b-2 border-dashed border-black my-3"></div>
+                            <div className="border-b-2 border-dashed border-black my-4"></div>
                             
                             {(() => {
                               const itemSum = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -2860,18 +2861,18 @@ export const DashboardAdmin = () => {
                                       <span>Rp {handlingFee.toLocaleString('id-ID')}</span>
                                     </div>
                                   )}
-                                  <div className="flex justify-between font-extrabold text-sm mb-6">
+                                  <div className="flex justify-between font-extrabold text-sm mb-8">
                                     <span>TOTAL BAYAR</span>
                                     <span>Rp {order.total_amount.toLocaleString('id-ID')}</span>
                                   </div>
                                 </>
                               );
                             })()}
-                            <div className="text-center text-[10px] mt-6 italic text-gray-800 space-y-1">
+                            <div className="text-center text-[10px] mt-8 italic text-gray-800 space-y-1.5">
                               <p className="font-bold">Terima kasih telah berbelanja di KOKSI</p>
                               <p>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</p>
-                              <p>Cutoff pembayaran adalah tanggal 10 setiap bulannya.</p>
-                              <p className="mt-2 text-[9px] uppercase">** BUKTI PEMBAYARAN SAH **</p>
+                              <p>Cutoff pembayaran tanggal 10 setiap bulannya.</p>
+                              <p className="mt-3 text-[9px] uppercase">** BUKTI PEMBAYARAN SAH **</p>
                             </div>
                           </div>
                         </div>,
