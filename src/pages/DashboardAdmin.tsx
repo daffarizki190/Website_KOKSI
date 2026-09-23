@@ -2617,7 +2617,7 @@ export const DashboardAdmin = () => {
                         <div className="text-right">
                           <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Transaksi</span>
                           <span className="text-base font-extrabold text-teal-700">
-                            Rp {order.total_amount.toLocaleString('id-ID')}
+                            Rp {(order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0) + 2000).toLocaleString('id-ID')}
                           </span>
                         </div>
 
@@ -2848,7 +2848,8 @@ export const DashboardAdmin = () => {
 
                           {(() => {
                             const itemSum = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                            const handlingFee = order.total_amount > itemSum ? order.total_amount - itemSum : 0;
+                            const handlingFee = 2000;
+                            const computedTotal = itemSum + handlingFee;
                             return (
                               <div className="mt-4 text-xs">
                                 <div className="flex justify-between mb-1">
@@ -2862,7 +2863,7 @@ export const DashboardAdmin = () => {
                                 <div className="border-b-2 border-dashed border-black my-2"></div>
                                 <div className="flex justify-between font-extrabold text-sm py-2">
                                   <span>TOTAL PEMBAYARAN</span>
-                                  <span>Rp {order.total_amount.toLocaleString('id-ID')}</span>
+                                  <span>Rp {computedTotal.toLocaleString('id-ID')}</span>
                                 </div>
                               </div>
                             );
