@@ -913,7 +913,6 @@ export const DashboardUser = () => {
                 >
                   Checkout Sekarang
                 </button>
-                <p className="text-center text-[10px] text-slate-400 mt-3">*Potong gaji otomatis periode berikutnya</p>
               </div>
             </motion.div>
           </>
