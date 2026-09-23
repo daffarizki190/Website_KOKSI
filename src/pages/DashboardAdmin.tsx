@@ -2812,15 +2812,15 @@ export const DashboardAdmin = () => {
 
                       {/* Professional Thermal Receipt Design (Print Only) */}
                       {printingOrderId === order.id && createPortal(
-                        <div className="print-section text-black bg-white flex justify-center py-10" style={{ fontFamily: 'monospace' }}>
-                          <div className="w-full max-w-md px-12 py-10 border border-slate-200 rounded-lg shadow-sm no-print-border">
+                        <div className="print-section text-black bg-white flex justify-center py-12" style={{ fontFamily: 'monospace' }}>
+                          <div className="w-full max-w-md px-12 pt-16 pb-10 border border-slate-200 rounded-lg shadow-sm no-print-border">
                             <div className="text-center mb-6">
                               <h2 className="font-extrabold text-xl mb-1">BELANJAIN SAZA DI KOKSI</h2>
                               <p className="text-xs font-bold">Koperasi Karyawan Siemens Indonesia (KOKSI)</p>
                               <p className="text-xs">PT. Siemens Indonesia</p>
                               <div className="border-b-2 border-dashed border-black my-4"></div>
                             </div>
-                            <div className="mb-4 text-xs space-y-1.5">
+                            <div className="mb-4 text-xs space-y-0.5">
                               <div className="flex justify-between"><span>No Order:</span> <span className="font-bold">#{order.id}</span></div>
                               <div className="flex justify-between"><span>Tanggal:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
                               <div className="flex justify-between"><span>Pemesan:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
