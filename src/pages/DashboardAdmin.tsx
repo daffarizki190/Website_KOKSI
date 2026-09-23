@@ -2819,7 +2819,7 @@ export const DashboardAdmin = () => {
                       {/* Professional Thermal Receipt Design (Print Only) */}
                       {printingOrderId === order.id && createPortal(
                         <div className="print-section text-black bg-white flex justify-center py-12" style={{ fontFamily: 'monospace' }}>
-                          <div className="w-full max-w-2xl px-20 pt-16 pb-10 border border-slate-200 rounded-lg shadow-sm no-print-border">
+                          <div className="w-full max-w-2xl px-32 pt-16 pb-10 border border-slate-200 rounded-lg shadow-sm no-print-border">
                             <div className="text-center mb-6">
                               <h2 className="font-extrabold text-xl mb-1">BELANJAIN SAZA DI KOKSI</h2>
                               <p className="text-xs font-bold">Koperasi Karyawan Siemens Indonesia (KOKSI)</p>
@@ -2827,11 +2827,11 @@ export const DashboardAdmin = () => {
                               <div className="border-b-2 border-dashed border-black my-4"></div>
                             </div>
                             <div className="mb-4 text-xs leading-none">
-                              <div className="flex justify-between py-0.5"><span>No Order:</span> <span className="font-bold">#{order.id}</span></div>
-                              <div className="flex justify-between py-0.5"><span>Tanggal:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
-                              <div className="flex justify-between py-0.5"><span>Pemesan:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
-                              <div className="flex justify-between py-0.5"><span>Dept:</span> <span>{order.user?.departemen || '-'}</span></div>
-                              <div className="flex justify-between py-0.5"><span>No. HP:</span> <span>{order.user?.no_hp || '-'}</span></div>
+                              <div className="flex justify-between"><span>No Order:</span> <span className="font-bold">#{order.id}</span></div>
+                              <div className="flex justify-between"><span>Tanggal:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
+                              <div className="flex justify-between"><span>Pemesan:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
+                              <div className="flex justify-between"><span>Dept:</span> <span>{order.user?.departemen || '-'}</span></div>
+                              <div className="flex justify-between"><span>No. HP:</span> <span>{order.user?.no_hp || '-'}</span></div>
                             </div>
                             <div className="border-b-2 border-dashed border-black my-4"></div>
                             <div className="mb-4">
