@@ -2070,9 +2070,9 @@ export const DashboardAdmin = () => {
           const cell = ws[addr];
 
           let align: 'left' | 'center' | 'right' = 'left';
-          // Kolom NO (0), NO HP (3), Tanggal pesanan (4), QTY (6) selalu di tengah (center)
-          if (c === 0 || c === 3 || c === 4 || c === 6) align = 'center';
-          if (c === 7 || c === 8 || c === 9) align = 'right';
+          // Kolom NO (0), NO HP (3), Tanggal pesanan (4), QTY (6), TOTAL PEMBAYARAN (9) selalu di tengah (center)
+          if (c === 0 || c === 3 || c === 4 || c === 6 || c === 9) align = 'center';
+          if (c === 7 || c === 8) align = 'right';
 
           // Garis pemisah antar user dibuat lebih tegas (medium) pada baris terakhir setiap user
           const cellBorder = {
@@ -2090,6 +2090,12 @@ export const DashboardAdmin = () => {
             alignment: { horizontal: align, vertical: 'center', wrapText: true },
             border: cellBorder
           };
+
+          if (c === 9 && cell.v !== '') {
+            cell.s.font.bold = true;
+            cell.s.font.color = { rgb: '047857' }; // emerald-700
+            cell.s.fill = { fgColor: { rgb: 'D1FAE5' } }; // emerald-100
+          }
 
           if (c === 7 || c === 8 || c === 9) {
             if (typeof cell.v === 'number') {
@@ -2861,9 +2867,9 @@ export const DashboardAdmin = () => {
                                       <span>Rp {handlingFee.toLocaleString('id-ID')}</span>
                                     </div>
                                   )}
-                                  <div className="flex justify-between font-extrabold text-sm mb-8">
-                                    <span>TOTAL BAYAR</span>
-                                    <span>Rp {order.total_amount.toLocaleString('id-ID')}</span>
+                                  <div className="text-center font-extrabold text-sm mb-8 py-3 bg-emerald-100 text-emerald-900 rounded-lg border-2 border-emerald-300 print-color-adjust-exact" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+                                    <div className="uppercase tracking-wider mb-0.5 text-xs">Total Pembayaran</div>
+                                    <div className="text-lg">Rp {order.total_amount.toLocaleString('id-ID')}</div>
                                   </div>
                                 </>
                               );
