@@ -2869,12 +2869,25 @@ export const DashboardAdmin = () => {
                           })()}
 
                           <div className="border-b-2 border-dashed border-black my-2"></div>
-                          <div className="text-center text-[10px] mt-6 italic text-gray-800 space-y-1.5">
+                          <div className="text-center text-[10px] mt-4 italic text-gray-800 space-y-1.5">
                             <p className="font-bold">Terima kasih telah berbelanja di KOKSI</p>
                             <p>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</p>
                             <p>Cut Off Pembayaran tanggal 10 setiap bulannya.</p>
-                            <p className="mt-3 text-[9px] uppercase">** BUKTI PEMBAYARAN SAH **</p>
                           </div>
+                          
+                          {/* Signature Section */}
+                          <div className="flex justify-between mt-10 mb-6 px-2 text-[11px] font-semibold">
+                            <div className="text-center">
+                              <p className="mb-12">Penerima,</p>
+                              <p className="underline underline-offset-4">{order.user?.nama || '........................'}</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="mb-12">Hormat Kami,</p>
+                              <p className="underline underline-offset-4">Admin KOKSI</p>
+                            </div>
+                          </div>
+
+                          <div className="text-center mt-6 text-[9px] uppercase">** BUKTI PEMBAYARAN SAH **</div>
                         </div>
                       </div>,
                       document.body
