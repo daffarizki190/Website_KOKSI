@@ -2818,20 +2818,20 @@ export const DashboardAdmin = () => {
 
                       {/* Professional Thermal Receipt Design (Print Only) */}
                       {printingOrderId === order.id && createPortal(
-                        <div className="print-section text-black bg-white flex justify-center py-12" style={{ fontFamily: 'monospace' }}>
-                          <div className="w-full max-w-2xl px-32 pt-16 pb-10 border border-slate-200 rounded-lg shadow-sm no-print-border">
+                        <div className="print-section text-black bg-white flex justify-center py-4" style={{ fontFamily: 'monospace' }}>
+                          <div className="w-full max-w-[400px] px-4 py-6 border border-slate-200 rounded-lg shadow-sm no-print-border">
                             <div className="text-center mb-6">
                               <h2 className="font-extrabold text-xl mb-1">BELANJAIN SAZA DI KOKSI</h2>
                               <p className="text-xs font-bold">Koperasi Karyawan Siemens Indonesia (KOKSI)</p>
                               <p className="text-xs">PT. Siemens Indonesia</p>
                               <div className="border-b-2 border-dashed border-black my-4"></div>
                             </div>
-                            <div className="mb-4 text-xs leading-none">
-                              <div className="flex justify-between"><span>No Order:</span> <span className="font-bold">#{order.id}</span></div>
-                              <div className="flex justify-between"><span>Tanggal:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
-                              <div className="flex justify-between"><span>Pemesan:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
-                              <div className="flex justify-between"><span>Dept:</span> <span>{order.user?.departemen || '-'}</span></div>
-                              <div className="flex justify-between"><span>No. HP:</span> <span>{order.user?.no_hp || '-'}</span></div>
+                            <div className="mb-4 text-xs leading-tight space-y-1">
+                              <div className="flex"><span className="w-20">No Order</span><span className="mr-2">:</span> <span className="font-bold">#{order.id}</span></div>
+                              <div className="flex"><span className="w-20">Tanggal</span><span className="mr-2">:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
+                              <div className="flex"><span className="w-20">Pemesan</span><span className="mr-2">:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
+                              <div className="flex"><span className="w-20">Dept</span><span className="mr-2">:</span> <span>{order.user?.departemen || '-'}</span></div>
+                              <div className="flex"><span className="w-20">No. HP</span><span className="mr-2">:</span> <span>{order.user?.no_hp || '-'}</span></div>
                             </div>
                             <div className="border-b-2 border-dashed border-black my-4"></div>
                             <div className="mb-4">
@@ -2854,27 +2854,31 @@ export const DashboardAdmin = () => {
                                 </tbody>
                               </table>
                             </div>
-                            <div className="border-b-2 border-dashed border-black my-4"></div>
                             
                             {(() => {
                               const itemSum = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
                               const handlingFee = order.total_amount > itemSum ? order.total_amount - itemSum : 0;
                               return (
-                                <>
-                                  {handlingFee > 0 && (
-                                    <div className="flex justify-between font-semibold text-xs mb-2">
-                                      <span>Biaya Penanganan</span>
-                                      <span>Rp {handlingFee.toLocaleString('id-ID')}</span>
-                                    </div>
-                                  )}
-                                  <div className="text-center font-extrabold text-sm mb-8 py-3 bg-emerald-100 text-emerald-900 rounded-lg border-2 border-emerald-300 print-color-adjust-exact" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-                                    <div className="uppercase tracking-wider mb-0.5 text-xs">Total Pembayaran</div>
-                                    <div className="text-lg">Rp {order.total_amount.toLocaleString('id-ID')}</div>
+                                <div className="mt-4 text-xs">
+                                  <div className="flex justify-between mb-1">
+                                    <span>Subtotal</span>
+                                    <span>Rp {itemSum.toLocaleString('id-ID')}</span>
                                   </div>
-                                </>
+                                  <div className="flex justify-between mb-2">
+                                    <span>Biaya Penanganan</span>
+                                    <span>Rp {handlingFee.toLocaleString('id-ID')}</span>
+                                  </div>
+                                  <div className="border-b-2 border-dashed border-black my-2"></div>
+                                  <div className="flex justify-between font-extrabold text-sm py-2">
+                                    <span>TOTAL PEMBAYARAN</span>
+                                    <span>Rp {order.total_amount.toLocaleString('id-ID')}</span>
+                                  </div>
+                                </div>
                               );
                             })()}
-                            <div className="text-center text-[10px] mt-8 italic text-gray-800 space-y-1.5">
+                            
+                            <div className="border-b-2 border-dashed border-black my-2"></div>
+                            <div className="text-center text-[10px] mt-6 italic text-gray-800 space-y-1.5">
                               <p className="font-bold">Terima kasih telah berbelanja di KOKSI</p>
                               <p>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</p>
                               <p>Cutoff pembayaran tanggal 10 setiap bulannya.</p>
