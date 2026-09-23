@@ -1514,7 +1514,7 @@ let globalDemoMode = false;
 
 // Attempt to load demo mode from DB on startup
 if (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST) {
-  db.query("SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'")
+  db.execute(sql`SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'`)
     .then(res => {
       if (res.rows.length > 0) {
         globalDemoMode = res.rows[0].setting_value === 'true';
@@ -1527,7 +1527,7 @@ app.get('/api/settings/demo-mode', async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (isDbConfigured) {
-      const result = await db.query("SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'");
+      const result = await db.execute(sql`SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'`);
       if (result.rows.length > 0) {
         globalDemoMode = result.rows[0].setting_value === 'true';
       }
@@ -1548,11 +1548,12 @@ app.post('/api/settings/demo-mode', requireAuth, async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (isDbConfigured) {
-      await db.query(`
+      const demoVal = globalDemoMode ? 'true' : 'false';
+      await db.execute(sql`
         INSERT INTO settings (setting_key, setting_value) 
-        VALUES ('demo_mode', $1)
-        ON CONFLICT (setting_key) DO UPDATE SET setting_value = $1, updated_at = NOW()
-      `, [globalDemoMode ? 'true' : 'false']);
+        VALUES ('demo_mode', ${demoVal})
+        ON CONFLICT (setting_key) DO UPDATE SET setting_value = ${demoVal}, updated_at = NOW()
+      `);
     }
   } catch (err) {
     console.error("Error saving demo mode to DB:", err);
@@ -1573,7 +1574,7 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (isDbConfigured) {
-      const result = await db.query("SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'");
+      const result = await db.execute(sql`SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'`);
       if (result.rows.length > 0) {
         isDemoMode = result.rows[0].setting_value === 'true' || isDemoMode;
       }
