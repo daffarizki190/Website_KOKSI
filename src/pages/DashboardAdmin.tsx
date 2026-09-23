@@ -1780,8 +1780,8 @@ export const DashboardAdmin = () => {
         'QTY',
         'HARGA SATUAN (RP)',
         'TOTAL HARGA (RP)',
-        'STATUS PESANAN',
-        'TOTAL PEMBAYARAN (RP)'
+        'TOTAL PEMBAYARAN (RP)',
+        'STATUS PESANAN'
       ];
 
       const aoa: any[][] = [r0, r1, r2, r3, r4, r5];
@@ -1888,8 +1888,8 @@ export const DashboardAdmin = () => {
               qty,
               price,
               subtotal,
-              isFirstRowOfOrder ? orderStatus : '',
-              isFirstRowOfUser ? userTotal : ''
+              isFirstRowOfUser ? userTotal : '',
+              isFirstRowOfOrder ? orderStatus : ''
             ]);
           });
 
@@ -1898,7 +1898,7 @@ export const DashboardAdmin = () => {
           // Merge order-level columns (Tanggal pesanan, Status pesanan) jika order checkout memiliki > 1 item
           if (orderEndRow > orderStartRow) {
             orderMerges.push({ s: { r: orderStartRow, c: 4 }, e: { r: orderEndRow, c: 4 } });
-            orderMerges.push({ s: { r: orderStartRow, c: 9 }, e: { r: orderEndRow, c: 9 } });
+            orderMerges.push({ s: { r: orderStartRow, c: 10 }, e: { r: orderEndRow, c: 10 } });
           }
         });
 
@@ -1910,7 +1910,7 @@ export const DashboardAdmin = () => {
           for (let c = 0; c <= 3; c++) {
             orderMerges.push({ s: { r: userStartRow, c }, e: { r: userEndRow, c } });
           }
-          orderMerges.push({ s: { r: userStartRow, c: 10 }, e: { r: userEndRow, c: 10 } });
+          orderMerges.push({ s: { r: userStartRow, c: 9 }, e: { r: userEndRow, c: 9 } });
         }
 
         orderCounter++;
@@ -1922,8 +1922,8 @@ export const DashboardAdmin = () => {
         grandTotalQty,
         '',
         grandTotalSubtotal,
-        '',
-        grandTotalSubtotal
+        grandTotalSubtotal,
+        ''
       ]);
 
       const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -1954,8 +1954,8 @@ export const DashboardAdmin = () => {
         { wch: 8 },   // QTY
         { wch: 18 },  // HARGA SATUAN (RP)
         { wch: 18 },  // TOTAL HARGA (RP)
-        { wch: 22 },  // STATUS PESANAN
-        { wch: 22 }   // TOTAL PEMBAYARAN (RP)
+        { wch: 22 },  // TOTAL PEMBAYARAN (RP)
+        { wch: 22 }   // STATUS PESANAN
       ];
 
       // Row heights
@@ -2072,7 +2072,7 @@ export const DashboardAdmin = () => {
           let align: 'left' | 'center' | 'right' = 'left';
           // Kolom NO (0), NO HP (3), Tanggal pesanan (4), QTY (6) selalu di tengah (center)
           if (c === 0 || c === 3 || c === 4 || c === 6) align = 'center';
-          if (c === 7 || c === 8) align = 'right';
+          if (c === 7 || c === 8 || c === 9) align = 'right';
 
           // Garis pemisah antar user dibuat lebih tegas (medium) pada baris terakhir setiap user
           const cellBorder = {
@@ -2091,7 +2091,7 @@ export const DashboardAdmin = () => {
             border: cellBorder
           };
 
-          if (c === 7 || c === 8) {
+          if (c === 7 || c === 8 || c === 9) {
             if (typeof cell.v === 'number') {
               cell.z = '"Rp "#,##0';
             }
@@ -2108,7 +2108,7 @@ export const DashboardAdmin = () => {
           }
 
           // Pewarnaan status pesanan spesifik & jelas
-          if (c === 9) {
+          if (c === 10) {
             const statusVal = String(cell.v || '');
             if (statusVal) {
               const stStyle = getExcelStatusStyle(statusVal);
@@ -2133,7 +2133,7 @@ export const DashboardAdmin = () => {
         curCell.s = {
           font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '0F172A' } },
           fill: { fgColor: { rgb: 'E2E8F0' } },
-          alignment: { horizontal: c === 6 || c === 8 ? 'right' : 'left', vertical: 'center' },
+          alignment: { horizontal: c === 6 || c === 8 || c === 9 ? 'right' : 'left', vertical: 'center' },
           border: {
             top: { style: 'medium', color: { rgb: '0F172A' } },
             bottom: { style: 'double', color: { rgb: '0F172A' } },
@@ -2142,7 +2142,7 @@ export const DashboardAdmin = () => {
           }
         };
 
-        if (c === 8 && typeof curCell.v === 'number') {
+        if ((c === 8 || c === 9) && typeof curCell.v === 'number') {
           curCell.z = '"Rp "#,##0';
         }
         if (c === 6 && typeof curCell.v === 'number') {
