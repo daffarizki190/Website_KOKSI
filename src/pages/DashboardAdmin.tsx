@@ -2810,7 +2810,7 @@ export const DashboardAdmin = () => {
                     {/* Professional Thermal Receipt Design (Print Only) */}
                     {printingOrderId === order.id && createPortal(
                       <div className="print-section text-black bg-white flex justify-center py-8" style={{ fontFamily: 'monospace' }}>
-                        <div className="w-full max-w-2xl px-12 py-8 border border-slate-200 rounded-lg shadow-sm no-print-border">
+                        <div className="w-full max-w-2xl px-24 py-8 border border-slate-200 rounded-lg shadow-sm no-print-border">
                           <div className="text-center mb-6">
                             <h2 className="font-extrabold text-xl mb-1">BELANJAIN SAZA DI KOKSI</h2>
                             <p className="text-xs font-bold">Koperasi Karyawan Siemens Indonesia (KOKSI)</p>
