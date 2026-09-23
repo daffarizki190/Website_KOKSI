@@ -2875,7 +2875,8 @@ export const DashboardAdmin = () => {
                             <p>Cut Off Pembayaran tanggal 10 setiap bulannya.</p>
                           </div>
                           
-                          {/* Signature Section */}
+                          {/* Signature Section (Hidden for now as requested) */}
+                          {/* 
                           <div className="flex justify-between mt-10 mb-6 px-2 text-[11px] font-semibold">
                             <div className="text-center">
                               <p className="mb-12">Penerima,</p>
@@ -2886,6 +2887,7 @@ export const DashboardAdmin = () => {
                               <p className="underline underline-offset-4">Admin KOKSI</p>
                             </div>
                           </div>
+                          */}
 
                           <div className="text-center mt-6 text-[9px] uppercase">** BUKTI PEMBAYARAN SAH **</div>
                         </div>
