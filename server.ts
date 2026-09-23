@@ -1134,6 +1134,14 @@ async function ensureDatabaseSchema() {
           created_at TIMESTAMP DEFAULT NOW()
         );
 
+        CREATE TABLE IF NOT EXISTS settings (
+          id SERIAL PRIMARY KEY,
+          setting_key VARCHAR(100) UNIQUE NOT NULL,
+          setting_value TEXT NOT NULL,
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+
+
         CREATE TABLE IF NOT EXISTS products (
           id SERIAL PRIMARY KEY,
           nama_barang TEXT NOT NULL,
@@ -1504,16 +1512,52 @@ const demoOrdersStore: Array<{
 // GLOBAL STATE FOR DEMO MODE
 let globalDemoMode = false;
 
-app.get('/api/settings/demo-mode', (req, res) => {
+// Attempt to load demo mode from DB on startup
+if (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST) {
+  db.query("SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'")
+    .then(res => {
+      if (res.rows.length > 0) {
+        globalDemoMode = res.rows[0].setting_value === 'true';
+      }
+    })
+    .catch(err => console.error("Error loading demo mode from DB:", err));
+}
+
+app.get('/api/settings/demo-mode', async (req, res) => {
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (isDbConfigured) {
+      const result = await db.query("SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'");
+      if (result.rows.length > 0) {
+        globalDemoMode = result.rows[0].setting_value === 'true';
+      }
+    }
+  } catch (err) {
+    console.error("Error reading demo mode from DB:", err);
+  }
   res.json({ demoMode: globalDemoMode });
 });
 
-app.post('/api/settings/demo-mode', requireAuth, (req, res) => {
+app.post('/api/settings/demo-mode', requireAuth, async (req, res) => {
   if (req.user?.role !== 'admin' && req.user?.role !== 'it') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   const { demoMode } = req.body;
   globalDemoMode = !!demoMode;
+  
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (isDbConfigured) {
+      await db.query(`
+        INSERT INTO settings (setting_key, setting_value) 
+        VALUES ('demo_mode', $1)
+        ON CONFLICT (setting_key) DO UPDATE SET setting_value = $1, updated_at = NOW()
+      `, [globalDemoMode ? 'true' : 'false']);
+    }
+  } catch (err) {
+    console.error("Error saving demo mode to DB:", err);
+  }
+
   res.json({ success: true, demoMode: globalDemoMode });
 });
 
@@ -1522,10 +1566,20 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
   let userId = Number(req.user?.id);
 
   // Cek Hari Pemesanan (Hanya Senin dan Selasa), kecuali dalam Mode Demo Global
-  const isDemoMode = globalDemoMode || req.headers['x-demo-mode'] === 'true';
+  let isDemoMode = globalDemoMode || req.headers['x-demo-mode'] === 'true';
   const jakartaTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
   const dayOfWeek = new Date(jakartaTime).getDay(); // 0=Minggu, 1=Senin, 2=Selasa, dst.
   
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (isDbConfigured) {
+      const result = await db.query("SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'");
+      if (result.rows.length > 0) {
+        isDemoMode = result.rows[0].setting_value === 'true' || isDemoMode;
+      }
+    }
+  } catch (e) {}
+
   if (!isDemoMode && dayOfWeek !== 1 && dayOfWeek !== 2) {
     res.status(403).json({ error: 'Mohon maaf, waktu operasional pemesanan saat ini ditutup. Pemesanan hanya dapat dilakukan pada hari Senin dan Selasa.' });
     return;

@@ -524,6 +524,19 @@ app.post("/api/auth/register", async (req, res) => {
       res.status(400).json({ error: "Semua kolom data wajib diisi secara lengkap (Nama, Perusahaan, Departemen, No HP, Password)" });
       return;
     }
+    const passStr = password.toString().trim();
+    if (passStr.length < 6) {
+      res.status(400).json({ error: "Password minimal 6 karakter" });
+      return;
+    }
+    if (!/[A-Z]/.test(passStr)) {
+      res.status(400).json({ error: "Password harus mengandung minimal 1 huruf kapital (huruf besar)" });
+      return;
+    }
+    if (!/[0-9]/.test(passStr)) {
+      res.status(400).json({ error: "Password harus mengandung minimal 1 angka" });
+      return;
+    }
     const cleanNoHp = normalizePhone(no_hp);
     if (!/^[0-9]{9,15}$/.test(cleanNoHp)) {
       res.status(400).json({ error: "Nomor HP tidak valid. Harus berisi 9 - 15 digit angka" });
@@ -1011,23 +1024,7 @@ app.delete("/api/users/:id", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Gagal menghapus akun pengguna" });
   }
 });
-var DEFAULT_CATALOG_PRODUCTS = [
-  { id: 1, nama_barang: "Beras Premium Ramos 5kg", kategori: "Makanan & Minuman Siap Saji (F&B)", sub_kategori: "Bahan Makanan (Sembako)", harga: 68e3, stok: 45 },
-  { id: 2, nama_barang: "Minyak Goreng Sania 2 Liter", kategori: "Makanan & Minuman Siap Saji (F&B)", sub_kategori: "Bahan Makanan (Sembako)", harga: 34e3, stok: 60 },
-  { id: 3, nama_barang: "Gula Pasir Gulaku 1kg", kategori: "Makanan & Minuman Siap Saji (F&B)", sub_kategori: "Bahan Makanan (Sembako)", harga: 17500, stok: 35 },
-  { id: 4, nama_barang: "Indomie Goreng Spesial (Karton 40pcs)", kategori: "Makanan & Minuman Siap Saji (F&B)", sub_kategori: "Makanan Instan", harga: 118e3, stok: 20 },
-  { id: 5, nama_barang: "Kopi Kapal Api Spesial Mix 10s", kategori: "Makanan & Minuman Siap Saji (F&B)", sub_kategori: "Minuman Dingin & Kemasan", harga: 14500, stok: 80 },
-  { id: 6, nama_barang: "Sabun Mandi Lifebuoy Total 10 4x110g", kategori: "Perawatan Diri & Kesehatan (Personal Care)", sub_kategori: "Perawatan Mandi & Rambut", harga: 22e3, stok: 50 },
-  { id: 7, nama_barang: "Pasta Gigi Pepsodent 190g", kategori: "Perawatan Diri & Kesehatan (Personal Care)", sub_kategori: "Perawatan Gigi", harga: 16e3, stok: 40 },
-  { id: 8, nama_barang: "Deterjen Rinso Molto Anti Noda 770g", kategori: "Kebutuhan Rumah Tangga (Household)", sub_kategori: "Pembersih Pakaian", harga: 24e3, stok: 30 },
-  { id: 9, nama_barang: "Cairan Pencuci Piring Sunlight Jeruk Nipis 700ml", kategori: "Kebutuhan Rumah Tangga (Household)", sub_kategori: "Pembersih Rumah", harga: 15500, stok: 55 },
-  { id: 10, nama_barang: "Tissue Wajah Paseo 250 Sheets", kategori: "Kebutuhan Rumah Tangga (Household)", sub_kategori: "Perlengkapan Rumah", harga: 18e3, stok: 65 },
-  { id: 11, nama_barang: "Gudang Garam Surya 16", kategori: "Rokok & Produk Kasir (Impulse Items)", sub_kategori: "Rokok & Aksesori", harga: 33e3, stok: 50 },
-  { id: 12, nama_barang: "Silverqueen Chunky Bar 95g", kategori: "Rokok & Produk Kasir (Impulse Items)", sub_kategori: "Permen & Cokelat Kecil", harga: 25e3, stok: 40 },
-  { id: 13, nama_barang: "Baterai ABC Alkaline AA 2+1", kategori: "Rokok & Produk Kasir (Impulse Items)", sub_kategori: "Aksesori & Baterai", harga: 19500, stok: 30 },
-  { id: 14, nama_barang: "Pulpen Standard AE7 Hitam (Box 12pcs)", kategori: "Non-Food & Perlengkapan Umum", sub_kategori: "Alat Tulis Kantor (ATK) Dasar", harga: 24e3, stok: 25 },
-  { id: 15, nama_barang: "Kantong Plastik Sampah HD 60x80cm (Pack)", kategori: "Non-Food & Perlengkapan Umum", sub_kategori: "Perlengkapan Plastik & Dapur", harga: 16500, stok: 35 }
-];
+var DEFAULT_CATALOG_PRODUCTS = [];
 var inMemoryProducts = [...DEFAULT_CATALOG_PRODUCTS];
 app.get("/api/products", requireAuth, async (req, res) => {
   try {
@@ -1159,6 +1156,14 @@ async function ensureDatabaseSchema() {
           password TEXT NOT NULL,
           created_at TIMESTAMP DEFAULT NOW()
         );
+
+        CREATE TABLE IF NOT EXISTS settings (
+          id SERIAL PRIMARY KEY,
+          setting_key VARCHAR(100) UNIQUE NOT NULL,
+          setting_value TEXT NOT NULL,
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+
 
         CREATE TABLE IF NOT EXISTS products (
           id SERIAL PRIMARY KEY,
@@ -1452,28 +1457,64 @@ app.delete("/api/cart", requireAuth, async (req, res) => {
   }
 });
 var demoOrdersStore = [];
-// GLOBAL STATE FOR DEMO MODE
-let globalDemoMode = false;
-
-app.get("/api/settings/demo-mode", (req, res) => {
+var globalDemoMode = false;
+if (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST) {
+  db.query("SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'").then((res) => {
+    if (res.rows.length > 0) {
+      globalDemoMode = res.rows[0].setting_value === "true";
+    }
+  }).catch((err) => console.error("Error loading demo mode from DB:", err));
+}
+app.get("/api/settings/demo-mode", async (req, res) => {
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (isDbConfigured) {
+      const result = await db.query("SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'");
+      if (result.rows.length > 0) {
+        globalDemoMode = result.rows[0].setting_value === "true";
+      }
+    }
+  } catch (err) {
+    console.error("Error reading demo mode from DB:", err);
+  }
   res.json({ demoMode: globalDemoMode });
 });
-
-app.post("/api/settings/demo-mode", requireAuth, (req, res) => {
+app.post("/api/settings/demo-mode", requireAuth, async (req, res) => {
   if (req.user?.role !== "admin" && req.user?.role !== "it") {
     return res.status(403).json({ error: "Unauthorized" });
   }
   const { demoMode } = req.body;
   globalDemoMode = !!demoMode;
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (isDbConfigured) {
+      await db.query(`
+        INSERT INTO settings (setting_key, setting_value) 
+        VALUES ('demo_mode', $1)
+        ON CONFLICT (setting_key) DO UPDATE SET setting_value = $1, updated_at = NOW()
+      `, [globalDemoMode ? "true" : "false"]);
+    }
+  } catch (err) {
+    console.error("Error saving demo mode to DB:", err);
+  }
   res.json({ success: true, demoMode: globalDemoMode });
 });
-
 app.post("/api/orders", requireAuth, async (req, res) => {
   const { items, total_amount } = req.body;
   let userId = Number(req.user?.id);
-  const isDemoMode = globalDemoMode || req.headers["x-demo-mode"] === "true";
+  let isDemoMode = globalDemoMode || req.headers["x-demo-mode"] === "true";
   const jakartaTime = (/* @__PURE__ */ new Date()).toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
   const dayOfWeek = new Date(jakartaTime).getDay();
+  try {
+    const isDbConfigured2 = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (isDbConfigured2) {
+      const result = await db.query("SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'");
+      if (result.rows.length > 0) {
+        isDemoMode = result.rows[0].setting_value === "true" || isDemoMode;
+      }
+    }
+  } catch (e) {
+  }
   if (!isDemoMode && dayOfWeek !== 1 && dayOfWeek !== 2) {
     res.status(403).json({ error: "Mohon maaf, waktu operasional pemesanan saat ini ditutup. Pemesanan hanya dapat dilakukan pada hari Senin dan Selasa." });
     return;
@@ -1560,10 +1601,6 @@ app.post("/api/orders", requireAuth, async (req, res) => {
           }).returning();
           prodList = [newProd];
         }
-        // PENGECEKAN STOK DINONAKTIFKAN
-        // if (prodList[0].stok < reqQty) {
-        //   throw new Error(`Stok "${prodList[0].nama_barang}" tidak mencukupi (tersisa: ${prodList[0].stok}, diminta: ${reqQty}).`);
-        // }
       }
       const [newOrder] = await tx.insert(orders).values({
         userId,
@@ -2086,6 +2123,10 @@ app.post("/api/orders/verify-barcode", requireAuth, async (req, res) => {
     res.status(500).json({ error: error?.message || "Gagal memverifikasi pemindaian barcode" });
   }
 });
+var ALLOWED_IMPORT_CATEGORIES = [
+  "Makanan & Minuman Siap Saji (F&B)",
+  "Perawatan Diri & Kesehatan (Personal Care)"
+];
 app.post("/api/products/batch", requireAuth, requireAdmin, async (req, res) => {
   try {
     const newProducts = req.body.products;
@@ -2093,45 +2134,134 @@ app.post("/api/products/batch", requireAuth, requireAdmin, async (req, res) => {
       res.status(400).json({ error: "Data produk kosong atau tidak valid" });
       return;
     }
-    const sanitized = newProducts.map((p) => ({
-      nama_barang: String(p.nama_barang || "").trim(),
-      kategori: String(p.kategori || "Makanan & Minuman Siap Saji (F&B)").trim(),
-      sub_kategori: p.sub_kategori ? String(p.sub_kategori).trim() : null,
-      harga: Math.max(0, parseInt(p.harga, 10) || 0),
-      stok: Math.max(0, parseInt(p.stok, 10) || 0)
-    })).filter((p) => p.nama_barang.length > 0);
-    if (sanitized.length === 0) {
-      res.status(400).json({ error: "Tidak ada produk valid yang dapat diimport" });
-      return;
+    const validItems = [];
+    const rejectedItems = [];
+    const seenNames = /* @__PURE__ */ new Set();
+    for (const p of newProducts) {
+      const nama = String(p.nama_barang || "").trim();
+      const kat = String(p.kategori || "").trim();
+      const sub = p.sub_kategori ? String(p.sub_kategori).trim() : null;
+      const harga = Math.max(0, parseInt(p.harga, 10) || 0);
+      const stok = Math.max(0, parseInt(p.stok, 10) || 0);
+      if (!nama || nama.length < 2) {
+        rejectedItems.push({ nama_barang: nama || "(nama kosong)", alasan: "Nama barang kosong atau terlalu pendek (min. 2 karakter)." });
+        continue;
+      }
+      const namaKey = nama.toLowerCase();
+      if (seenNames.has(namaKey)) {
+        rejectedItems.push({ nama_barang: nama, alasan: "Nama produk duplikat di dalam file Excel \u2014 hanya satu baris yang diproses." });
+        continue;
+      }
+      seenNames.add(namaKey);
+      const katMatch = ALLOWED_IMPORT_CATEGORIES.find(
+        (allowed) => allowed.toLowerCase() === kat.toLowerCase() || kat.toLowerCase().includes(allowed.toLowerCase().split("(")[0].trim().toLowerCase())
+      );
+      if (!katMatch) {
+        const alasan = kat ? `Kategori "${kat}" belum aktif, atau format template tidak sesuai ketentuan.` : `Kolom Kategori kosong. Isi dengan salah satu dari: ${ALLOWED_IMPORT_CATEGORIES.join(" atau ")}.`;
+        rejectedItems.push({ nama_barang: nama, alasan, kategori: kat });
+        continue;
+      }
+      validItems.push({ nama_barang: nama, kategori: katMatch, sub_kategori: sub, harga, stok });
     }
     const existingProducts = await withDbRetry(() => db.select().from(products));
-    let updatedCount = 0;
-    let insertedCount = 0;
-    for (const item of sanitized) {
+    const insertedItems = [];
+    const updatedItems = [];
+    const updatePromises = [];
+    const insertValues = [];
+    for (const item of validItems) {
       const match = existingProducts.find(
         (p) => p.nama_barang.trim().toLowerCase() === item.nama_barang.toLowerCase()
       );
       if (match) {
-        await withDbRetry(() => db.update(products).set({
-          harga: item.harga,
-          stok: item.stok,
-          kategori: item.kategori && item.kategori !== "Lainnya" ? item.kategori : match.kategori,
-          sub_kategori: item.sub_kategori ? item.sub_kategori : match.sub_kategori
-        }).where(eq(products.id, match.id)));
-        updatedCount++;
+        const updatedKat = item.kategori !== "Lainnya" ? item.kategori : match.kategori;
+        const updatedSub = item.sub_kategori ?? match.sub_kategori;
+        updatePromises.push(
+          () => db.update(products).set({ harga: item.harga, stok: item.stok, kategori: updatedKat, sub_kategori: updatedSub }).where(eq(products.id, match.id))
+        );
+        updatedItems.push({ ...item, kategori: updatedKat, sub_kategori: updatedSub });
       } else {
-        await withDbRetry(() => db.insert(products).values(item));
-        insertedCount++;
+        insertValues.push(item);
+        insertedItems.push(item);
       }
     }
+    const chunkSize = 50;
+    for (let i = 0; i < updatePromises.length; i += chunkSize) {
+      const chunk = updatePromises.slice(i, i + chunkSize);
+      await Promise.all(chunk.map((op) => withDbRetry(op)));
+    }
+    for (let i = 0; i < insertValues.length; i += chunkSize) {
+      const chunk = insertValues.slice(i, i + chunkSize);
+      await withDbRetry(() => db.insert(products).values(chunk));
+    }
+    const actorName = req.user?.name || req.user?.nama || "Admin";
+    await logActivity(
+      req.user?.id || null,
+      actorName,
+      "Import Produk Excel",
+      `Baru: ${insertedItems.length}, Diperbarui: ${updatedItems.length}, Ditolak: ${rejectedItems.length} produk.`
+    );
     res.status(200).json({
-      message: `Berhasil mengimport data: ${insertedCount} produk baru ditambahkan, ${updatedCount} produk diperbarui!`,
-      insertedCount,
-      updatedCount
+      message: `Import selesai: ${insertedItems.length} baru, ${updatedItems.length} diperbarui, ${rejectedItems.length} ditolak.`,
+      insertedCount: insertedItems.length,
+      updatedCount: updatedItems.length,
+      rejectedCount: rejectedItems.length,
+      inserted: insertedItems,
+      updated: updatedItems,
+      rejected: rejectedItems
     });
   } catch (error) {
     console.error("Error batch insert/update:", error);
     res.status(500).json({ error: error?.message || "Gagal menyimpan batch produk ke database" });
+  }
+});
+app.put("/api/products/batch-update", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const productsToUpdate = req.body.products;
+    if (!productsToUpdate || !Array.isArray(productsToUpdate) || productsToUpdate.length === 0) {
+      res.status(400).json({ error: "Data produk kosong atau tidak valid" });
+      return;
+    }
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) {
+      let updatedCount = 0;
+      for (const item of productsToUpdate) {
+        if (!item.id) continue;
+        const idx = inMemoryProducts.findIndex((p) => p.id === item.id);
+        if (idx !== -1) {
+          inMemoryProducts[idx] = {
+            ...inMemoryProducts[idx],
+            kategori: item.kategori,
+            sub_kategori: item.sub_kategori
+          };
+          updatedCount++;
+        }
+      }
+      res.json({ message: "Success", updatedCount });
+      return;
+    }
+    await ensureDatabaseSchema();
+    const updatePromises = [];
+    for (const item of productsToUpdate) {
+      if (!item.id) continue;
+      updatePromises.push(
+        () => db.update(products).set({
+          kategori: item.kategori,
+          sub_kategori: item.sub_kategori || null
+        }).where(eq(products.id, item.id))
+      );
+    }
+    const chunkSize = 50;
+    for (let i = 0; i < updatePromises.length; i += chunkSize) {
+      const chunk = updatePromises.slice(i, i + chunkSize);
+      await Promise.all(chunk.map((op) => withDbRetry(op)));
+    }
+    res.status(200).json({
+      message: "Berhasil mengupdate kategori produk",
+      updatedCount: updatePromises.length
+    });
+  } catch (error) {
+    console.error("Error batch update:", error);
+    res.status(500).json({ error: error?.message || "Gagal mengupdate batch produk" });
   }
 });
 app.get("/api/it/metrics", requireAuth, requireIT, async (req, res) => {
