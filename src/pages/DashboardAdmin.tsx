@@ -2826,12 +2826,12 @@ export const DashboardAdmin = () => {
                               <p className="text-xs">PT. Siemens Indonesia</p>
                               <div className="border-b-2 border-dashed border-black my-4"></div>
                             </div>
-                            <div className="mb-4 text-xs space-y-0.5">
-                              <div className="flex justify-between"><span>No Order:</span> <span className="font-bold">#{order.id}</span></div>
-                              <div className="flex justify-between"><span>Tanggal:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
-                              <div className="flex justify-between"><span>Pemesan:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
-                              <div className="flex justify-between"><span>Dept:</span> <span>{order.user?.departemen || '-'}</span></div>
-                              <div className="flex justify-between"><span>No. HP:</span> <span>{order.user?.no_hp || '-'}</span></div>
+                            <div className="mb-4 text-xs leading-none">
+                              <div className="flex justify-between py-0.5"><span>No Order:</span> <span className="font-bold">#{order.id}</span></div>
+                              <div className="flex justify-between py-0.5"><span>Tanggal:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
+                              <div className="flex justify-between py-0.5"><span>Pemesan:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
+                              <div className="flex justify-between py-0.5"><span>Dept:</span> <span>{order.user?.departemen || '-'}</span></div>
+                              <div className="flex justify-between py-0.5"><span>No. HP:</span> <span>{order.user?.no_hp || '-'}</span></div>
                             </div>
                             <div className="border-b-2 border-dashed border-black my-4"></div>
                             <div className="mb-4">
