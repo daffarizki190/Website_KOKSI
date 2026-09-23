@@ -300,6 +300,8 @@ export default function OrderHistory() {
             {orders.map((order) => {
               const currentStep = getStepNumber(order.status);
               const isCancelled = currentStep === -1;
+              const itemSum = order.items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+              const handlingFee = order.total_amount > itemSum ? order.total_amount - itemSum : 0;
 
               return (
                 <div key={order.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
@@ -315,6 +317,9 @@ export default function OrderHistory() {
                       <div>
                         <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Total Belanja</p>
                         <p className="text-sm font-bold text-teal-700">Rp {order.total_amount.toLocaleString('id-ID')}</p>
+                        {handlingFee > 0 && (
+                          <p className="text-[10px] text-slate-500 mt-0.5">(Termasuk Penanganan Rp {handlingFee.toLocaleString('id-ID')})</p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end">

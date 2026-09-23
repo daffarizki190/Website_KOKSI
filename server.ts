@@ -1538,7 +1538,7 @@ app.get('/api/settings/demo-mode', async (req, res) => {
   res.json({ demoMode: globalDemoMode });
 });
 
-app.post('/api/settings/demo-mode', requireAuth, async (req, res) => {
+app.post('/api/settings/demo-mode', requireAuth, async (req: AuthRequest, res) => {
   if (req.user?.role !== 'admin' && req.user?.role !== 'it') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
@@ -1582,7 +1582,7 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
   } catch (e) {}
 
   if (!isDemoMode && dayOfWeek !== 1 && dayOfWeek !== 2) {
-    res.status(403).json({ error: 'Mohon maaf, waktu operasional pemesanan saat ini ditutup. Pemesanan hanya dapat dilakukan pada hari Senin dan Selasa.' });
+    res.status(403).json({ error: 'Produk pilihan Anda telah tersimpan di keranjang. Silakan melanjutkan proses checkout pada hari operasional kami, yaitu Senin dan Selasa. Terima kasih.' });
     return;
   }
 

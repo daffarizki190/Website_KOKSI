@@ -379,7 +379,9 @@ export const DashboardUser = () => {
     setIsCheckingOut(true);
     setCheckoutError(null);
     try {
-      const total_amount = cart.reduce((sum, item) => sum + (item.harga * item.quantity), 0);
+      const cartSubtotal = cart.reduce((sum, item) => sum + (item.harga * item.quantity), 0);
+      const handlingFee = cart.length > 0 ? 2000 : 0;
+      const total_amount = cartSubtotal + handlingFee;
       const items = cart.map(item => ({ productId: item.id, quantity: item.quantity, price: item.harga }));
       
       const res = await fetch('/api/orders', {
@@ -543,7 +545,9 @@ export const DashboardUser = () => {
     }
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + (item.harga * item.quantity), 0);
+  const cartSubtotal = cart.reduce((sum, item) => sum + (item.harga * item.quantity), 0);
+  const handlingFee = cart.length > 0 ? 2000 : 0;
+  const cartTotal = cartSubtotal + handlingFee;
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
@@ -890,8 +894,16 @@ export const DashboardUser = () => {
                 )}
               </div>
               <div className="p-6 bg-slate-50 border-t border-slate-200">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center mb-2">
                   <p className="text-slate-500 text-sm">Subtotal</p>
+                  <p className="font-bold text-slate-700">Rp {cartSubtotal.toLocaleString('id-ID')}</p>
+                </div>
+                <div className="flex justify-between items-center mb-4">
+                  <p className="text-slate-500 text-sm">Biaya Penanganan</p>
+                  <p className="font-bold text-slate-700">Rp {handlingFee.toLocaleString('id-ID')}</p>
+                </div>
+                <div className="flex justify-between items-center mb-4 border-t border-slate-200 pt-3">
+                  <p className="text-slate-500 text-sm font-bold">Total Pembayaran</p>
                   <p className="text-lg font-black text-teal-800">Rp {cartTotal.toLocaleString('id-ID')}</p>
                 </div>
                 <button
@@ -1280,7 +1292,13 @@ export const DashboardUser = () => {
 
             {/* Order Summary Box */}
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-left space-y-2.5">
-              <div className="flex justify-between items-center text-xs text-slate-500 font-semibold">
+              {(checkoutSuccessOrder.total_amount > 2000) && (
+                <div className="flex justify-between items-center text-xs text-slate-500 font-semibold mb-2">
+                  <span>Biaya Penanganan</span>
+                  <span className="text-sm font-bold text-slate-700">Rp 2.000</span>
+                </div>
+              )}
+              <div className={`flex justify-between items-center text-xs text-slate-500 font-semibold ${(checkoutSuccessOrder.total_amount > 2000) ? 'border-t border-slate-200/60 pt-2' : ''}`}>
                 <span>Total Pembayaran</span>
                 <span className="text-sm font-black text-teal-700">
                   Rp {(checkoutSuccessOrder.total_amount || 0).toLocaleString('id-ID')}

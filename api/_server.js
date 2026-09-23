@@ -1516,7 +1516,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
   } catch (e) {
   }
   if (!isDemoMode && dayOfWeek !== 1 && dayOfWeek !== 2) {
-    res.status(403).json({ error: "Mohon maaf, waktu operasional pemesanan saat ini ditutup. Pemesanan hanya dapat dilakukan pada hari Senin dan Selasa." });
+    res.status(403).json({ error: "Produk pilihan Anda telah tersimpan di keranjang. Silakan melanjutkan proses checkout pada hari operasional kami, yaitu Senin dan Selasa. Terima kasih." });
     return;
   }
   if (!items || !Array.isArray(items) || items.length === 0) {

@@ -1780,7 +1780,8 @@ export const DashboardAdmin = () => {
         'QTY',
         'HARGA SATUAN (RP)',
         'TOTAL HARGA (RP)',
-        'STATUS PESANAN'
+        'STATUS PESANAN',
+        'TOTAL PEMBAYARAN (RP)'
       ];
 
       const aoa: any[][] = [r0, r1, r2, r3, r4, r5];
@@ -1842,6 +1843,14 @@ export const DashboardAdmin = () => {
       Array.from(userOrdersMap.values()).forEach((userGroup, groupIdx) => {
         const userStartRow = aoa.length;
 
+        let userTotal = 0;
+        userGroup.orders.forEach(order => {
+          const items = (order.items && order.items.length > 0) ? order.items : [];
+          items.forEach(item => {
+            userTotal += (item.quantity || 0) * (item.price || 0);
+          });
+        });
+
         userGroup.orders.forEach(order => {
           const orderStartRow = aoa.length;
           let formattedDate = '-';
@@ -1879,7 +1888,8 @@ export const DashboardAdmin = () => {
               qty,
               price,
               subtotal,
-              isFirstRowOfOrder ? orderStatus : ''
+              isFirstRowOfOrder ? orderStatus : '',
+              isFirstRowOfUser ? userTotal : ''
             ]);
           });
 
@@ -1895,11 +1905,12 @@ export const DashboardAdmin = () => {
         const userEndRow = aoa.length - 1;
         userGroupRanges.push({ start: userStartRow, end: userEndRow, groupIdx, statusText: '' });
 
-        // Merge user-level columns (NO, NAMA, DEPT, NO HP) jika user memiliki > 1 baris
+        // Merge user-level columns (NO, NAMA, DEPT, NO HP, TOTAL PEMBAYARAN) jika user memiliki > 1 baris
         if (userEndRow > userStartRow) {
           for (let c = 0; c <= 3; c++) {
             orderMerges.push({ s: { r: userStartRow, c }, e: { r: userEndRow, c } });
           }
+          orderMerges.push({ s: { r: userStartRow, c: 10 }, e: { r: userEndRow, c: 10 } });
         }
 
         orderCounter++;
@@ -1911,7 +1922,8 @@ export const DashboardAdmin = () => {
         grandTotalQty,
         '',
         grandTotalSubtotal,
-        ''
+        '',
+        grandTotalSubtotal
       ]);
 
       const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -2800,9 +2812,9 @@ export const DashboardAdmin = () => {
                       {/* Professional Thermal Receipt Design (Print Only) */}
                       {printingOrderId === order.id && createPortal(
                         <div className="print-section text-black bg-white" style={{ fontFamily: 'monospace' }}>
-                          <div className="w-full mx-auto p-4 border border-slate-200 rounded-lg no-print-border">
+                          <div className="w-full max-w-3xl mx-auto px-8 py-6 border border-slate-200 rounded-lg no-print-border">
                             <div className="text-center mb-4">
-                              <h2 className="font-extrabold text-xl mb-1">BELANJAIN SAZA</h2>
+                              <h2 className="font-extrabold text-xl mb-1">BELANJAIN SAZA DI KOKSI</h2>
                               <p className="text-xs font-bold">Koperasi Karyawan Siemens Indonesia (KOKSI)</p>
                               <p className="text-xs">PT. Siemens Indonesia</p>
                               <div className="border-b-2 border-dashed border-black my-3"></div>
@@ -2836,13 +2848,29 @@ export const DashboardAdmin = () => {
                               </table>
                             </div>
                             <div className="border-b-2 border-dashed border-black my-3"></div>
-                            <div className="flex justify-between font-extrabold text-sm mb-6">
-                              <span>TOTAL BAYAR</span>
-                              <span>Rp {order.total_amount.toLocaleString('id-ID')}</span>
-                            </div>
+                            
+                            {(() => {
+                              const itemSum = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                              const handlingFee = order.total_amount > itemSum ? order.total_amount - itemSum : 0;
+                              return (
+                                <>
+                                  {handlingFee > 0 && (
+                                    <div className="flex justify-between font-semibold text-xs mb-2">
+                                      <span>Biaya Penanganan</span>
+                                      <span>Rp {handlingFee.toLocaleString('id-ID')}</span>
+                                    </div>
+                                  )}
+                                  <div className="flex justify-between font-extrabold text-sm mb-6">
+                                    <span>TOTAL BAYAR</span>
+                                    <span>Rp {order.total_amount.toLocaleString('id-ID')}</span>
+                                  </div>
+                                </>
+                              );
+                            })()}
                             <div className="text-center text-[10px] mt-6 italic text-gray-800 space-y-1">
                               <p className="font-bold">Terima kasih telah berbelanja di KOKSI</p>
                               <p>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</p>
+                              <p>Cutoff pembayaran adalah tanggal 10 setiap bulannya.</p>
                               <p className="mt-2 text-[9px] uppercase">** BUKTI PEMBAYARAN SAH **</p>
                             </div>
                           </div>
