@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Plus, Edit2, Trash2, LogOut, Upload, Download, FileText, 
-  ShoppingBag, RefreshCw, CheckCircle, Clock, Package, 
+import {
+  Plus, Edit2, Trash2, LogOut, Upload, Download, FileText,
+  ShoppingBag, RefreshCw, CheckCircle, Clock, Package,
   Phone, MessageSquare, Search, Filter, AlertCircle, AlertTriangle, Check, X,
   QrCode, ScanLine, Camera, CameraOff, Inbox, FilterX, PackageSearch,
   Calendar, FileSpreadsheet, Building2, Key, Lock, Eye, EyeOff, Server,
@@ -39,10 +39,10 @@ interface ImportResultItem {
 
 interface ImportResult {
   inserted: ImportResultItem[];
-  updated:  ImportResultItem[];
+  updated: ImportResultItem[];
   rejected: ImportResultItem[];
   insertedCount: number;
-  updatedCount:  number;
+  updatedCount: number;
   rejectedCount: number;
 }
 
@@ -92,9 +92,9 @@ export const DashboardAdmin = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [activeTab, setActiveTab] = useState<'orders' | 'analytics' | 'products' | 'users' | 'scan'>('orders');
-  
+
   // Users state
   const [users, setUsers] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState('');
@@ -108,7 +108,7 @@ export const DashboardAdmin = () => {
   const [orderPtFilter, setOrderPtFilter] = useState('Semua');
   const [orderDateFilter, setOrderDateFilter] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  
+
   const [printingOrderId, setPrintingOrderId] = useState<number | null>(null);
 
   const dynamicCategories = useMemo(() => {
@@ -129,7 +129,7 @@ export const DashboardAdmin = () => {
       subCategories: Array.from(subs).sort()
     })).sort((a, b) => a.name.localeCompare(b.name));
   }, [products]);
-  
+
   useEffect(() => {
     if (printingOrderId !== null) {
       const timer = setTimeout(() => {
@@ -165,7 +165,7 @@ export const DashboardAdmin = () => {
   // Import Result Notification Modal
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importResultTab, setImportResultTab] = useState<'inserted' | 'updated' | 'rejected'>('inserted');
-  
+
   // Category Cleanup State
   const [isCleaningUpCategories, setIsCleaningUpCategories] = useState(false);
   const [cleanupProgress, setCleanupProgress] = useState<{ current: number, total: number }>({ current: 0, total: 0 });
@@ -195,7 +195,7 @@ export const DashboardAdmin = () => {
   const isDateInWednesdayPeriod = (orderDate: Date, wednesdayDateStr: string) => {
     if (wednesdayDateStr === 'Semua') return true;
     const wedDate = new Date(wednesdayDateStr);
-    
+
     // End date is Tuesday 23:59:59 before this Wednesday
     const endDate = new Date(wedDate);
     endDate.setDate(endDate.getDate() - 1);
@@ -275,7 +275,7 @@ export const DashboardAdmin = () => {
     setIsDemoOrderingEnabled(newVal);
     // Also save locally for fallback
     localStorage.setItem('demo_ordering_enabled', newVal.toString());
-    
+
     try {
       const token = localStorage.getItem('token');
       await fetch('/api/settings/demo-mode', {
@@ -429,9 +429,9 @@ export const DashboardAdmin = () => {
           }
         ).catch((err) => {
           console.error('Camera scan start error:', err);
-          setBarcodeVerifyMessage({ 
-            type: 'error', 
-            text: 'Kamera tidak dapat diakses. Pastikan izin kamera aktif, atau gunakan ketik/pilih kode manual di bawah.' 
+          setBarcodeVerifyMessage({
+            type: 'error',
+            text: 'Kamera tidak dapat diakses. Pastikan izin kamera aktif, atau gunakan ketik/pilih kode manual di bawah.'
           });
           setIsCameraActive(false);
         });
@@ -513,23 +513,23 @@ export const DashboardAdmin = () => {
     setIsCleaningUpCategories(true);
     setCleanupMessage(null);
     setCleanupProgress({ current: 0, total: 0 });
-    
+
     try {
       const authToken = token || localStorage.getItem('token');
-      
+
       // Fetch latest products first to ensure we are working with fresh data
       const resData = await fetch('/api/products', {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       const freshProducts = await resData.json();
-      
+
       if (!Array.isArray(freshProducts) || freshProducts.length === 0) {
         setIsCleaningUpCategories(false);
         return;
       }
 
       const productsToUpdate = [];
-      
+
       for (const p of freshProducts) {
         const smartRes = smartCategorize(p.nama_barang);
         if (p.kategori !== smartRes.kategori || p.sub_kategori !== smartRes.sub_kategori) {
@@ -540,21 +540,21 @@ export const DashboardAdmin = () => {
           });
         }
       }
-      
+
       if (productsToUpdate.length === 0) {
         setCleanupMessage({ type: 'info', text: 'Semua kategori produk sudah rapi. Tidak ada yang perlu diupdate.' });
         setIsCleaningUpCategories(false);
         return;
       }
-      
+
       setCleanupProgress({ current: 0, total: productsToUpdate.length });
-      
+
       const chunkSize = 50;
       let updatedSoFar = 0;
-      
+
       for (let i = 0; i < productsToUpdate.length; i += chunkSize) {
         const chunk = productsToUpdate.slice(i, i + chunkSize);
-        
+
         const res = await fetch('/api/products/batch-update', {
           method: 'PUT',
           headers: {
@@ -563,16 +563,16 @@ export const DashboardAdmin = () => {
           },
           body: JSON.stringify({ products: chunk })
         });
-        
+
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData.error || `Gagal update batch pada item ke-${i}`);
         }
-        
+
         updatedSoFar += chunk.length;
         setCleanupProgress({ current: updatedSoFar, total: productsToUpdate.length });
       }
-      
+
       setCleanupMessage({ type: 'success', text: `Berhasil merapikan kategori untuk ${productsToUpdate.length} produk!` });
       await fetchProducts();
     } catch (err: any) {
@@ -715,7 +715,7 @@ export const DashboardAdmin = () => {
       const authToken = token || localStorage.getItem('token');
       const res = await fetch(`/api/products/${targetId}`, {
         method: 'DELETE',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${authToken}`,
           'Accept': 'application/json'
         }
@@ -868,7 +868,7 @@ export const DashboardAdmin = () => {
 
       const registration = await navigator.serviceWorker.ready;
       let subscription = await registration.pushManager.getSubscription();
-      
+
       if (!subscription) {
         const response = await fetch('/api/notifications/vapid-public-key');
         const vapidPublicKey = await response.text();
@@ -905,13 +905,13 @@ export const DashboardAdmin = () => {
     setEditingProduct(null);
     const initialCategory = dynamicCategories[0]?.name || 'Umum';
     const initialSubCategory = dynamicCategories[0]?.subCategories[0] || '';
-    
+
     setFormData({
       nama_barang: '',
-      kategori: initialCategory, 
-      sub_kategori: initialSubCategory, 
+      kategori: initialCategory,
+      sub_kategori: initialSubCategory,
       harga: 0,
-      stok: 0 
+      stok: 0
     });
     setIsModalOpen(true);
   };
@@ -920,7 +920,7 @@ export const DashboardAdmin = () => {
     setEditingProduct(p);
     const cat = p.kategori || 'Umum';
     const subCat = p.sub_kategori || '';
-    
+
     setFormData({
       id: p.id,
       nama_barang: p.nama_barang,
@@ -946,7 +946,7 @@ export const DashboardAdmin = () => {
       const authToken = token || localStorage.getItem('token');
       const res = await fetch(`/api/products/${id}`, {
         method: 'DELETE',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${authToken}`,
           'Accept': 'application/json'
         }
@@ -970,7 +970,7 @@ export const DashboardAdmin = () => {
     try {
       const url = editingProduct ? `/api/products/${editingProduct.id}` : '/api/products';
       const method = editingProduct ? 'PUT' : 'POST';
-      
+
       const res = await fetch(url, {
         method,
         headers: {
@@ -1115,7 +1115,7 @@ export const DashboardAdmin = () => {
       if (!res.ok) throw new Error(data.error || 'Gagal mengubah role pengguna');
 
       toast.success(data.message || `Role pengguna berhasil diubah ke "${newRole.toUpperCase()}".`);
-      
+
       // If Admin changed their own role, update local user object
       if (user && user.id === userId) {
         const updatedUser = { ...user, role: newRole };
@@ -1191,47 +1191,47 @@ export const DashboardAdmin = () => {
       // Header baris pertama
       ['No', 'Kategori Minuman', 'Nama Produk & Gramasi', 'Harga Dasar', 'Harga Jual ke KOKSI', 'Harga Jual ke Anggota'],
       // --- Air Mineral ---
-      [1,   'Air Mineral',  'Aqua 600 ml',              2400,  3500,  4500],
-      ['',  '',             'Aqua 1.500 ml',             5550,  6000,  7000],
-      ['',  '',             'Le Minerale 600 ml',        2670,  3500,  4500],
-      ['',  '',             'Cleo 550 ml',               2775,  4000,  5000],
+      [1, 'Air Mineral', 'Aqua 600 ml', 2400, 3500, 4500],
+      ['', '', 'Aqua 1.500 ml', 5550, 6000, 7000],
+      ['', '', 'Le Minerale 600 ml', 2670, 3500, 4500],
+      ['', '', 'Cleo 550 ml', 2775, 4000, 5000],
       // --- Teh Ready to Drink ---
-      [2,   'Teh Ready to Drink', 'Teh Pucuk Harum 350 ml', 3620, 3500, 4500],
-      ['',  '',             'Tehbotol Sosro 450 ml',     6350,  7500,  8500],
-      ['',  '',             'Frestea Jasmine 350 ml',    4475,  4500,  5500],
+      [2, 'Teh Ready to Drink', 'Teh Pucuk Harum 350 ml', 3620, 3500, 4500],
+      ['', '', 'Tehbotol Sosro 450 ml', 6350, 7500, 8500],
+      ['', '', 'Frestea Jasmine 350 ml', 4475, 4500, 5500],
       // --- Minuman Berkarbonasi ---
-      [3,   'Minuman Berkarbonasi', 'Coca Cola 330 ml', 4500, 5000, 6000],
-      ['',  '',             'Sprite 330 ml',             4500,  5000,  6000],
+      [3, 'Minuman Berkarbonasi', 'Coca Cola 330 ml', 4500, 5000, 6000],
+      ['', '', 'Sprite 330 ml', 4500, 5000, 6000],
       // --- Kopi RTD ---
-      [4,   'Kopi RTD',    'Good Day Cappuccino 250 ml', 3800, 4000, 5000],
-      ['',  '',             'Nescafe Ready 240 ml',      5200,  6000,  7000],
+      [4, 'Kopi RTD', 'Good Day Cappuccino 250 ml', 3800, 4000, 5000],
+      ['', '', 'Nescafe Ready 240 ml', 5200, 6000, 7000],
     ];
 
     // ===== SHEET 2: Contoh file format KOKSI Supplier (Personal Care) =====
     const templatePc = [
       ['No', 'Kategori Perawatan', 'Nama Produk & Gramasi', 'Harga Dasar', 'Harga Jual ke KOKSI', 'Harga Jual ke Anggota'],
-      [1,   'Sabun & Shampo', 'Lifebuoy Sabun Batang 85g',   3500,  5000,  6000],
-      ['',  '',               'Sunsilk Shampo 160 ml',       12000, 14000, 16000],
-      ['',  '',               'Clear Shampo 160 ml',         13000, 15000, 17000],
-      [2,   'Pasta Gigi',     'Pepsodent Action 123 190g',   10000, 13000, 15000],
-      ['',  '',               'Close Up Deep Action 160g',   10000, 12000, 14000],
-      [3,   'Deodoran',       'Rexona Men Stick 45g',        20000, 23000, 26000],
-      ['',  '',               'Dove Original Roll On 50 ml', 22000, 25000, 28000],
+      [1, 'Sabun & Shampo', 'Lifebuoy Sabun Batang 85g', 3500, 5000, 6000],
+      ['', '', 'Sunsilk Shampo 160 ml', 12000, 14000, 16000],
+      ['', '', 'Clear Shampo 160 ml', 13000, 15000, 17000],
+      [2, 'Pasta Gigi', 'Pepsodent Action 123 190g', 10000, 13000, 15000],
+      ['', '', 'Close Up Deep Action 160g', 10000, 12000, 14000],
+      [3, 'Deodoran', 'Rexona Men Stick 45g', 20000, 23000, 26000],
+      ['', '', 'Dove Original Roll On 50 ml', 22000, 25000, 28000],
     ];
 
     // ===== SHEET 3: Panduan Kolom =====
     const panduan = [
-      { 'Kolom': 'No',                    'Keterangan': 'Nomor urut kategori (boleh kosong untuk baris lanjutan)', 'Wajib?': 'Tidak' },
+      { 'Kolom': 'No', 'Keterangan': 'Nomor urut kategori (boleh kosong untuk baris lanjutan)', 'Wajib?': 'Tidak' },
       { 'Kolom': 'Kategori Minuman/Perawatan', 'Keterangan': 'Nama sub-kategori — sel bisa digabung (merged) untuk satu grup', 'Wajib?': 'Ya' },
       { 'Kolom': 'Nama Produk & Gramasi', 'Keterangan': 'Nama lengkap produk termasuk ukuran/gramasi', 'Wajib?': 'Ya' },
-      { 'Kolom': 'Harga Dasar',           'Keterangan': 'Harga pokok — DIABAIKAN oleh sistem', 'Wajib?': 'Tidak' },
-      { 'Kolom': 'Harga Jual ke KOKSI',   'Keterangan': 'Harga grosir — DIABAIKAN oleh sistem', 'Wajib?': 'Tidak' },
+      { 'Kolom': 'Harga Dasar', 'Keterangan': 'Harga pokok — DIABAIKAN oleh sistem', 'Wajib?': 'Tidak' },
+      { 'Kolom': 'Harga Jual ke KOKSI', 'Keterangan': 'Harga grosir — DIABAIKAN oleh sistem', 'Wajib?': 'Tidak' },
       { 'Kolom': 'Harga Jual ke Anggota', 'Keterangan': '✓ Harga yang tampil di aplikasi untuk member Siemens — WAJIB', 'Wajib?': 'Ya (UTAMA)' },
     ];
 
-    const ws1  = XLSX.utils.aoa_to_sheet(templateFnb);
-    const ws2  = XLSX.utils.aoa_to_sheet(templatePc);
-    const ws3  = XLSX.utils.json_to_sheet(panduan);
+    const ws1 = XLSX.utils.aoa_to_sheet(templateFnb);
+    const ws2 = XLSX.utils.aoa_to_sheet(templatePc);
+    const ws3 = XLSX.utils.json_to_sheet(panduan);
 
     ws1['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 38 }, { wch: 14 }, { wch: 20 }, { wch: 22 }];
     ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 38 }, { wch: 14 }, { wch: 20 }, { wch: 22 }];
@@ -1275,11 +1275,11 @@ export const DashboardAdmin = () => {
 
           // --- Pre-check: sheet harus punya kolom Nama Produk + Harga Jual ke Anggota di 30 baris pertama ---
           const checkRows = matrixRows.slice(0, 30);
-          const hasNamaCol  = checkRows.some(row => Array.isArray(row) && row.some(cell => {
+          const hasNamaCol = checkRows.some(row => Array.isArray(row) && row.some(cell => {
             const v = String(cell ?? '').toLowerCase();
             return v.includes('nama produk') || v.includes('nama barang') || (v.includes('nama') && (v.includes('produk') || v.includes('barang')));
           }));
-          
+
           // KOKSI Format STRICT check
           let globalIdxHarga = -1;
           const hasHargaAnggotaCol = checkRows.some(row => Array.isArray(row) && row.some((cell, idx) => {
@@ -1290,7 +1290,7 @@ export const DashboardAdmin = () => {
             }
             return false;
           }));
-          
+
           if (!hasNamaCol || !hasHargaAnggotaCol) {
             console.log(`[Parser] Sheet "${wsname}" dilewati (Template tidak sesuai ketentuan: tidak ada kolom 'Harga Jual ke Anggota').`);
             frontendRejected.push({
@@ -1301,336 +1301,336 @@ export const DashboardAdmin = () => {
             continue;
           }
 
-        // ========== UNIVERSAL EXCEL AUTO-DETECTION PARSER ==========
-        // Handles: KOKSI supplier format, BelanjaIn Saza template, and any arbitrary Excel
-        
-        // --- Helper functions ---
-        const safeStr = (v: any): string => String(v ?? '').trim();
-        const safeStrLow = (v: any): string => safeStr(v).toLowerCase();
-        
-        // Keyword dictionaries for column detection
-        // Format yang diterima: Format KOKSI Supplier
-        // Kolom harga: prioritas utama = "Harga Jual ke Anggota"
-        const NAMA_KEYWORDS = ['nama produk & gramasi', 'nama produk', 'nama barang', 'product name', 'nama', 'item', 'produk', 'barang'];
-        const HARGA_KEYWORDS = ['harga jual ke anggota', 'harga jual ke saza', 'harga anggota', 'harga jual', 'harga barang', 'harga', 'price'];
-        const HARGA_EXCLUDE = ['hpp', 'keuntungan', 'modal', 'beli', 'dasar', 'koksi'];
-        const SUBKAT_KEYWORDS = ['sub-kategori', 'sub kategori', 'sub_kategori', 'sub category', 'subkategori', 'sub kat'];
-        const KAT_KEYWORDS = ['kategori', 'category', 'jenis'];
-        const QTY_KEYWORDS = ['qty', 'stok', 'stock', 'jumlah'];
-        const SKIP_ROW_KEYWORDS = ['total', 'daftar harga', 'jumlah', 'grand total', 'sub total', 'subtotal'];
-        
-        // Fuzzy match a string to CATEGORY_STRUCTURES
-        const matchCategory = (text: string): string | null => {
-          const lower = text.toLowerCase();
-          for (const cat of CATEGORY_STRUCTURES) {
-            if (lower.includes(cat.name.toLowerCase()) || cat.name.toLowerCase().includes(lower)) return cat.name;
-            // Check partial keywords — require tokens longer than 5 chars to reduce false positives
-            const keywords = cat.name.toLowerCase().split(/[&()\s]+/).filter(w => w.length > 5);
-            const matchCount = keywords.filter(kw => lower.includes(kw)).length;
-            // Need at least 2 keyword matches, or the text is long enough to be a full category name
-            if (matchCount >= 2) return cat.name;
-          }
-          return null;
-        };
-        
-        // Fuzzy match sub-category → returns { subCategory, parentCategory }
-        const matchSubCategory = (text: string): { sub: string; parent: string } | null => {
-          const lower = text.toLowerCase();
-          for (const cat of CATEGORY_STRUCTURES) {
-            for (const sub of cat.subCategories) {
-              // Exact / full-string match: always trusted
-              if (lower.includes(sub.toLowerCase()) || sub.toLowerCase().includes(lower)) {
-                return { sub: sub, parent: cat.name };
-              }
-              // Partial token match: only if tokens are long (>4 chars) AND at least 2 match
-              // This prevents single-word accidents like 'dingin', 'manis', 'ringan'
-              const keywords = sub.toLowerCase().split(/[&()\s]+/).filter(w => w.length > 4);
-              if (keywords.length >= 2) {
-                const matchCount = keywords.filter(kw => lower.includes(kw)).length;
-                if (matchCount >= 2) {
+          // ========== UNIVERSAL EXCEL AUTO-DETECTION PARSER ==========
+          // Handles: KOKSI supplier format, BelanjaIn Saza template, and any arbitrary Excel
+
+          // --- Helper functions ---
+          const safeStr = (v: any): string => String(v ?? '').trim();
+          const safeStrLow = (v: any): string => safeStr(v).toLowerCase();
+
+          // Keyword dictionaries for column detection
+          // Format yang diterima: Format KOKSI Supplier
+          // Kolom harga: prioritas utama = "Harga Jual ke Anggota"
+          const NAMA_KEYWORDS = ['nama produk & gramasi', 'nama produk', 'nama barang', 'product name', 'nama', 'item', 'produk', 'barang'];
+          const HARGA_KEYWORDS = ['harga jual ke anggota', 'harga jual ke saza', 'harga anggota', 'harga jual', 'harga barang', 'harga', 'price'];
+          const HARGA_EXCLUDE = ['hpp', 'keuntungan', 'modal', 'beli', 'dasar', 'koksi'];
+          const SUBKAT_KEYWORDS = ['sub-kategori', 'sub kategori', 'sub_kategori', 'sub category', 'subkategori', 'sub kat'];
+          const KAT_KEYWORDS = ['kategori', 'category', 'jenis'];
+          const QTY_KEYWORDS = ['qty', 'stok', 'stock', 'jumlah'];
+          const SKIP_ROW_KEYWORDS = ['total', 'daftar harga', 'jumlah', 'grand total', 'sub total', 'subtotal'];
+
+          // Fuzzy match a string to CATEGORY_STRUCTURES
+          const matchCategory = (text: string): string | null => {
+            const lower = text.toLowerCase();
+            for (const cat of CATEGORY_STRUCTURES) {
+              if (lower.includes(cat.name.toLowerCase()) || cat.name.toLowerCase().includes(lower)) return cat.name;
+              // Check partial keywords — require tokens longer than 5 chars to reduce false positives
+              const keywords = cat.name.toLowerCase().split(/[&()\s]+/).filter(w => w.length > 5);
+              const matchCount = keywords.filter(kw => lower.includes(kw)).length;
+              // Need at least 2 keyword matches, or the text is long enough to be a full category name
+              if (matchCount >= 2) return cat.name;
+            }
+            return null;
+          };
+
+          // Fuzzy match sub-category → returns { subCategory, parentCategory }
+          const matchSubCategory = (text: string): { sub: string; parent: string } | null => {
+            const lower = text.toLowerCase();
+            for (const cat of CATEGORY_STRUCTURES) {
+              for (const sub of cat.subCategories) {
+                // Exact / full-string match: always trusted
+                if (lower.includes(sub.toLowerCase()) || sub.toLowerCase().includes(lower)) {
                   return { sub: sub, parent: cat.name };
                 }
-              } else if (keywords.length === 1 && keywords[0].length > 7 && lower.includes(keywords[0])) {
-                // Single very long token (>7 chars) is specific enough
-                return { sub: sub, parent: cat.name };
-              }
-            }
-          }
-          return null;
-        };
-        
-        // Find column index by keyword match
-        const findColIndex = (rowStr: string[], keywords: string[], exclude?: string[]): number => {
-          // First pass: exact match (longest keyword first for specificity)
-          const sortedKw = [...keywords].sort((a, b) => b.length - a.length);
-          for (const kw of sortedKw) {
-            const idx = rowStr.findIndex(cell => cell === kw);
-            if (idx !== -1) return idx;
-          }
-          // Second pass: includes match
-          for (const kw of sortedKw) {
-            const idx = rowStr.findIndex(cell => cell.includes(kw) && (!exclude || !exclude.some(ex => cell.includes(ex))));
-            if (idx !== -1) return idx;
-          }
-          return -1;
-        };
-        
-        // Check if a row is a header row (contains nama keyword)
-        const isHeaderRow = (rowStr: string[]): boolean => {
-          return NAMA_KEYWORDS.some(kw => rowStr.some(cell => cell === kw || cell.includes(kw)));
-        };
-        
-        // Check if a row looks like a section/category title (only 1-2 non-empty cells, text-only, no numbers that look like prices)
-        const isSectionTitleRow = (row: any[], idxNama: number, idxHarga: number): boolean => {
-          const nonEmpty = Array.from(row).filter(c => safeStr(c).length > 0);
-          if (nonEmpty.length > 3) return false;
-          const namaVal = safeStr(row[idxNama]);
-          const hargaVal = idxHarga >= 0 ? safeStr(row[idxHarga]) : '';
-          // If there's a significant price, it's not a section title
-          if (hargaVal && parseInt(hargaVal.replace(/[^0-9]/g, ''), 10) > 0) return false;
-          // If the name is too short, it's not useful as a section
-          if (namaVal.length < 3) return false;
-          // If it matches a known category or subcategory, it is a section title
-          if (matchCategory(namaVal) || matchSubCategory(namaVal)) return true;
-          return false;
-        };
-        
-        // --- Main parsing logic: process each sheet ---
-        let currentCat = CATEGORY_STRUCTURES[0].name;
-        let currentSubCat = '';
-        
-        // Track column positions (can reset per section/header)
-        let idxNama = -1;
-        let idxHarga = -1;
-        let idxQty = -1;
-        let idxKat = -1;
-        let idxSubKat = -1;
-        // KOKSI format flag: Col A = Sub-Kategori (parent cat lookup), Col C = section label (NOT a DB category column)
-        let isKoksiFormat = false;
-        
-        for (let r = 0; r < matrixRows.length; r++) {
-          const rawRow = matrixRows[r];
-          if (!Array.isArray(rawRow) || rawRow.length === 0) continue;
-          const row = Array.from(rawRow); // handle sparse arrays
-          const rowStr = row.map(safeStrLow);
-          
-          // --- Check if this row is a header row ---
-          if (isHeaderRow(rowStr)) {
-            const newIdxNama = findColIndex(rowStr, NAMA_KEYWORDS);
-            const newIdxHarga = globalIdxHarga !== -1 ? globalIdxHarga : findColIndex(rowStr, HARGA_KEYWORDS, HARGA_EXCLUDE);
-            const newIdxQty = findColIndex(rowStr, QTY_KEYWORDS);
-            const newIdxKat = findColIndex(rowStr, KAT_KEYWORDS);
-            const newIdxSubKat = findColIndex(rowStr, SUBKAT_KEYWORDS);
-            
-            if (newIdxNama !== -1) idxNama = newIdxNama;
-            if (newIdxHarga !== -1) idxHarga = newIdxHarga;
-            if (newIdxQty !== -1) idxQty = newIdxQty;
-            if (newIdxKat !== -1) idxKat = newIdxKat;
-            if (newIdxSubKat !== -1) idxSubKat = newIdxSubKat;
-            
-            // KOKSI supplier format:
-            // Header Col C = "Kategori [SubCategoryName]" (e.g. "Kategori Pembersih Pakaian")
-            // This encodes both the current sub-category AND lets us look up the parent category.
-            // After extraction we set idxKat = -1 so data rows in Col C (section labels like
-            // "Deterjen Cair/Bubuk") are NOT mistakenly used as the DB category.
-            for (let c = 0; c < row.length; c++) {
-              const cellVal = safeStr(row[c]);
-              const cellLow = cellVal.toLowerCase();
-              if (cellLow.startsWith('kategori ')) {
-                const catName = cellVal.replace(/^kategori\s+/i, '').trim();
-                if (catName.length > 0) {
-                  // Try to find parent category from this sub-category-like name
-                  const subMatch = matchSubCategory(catName);
-                  if (subMatch) {
-                    currentCat = subMatch.parent;
-                    currentSubCat = subMatch.sub;
-                  } else {
-                    const catMatch = matchCategory(catName);
-                    if (catMatch) {
-                      currentCat = catMatch;
-                      currentSubCat = '';
-                    } else {
-                      // Use as-is sub-category, keep current parent
-                      currentSubCat = catName;
-                    }
+                // Partial token match: only if tokens are long (>4 chars) AND at least 2 match
+                // This prevents single-word accidents like 'dingin', 'manis', 'ringan'
+                const keywords = sub.toLowerCase().split(/[&()\s]+/).filter(w => w.length > 4);
+                if (keywords.length >= 2) {
+                  const matchCount = keywords.filter(kw => lower.includes(kw)).length;
+                  if (matchCount >= 2) {
+                    return { sub: sub, parent: cat.name };
                   }
-                  // Mark KOKSI format: Col C is a section-label column, not a DB category column
-                  isKoksiFormat = true;
-                  idxKat = -1; // Prevent data rows from reading Col C as category
+                } else if (keywords.length === 1 && keywords[0].length > 7 && lower.includes(keywords[0])) {
+                  // Single very long token (>7 chars) is specific enough
+                  return { sub: sub, parent: cat.name };
                 }
               }
             }
-            
-            continue; // Skip the header row, don't add as product
-          }
-          
-          // --- If no header found yet, skip ---
-          if (idxNama === -1) continue;
-          
-          // --- Extract product name ---
-          const productName = safeStr(row[idxNama]);
-          if (!productName || productName.length < 2) continue;
-          const productNameLow = productName.toLowerCase();
-          
-          // --- Skip meta-rows (totals, repeated headers, etc.) ---
-          if (SKIP_ROW_KEYWORDS.some(kw => productNameLow.includes(kw))) continue;
-          if (NAMA_KEYWORDS.some(kw => productNameLow === kw)) continue;
-          
-          // --- Check if this is a section/category title row ---
-          if (isSectionTitleRow(row, idxNama, idxHarga)) {
-            // Try to identify what category/subcategory this is
-            const subMatch = matchSubCategory(productName);
-            if (subMatch) {
-              currentCat = subMatch.parent;
-              currentSubCat = subMatch.sub;
-            } else {
-              const catMatch = matchCategory(productName);
+            return null;
+          };
+
+          // Find column index by keyword match
+          const findColIndex = (rowStr: string[], keywords: string[], exclude?: string[]): number => {
+            // First pass: exact match (longest keyword first for specificity)
+            const sortedKw = [...keywords].sort((a, b) => b.length - a.length);
+            for (const kw of sortedKw) {
+              const idx = rowStr.findIndex(cell => cell === kw);
+              if (idx !== -1) return idx;
+            }
+            // Second pass: includes match
+            for (const kw of sortedKw) {
+              const idx = rowStr.findIndex(cell => cell.includes(kw) && (!exclude || !exclude.some(ex => cell.includes(ex))));
+              if (idx !== -1) return idx;
+            }
+            return -1;
+          };
+
+          // Check if a row is a header row (contains nama keyword)
+          const isHeaderRow = (rowStr: string[]): boolean => {
+            return NAMA_KEYWORDS.some(kw => rowStr.some(cell => cell === kw || cell.includes(kw)));
+          };
+
+          // Check if a row looks like a section/category title (only 1-2 non-empty cells, text-only, no numbers that look like prices)
+          const isSectionTitleRow = (row: any[], idxNama: number, idxHarga: number): boolean => {
+            const nonEmpty = Array.from(row).filter(c => safeStr(c).length > 0);
+            if (nonEmpty.length > 3) return false;
+            const namaVal = safeStr(row[idxNama]);
+            const hargaVal = idxHarga >= 0 ? safeStr(row[idxHarga]) : '';
+            // If there's a significant price, it's not a section title
+            if (hargaVal && parseInt(hargaVal.replace(/[^0-9]/g, ''), 10) > 0) return false;
+            // If the name is too short, it's not useful as a section
+            if (namaVal.length < 3) return false;
+            // If it matches a known category or subcategory, it is a section title
+            if (matchCategory(namaVal) || matchSubCategory(namaVal)) return true;
+            return false;
+          };
+
+          // --- Main parsing logic: process each sheet ---
+          let currentCat = CATEGORY_STRUCTURES[0].name;
+          let currentSubCat = '';
+
+          // Track column positions (can reset per section/header)
+          let idxNama = -1;
+          let idxHarga = -1;
+          let idxQty = -1;
+          let idxKat = -1;
+          let idxSubKat = -1;
+          // KOKSI format flag: Col A = Sub-Kategori (parent cat lookup), Col C = section label (NOT a DB category column)
+          let isKoksiFormat = false;
+
+          for (let r = 0; r < matrixRows.length; r++) {
+            const rawRow = matrixRows[r];
+            if (!Array.isArray(rawRow) || rawRow.length === 0) continue;
+            const row = Array.from(rawRow); // handle sparse arrays
+            const rowStr = row.map(safeStrLow);
+
+            // --- Check if this row is a header row ---
+            if (isHeaderRow(rowStr)) {
+              const newIdxNama = findColIndex(rowStr, NAMA_KEYWORDS);
+              const newIdxHarga = globalIdxHarga !== -1 ? globalIdxHarga : findColIndex(rowStr, HARGA_KEYWORDS, HARGA_EXCLUDE);
+              const newIdxQty = findColIndex(rowStr, QTY_KEYWORDS);
+              const newIdxKat = findColIndex(rowStr, KAT_KEYWORDS);
+              const newIdxSubKat = findColIndex(rowStr, SUBKAT_KEYWORDS);
+
+              if (newIdxNama !== -1) idxNama = newIdxNama;
+              if (newIdxHarga !== -1) idxHarga = newIdxHarga;
+              if (newIdxQty !== -1) idxQty = newIdxQty;
+              if (newIdxKat !== -1) idxKat = newIdxKat;
+              if (newIdxSubKat !== -1) idxSubKat = newIdxSubKat;
+
+              // KOKSI supplier format:
+              // Header Col C = "Kategori [SubCategoryName]" (e.g. "Kategori Pembersih Pakaian")
+              // This encodes both the current sub-category AND lets us look up the parent category.
+              // After extraction we set idxKat = -1 so data rows in Col C (section labels like
+              // "Deterjen Cair/Bubuk") are NOT mistakenly used as the DB category.
+              for (let c = 0; c < row.length; c++) {
+                const cellVal = safeStr(row[c]);
+                const cellLow = cellVal.toLowerCase();
+                if (cellLow.startsWith('kategori ')) {
+                  const catName = cellVal.replace(/^kategori\s+/i, '').trim();
+                  if (catName.length > 0) {
+                    // Try to find parent category from this sub-category-like name
+                    const subMatch = matchSubCategory(catName);
+                    if (subMatch) {
+                      currentCat = subMatch.parent;
+                      currentSubCat = subMatch.sub;
+                    } else {
+                      const catMatch = matchCategory(catName);
+                      if (catMatch) {
+                        currentCat = catMatch;
+                        currentSubCat = '';
+                      } else {
+                        // Use as-is sub-category, keep current parent
+                        currentSubCat = catName;
+                      }
+                    }
+                    // Mark KOKSI format: Col C is a section-label column, not a DB category column
+                    isKoksiFormat = true;
+                    idxKat = -1; // Prevent data rows from reading Col C as category
+                  }
+                }
+              }
+
+              continue; // Skip the header row, don't add as product
+            }
+
+            // --- If no header found yet, skip ---
+            if (idxNama === -1) continue;
+
+            // --- Extract product name ---
+            const productName = safeStr(row[idxNama]);
+            if (!productName || productName.length < 2) continue;
+            const productNameLow = productName.toLowerCase();
+
+            // --- Skip meta-rows (totals, repeated headers, etc.) ---
+            if (SKIP_ROW_KEYWORDS.some(kw => productNameLow.includes(kw))) continue;
+            if (NAMA_KEYWORDS.some(kw => productNameLow === kw)) continue;
+
+            // --- Check if this is a section/category title row ---
+            if (isSectionTitleRow(row, idxNama, idxHarga)) {
+              // Try to identify what category/subcategory this is
+              const subMatch = matchSubCategory(productName);
+              if (subMatch) {
+                currentCat = subMatch.parent;
+                currentSubCat = subMatch.sub;
+              } else {
+                const catMatch = matchCategory(productName);
+                if (catMatch) {
+                  currentCat = catMatch;
+                  currentSubCat = '';
+                } else {
+                  // Unknown section name, use as sub-category
+                  currentSubCat = productName;
+                }
+              }
+              continue;
+            }
+
+            // --- Universal Category & Sub-Category Extractor ---
+            // Strategy: scan EVERY cell in the row (skip product name, price, qty columns).
+            // For each non-empty, non-numeric cell value:
+            //   1. Strip "Kategori " prefix if present (KOKSI header format)
+            //   2. Try sub-category match FIRST (most specific — also resolves parent category)
+            //   3. If no sub-category match, try main-category match (updates only parent)
+            //   4. If neither → it's a section label (e.g. "Deterjen Cair/Bubuk") — IGNORE
+            // This approach is column-order agnostic and handles both 5-col and 6-col formats.
+            const SKIP_CELL_EXACT = new Set(['no', 'sub-kategori', 'sub kategori', 'kategori', 'harga', 'nama', '-', 'rp']);
+            for (let c = 0; c < row.length; c++) {
+              if (c === idxNama || c === idxHarga || c === idxQty) continue; // skip data columns
+              let cellVal = safeStr(row[c]);
+              if (!cellVal || cellVal.length < 2) continue;
+              if (/^\d[\d.,\s]*$/.test(cellVal)) continue; // skip pure numbers / prices
+              const cellLow = cellVal.toLowerCase();
+              if (SKIP_CELL_EXACT.has(cellLow)) continue; // skip header labels themselves
+
+              // Strip "Kategori " prefix (e.g. "Kategori Pembersih Pakaian" → "Pembersih Pakaian")
+              if (cellLow.startsWith('kategori ')) {
+                cellVal = cellVal.replace(/^kategori\s+/i, '').trim();
+                if (!cellVal) continue;
+              }
+
+              // Priority 1: match as a known sub-category → resolves BOTH sub_kategori + kategori
+              const subMatch = matchSubCategory(cellVal);
+              if (subMatch) {
+                currentCat = subMatch.parent;
+                currentSubCat = subMatch.sub;
+                continue;
+              }
+
+              // Priority 2: match as a known main category → updates parent only
+              const catMatch = matchCategory(cellVal);
               if (catMatch) {
                 currentCat = catMatch;
-                currentSubCat = '';
-              } else {
-                // Unknown section name, use as sub-category
-                currentSubCat = productName;
+                // Don't reset currentSubCat — preserve sub if already set from a previous row
+                continue;
               }
-            }
-            continue;
-          }
-          
-          // --- Universal Category & Sub-Category Extractor ---
-          // Strategy: scan EVERY cell in the row (skip product name, price, qty columns).
-          // For each non-empty, non-numeric cell value:
-          //   1. Strip "Kategori " prefix if present (KOKSI header format)
-          //   2. Try sub-category match FIRST (most specific — also resolves parent category)
-          //   3. If no sub-category match, try main-category match (updates only parent)
-          //   4. If neither → it's a section label (e.g. "Deterjen Cair/Bubuk") — IGNORE
-          // This approach is column-order agnostic and handles both 5-col and 6-col formats.
-          const SKIP_CELL_EXACT = new Set(['no', 'sub-kategori', 'sub kategori', 'kategori', 'harga', 'nama', '-', 'rp']);
-          for (let c = 0; c < row.length; c++) {
-            if (c === idxNama || c === idxHarga || c === idxQty) continue; // skip data columns
-            let cellVal = safeStr(row[c]);
-            if (!cellVal || cellVal.length < 2) continue;
-            if (/^\d[\d.,\s]*$/.test(cellVal)) continue; // skip pure numbers / prices
-            const cellLow = cellVal.toLowerCase();
-            if (SKIP_CELL_EXACT.has(cellLow)) continue; // skip header labels themselves
-            
-            // Strip "Kategori " prefix (e.g. "Kategori Pembersih Pakaian" → "Pembersih Pakaian")
-            if (cellLow.startsWith('kategori ')) {
-              cellVal = cellVal.replace(/^kategori\s+/i, '').trim();
-              if (!cellVal) continue;
-            }
-            
-            // Priority 1: match as a known sub-category → resolves BOTH sub_kategori + kategori
-            const subMatch = matchSubCategory(cellVal);
-            if (subMatch) {
-              currentCat = subMatch.parent;
-              currentSubCat = subMatch.sub;
-              continue;
-            }
-            
-            // Priority 2: match as a known main category → updates parent only
-            const catMatch = matchCategory(cellVal);
-            if (catMatch) {
-              currentCat = catMatch;
-              // Don't reset currentSubCat — preserve sub if already set from a previous row
-              continue;
-            }
-            
-            // Priority 3: unrecognized value (e.g. "Deterjen Cair/Bubuk", "Rokok SKM Full Flavor")
-            // → it's a granular section label that has no equivalent in CATEGORY_STRUCTURES
-            // → safely ignored; currentCat/currentSubCat carry forward from last match
-          }
 
-          
-          // --- Extract price ---
-          let priceNum = 0;
-          if (idxHarga >= 0) {
-            const priceRaw = row[idxHarga];
-            if (priceRaw !== undefined && priceRaw !== null) {
-              const priceStr = String(priceRaw).trim();
-              if (priceStr !== '-' && priceStr !== '') {
-                priceNum = parseInt(priceStr.split(',')[0].replace(/[^0-9]/g, ''), 10) || 0;
-              }
+              // Priority 3: unrecognized value (e.g. "Deterjen Cair/Bubuk", "Rokok SKM Full Flavor")
+              // → it's a granular section label that has no equivalent in CATEGORY_STRUCTURES
+              // → safely ignored; currentCat/currentSubCat carry forward from last match
             }
-          }
-          
-          // --- Extract quantity ---
-          let qtyNum = 0;
-          if (idxQty >= 0) {
-            const qtyRaw = row[idxQty];
-            if (qtyRaw !== undefined && qtyRaw !== null) {
-              qtyNum = parseInt(String(qtyRaw).replace(/[^0-9]/g, ''), 10) || 0;
-            }
-          }
-          
-          // --- Push the product ---
-          
-          // smartCategorize is used ONLY as a fallback:
-          //   - If Excel already provided a known category/sub-category (KOKSI format), trust it.
-          //   - If currentCat is still the default first category AND currentSubCat is empty,
-          //     it means the Excel gave us no category signal → let AI categorize instead.
-          const excelHasKnownCat = CATEGORY_STRUCTURES.some(c => c.name === currentCat &&
-            c.name !== CATEGORY_STRUCTURES[0].name) || // non-default parent cat was set
-            CATEGORY_STRUCTURES.some(c => c.subCategories.some(s => s === currentSubCat)); // known sub-cat
-          
-          const smartCat = (!excelHasKnownCat) ? smartCategorize(productName) : null;
-          let finalCat = currentCat;
-          let finalSubCat = currentSubCat;
-          
-          if (smartCat) {
-            finalCat = smartCat.kategori;
-            finalSubCat = smartCat.sub_kategori;
-          }
-          
-          formattedProducts.push({
-            nama_barang: productName,
-            kategori: finalCat || 'Lainnya',
-            sub_kategori: finalSubCat || '',
-            harga: priceNum,
-            stok: qtyNum
-          });
-        }
-        
-        // --- Fallback: if nothing was parsed, try sheet_to_json with named keys ---
-        if (formattedProducts.length === 0) {
-          const objectData = XLSX.utils.sheet_to_json(ws) as any[];
-          if (objectData && objectData.length > 0) {
-            objectData.forEach(item => {
-              const nama = getRowValue(item, ['nama_barang', 'nama barang', 'nama', 'barang', 'nama produk', 'product name', 'item', 'produk', 'nama produk & gramasi']);
-              const kategori = getRowValue(item, ['kategori', 'category', 'jenis', 'kat']) || CATEGORY_STRUCTURES[0].name;
-              const subKategori = getRowValue(item, ['sub_kategori', 'sub kategori', 'sub category', 'subkategori', 'sub_kat', 'subkat', 'sub-kategori']) || '';
-              const hargaRaw = getRowValue(item, ['harga jual ke saza', 'harga jual', 'harga anggota', 'harga barang', 'harga', 'price']);
-              const stokRaw = getRowValue(item, ['qty', 'stok', 'stock', 'jumlah', 'stok barang']);
 
-              const hargaNum = parseInt(String(hargaRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
-              const stokNum = parseInt(String(stokRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
 
-              if (nama && String(nama).trim().length > 0) {
-                const cleanNama = String(nama).trim();
-                const cleanKat = String(kategori).trim();
-                const cleanSub = String(subKategori).trim();
-                
-                // Apply fuzzy matching
-                const catMatch = matchCategory(cleanKat);
-                let finalCat = catMatch || cleanKat || 'Lainnya';
-                let finalSubCat = cleanSub;
-                
-                const smartCat = smartCategorize(cleanNama);
-                if (smartCat) {
-                  finalCat = smartCat.kategori;
-                  finalSubCat = smartCat.sub_kategori;
+            // --- Extract price ---
+            let priceNum = 0;
+            if (idxHarga >= 0) {
+              const priceRaw = row[idxHarga];
+              if (priceRaw !== undefined && priceRaw !== null) {
+                const priceStr = String(priceRaw).trim();
+                if (priceStr !== '-' && priceStr !== '') {
+                  priceNum = parseInt(priceStr.split(',')[0].replace(/[^0-9]/g, ''), 10) || 0;
                 }
-                
-                formattedProducts.push({
-                  nama_barang: cleanNama,
-                  kategori: finalCat,
-                  sub_kategori: finalSubCat,
-                  harga: hargaNum,
-                  stok: stokNum
-                });
               }
+            }
+
+            // --- Extract quantity ---
+            let qtyNum = 0;
+            if (idxQty >= 0) {
+              const qtyRaw = row[idxQty];
+              if (qtyRaw !== undefined && qtyRaw !== null) {
+                qtyNum = parseInt(String(qtyRaw).replace(/[^0-9]/g, ''), 10) || 0;
+              }
+            }
+
+            // --- Push the product ---
+
+            // smartCategorize is used ONLY as a fallback:
+            //   - If Excel already provided a known category/sub-category (KOKSI format), trust it.
+            //   - If currentCat is still the default first category AND currentSubCat is empty,
+            //     it means the Excel gave us no category signal → let AI categorize instead.
+            const excelHasKnownCat = CATEGORY_STRUCTURES.some(c => c.name === currentCat &&
+              c.name !== CATEGORY_STRUCTURES[0].name) || // non-default parent cat was set
+              CATEGORY_STRUCTURES.some(c => c.subCategories.some(s => s === currentSubCat)); // known sub-cat
+
+            const smartCat = (!excelHasKnownCat) ? smartCategorize(productName) : null;
+            let finalCat = currentCat;
+            let finalSubCat = currentSubCat;
+
+            if (smartCat) {
+              finalCat = smartCat.kategori;
+              finalSubCat = smartCat.sub_kategori;
+            }
+
+            formattedProducts.push({
+              nama_barang: productName,
+              kategori: finalCat || 'Lainnya',
+              sub_kategori: finalSubCat || '',
+              harga: priceNum,
+              stok: qtyNum
             });
           }
-        }
+
+          // --- Fallback: if nothing was parsed, try sheet_to_json with named keys ---
+          if (formattedProducts.length === 0) {
+            const objectData = XLSX.utils.sheet_to_json(ws) as any[];
+            if (objectData && objectData.length > 0) {
+              objectData.forEach(item => {
+                const nama = getRowValue(item, ['nama_barang', 'nama barang', 'nama', 'barang', 'nama produk', 'product name', 'item', 'produk', 'nama produk & gramasi']);
+                const kategori = getRowValue(item, ['kategori', 'category', 'jenis', 'kat']) || CATEGORY_STRUCTURES[0].name;
+                const subKategori = getRowValue(item, ['sub_kategori', 'sub kategori', 'sub category', 'subkategori', 'sub_kat', 'subkat', 'sub-kategori']) || '';
+                const hargaRaw = getRowValue(item, ['harga jual ke saza', 'harga jual', 'harga anggota', 'harga barang', 'harga', 'price']);
+                const stokRaw = getRowValue(item, ['qty', 'stok', 'stock', 'jumlah', 'stok barang']);
+
+                const hargaNum = parseInt(String(hargaRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
+                const stokNum = parseInt(String(stokRaw || 0).replace(/[^0-9]/g, ''), 10) || 0;
+
+                if (nama && String(nama).trim().length > 0) {
+                  const cleanNama = String(nama).trim();
+                  const cleanKat = String(kategori).trim();
+                  const cleanSub = String(subKategori).trim();
+
+                  // Apply fuzzy matching
+                  const catMatch = matchCategory(cleanKat);
+                  let finalCat = catMatch || cleanKat || 'Lainnya';
+                  let finalSubCat = cleanSub;
+
+                  const smartCat = smartCategorize(cleanNama);
+                  if (smartCat) {
+                    finalCat = smartCat.kategori;
+                    finalSubCat = smartCat.sub_kategori;
+                  }
+
+                  formattedProducts.push({
+                    nama_barang: cleanNama,
+                    kategori: finalCat,
+                    sub_kategori: finalSubCat,
+                    harga: hargaNum,
+                    stok: stokNum
+                  });
+                }
+              });
+            }
+          }
         } // end of sheets loop
 
         if (formattedProducts.length === 0 && frontendRejected.length === 0) {
@@ -1663,11 +1663,11 @@ export const DashboardAdmin = () => {
           fetchProducts();
           // Tampilkan modal notifikasi detail hasil import
           const result: ImportResult = {
-            inserted:      resData.inserted      || [],
-            updated:       resData.updated       || [],
-            rejected:      [...frontendRejected, ...(resData.rejected || [])],
+            inserted: resData.inserted || [],
+            updated: resData.updated || [],
+            rejected: [...frontendRejected, ...(resData.rejected || [])],
             insertedCount: resData.insertedCount || 0,
-            updatedCount:  resData.updatedCount  || 0,
+            updatedCount: resData.updatedCount || 0,
             rejectedCount: (resData.rejectedCount || 0) + frontendRejected.length,
           };
           setImportResult(result);
@@ -1735,11 +1735,11 @@ export const DashboardAdmin = () => {
         ? `Tahun ${yearToUse}`
         : rabuToUse !== 'Semua'
           ? `${MONTH_NAMES[monthToUse - 1]} ${yearToUse} - ${(() => {
-              const wedDate = new Date(rabuToUse);
-              const endD = new Date(wedDate); endD.setDate(endD.getDate() - 1);
-              const startD = new Date(wedDate); startD.setDate(startD.getDate() - 7);
-              return `Rabu ${wedDate.getDate()} (${startD.getDate()}-${endD.getDate()})`;
-            })()}`
+            const wedDate = new Date(rabuToUse);
+            const endD = new Date(wedDate); endD.setDate(endD.getDate() - 1);
+            const startD = new Date(wedDate); startD.setDate(startD.getDate() - 7);
+            return `Rabu ${wedDate.getDate()} (${startD.getDate()}-${endD.getDate()})`;
+          })()}`
           : `${MONTH_NAMES[monthToUse - 1]} ${yearToUse}`;
 
       // Calculate totals
@@ -2077,8 +2077,8 @@ export const DashboardAdmin = () => {
           // Garis pemisah antar user dibuat lebih tegas (medium) pada baris terakhir setiap user
           const cellBorder = {
             top: { style: 'thin', color: { rgb: borderCellColor } },
-            bottom: isUserLastRow 
-              ? { style: 'medium', color: { rgb: borderUserDividerColor } } 
+            bottom: isUserLastRow
+              ? { style: 'medium', color: { rgb: borderUserDividerColor } }
               : { style: 'thin', color: { rgb: borderCellColor } },
             left: { style: 'thin', color: { rgb: borderCellColor } },
             right: { style: 'thin', color: { rgb: borderCellColor } }
@@ -2237,11 +2237,10 @@ export const DashboardAdmin = () => {
         <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-slate-200/60 rounded-2xl mb-4 sm:hidden">
           <button
             onClick={() => setActiveTab('orders')}
-            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
-              activeTab === 'orders'
-                ? 'bg-teal-600 text-white shadow-xs'
-                : 'text-slate-700 hover:bg-slate-100'
-            }`}
+            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${activeTab === 'orders'
+              ? 'bg-teal-600 text-white shadow-xs'
+              : 'text-slate-700 hover:bg-slate-100'
+              }`}
           >
             <div className="flex items-center gap-1.5 truncate">
               <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
@@ -2256,11 +2255,10 @@ export const DashboardAdmin = () => {
 
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer truncate ${
-              activeTab === 'analytics'
-                ? 'bg-teal-600 text-white shadow-xs'
-                : 'text-slate-700 hover:bg-slate-100'
-            }`}
+            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer truncate ${activeTab === 'analytics'
+              ? 'bg-teal-600 text-white shadow-xs'
+              : 'text-slate-700 hover:bg-slate-100'
+              }`}
           >
             <TrendingUp className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'analytics' ? 'text-white' : 'text-teal-600'}`} />
             <span className="truncate">Grafik Penjualan</span>
@@ -2268,11 +2266,10 @@ export const DashboardAdmin = () => {
 
           <button
             onClick={() => setActiveTab('products')}
-            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer truncate ${
-              activeTab === 'products'
-                ? 'bg-teal-600 text-white shadow-xs'
-                : 'text-slate-700 hover:bg-slate-100'
-            }`}
+            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer truncate ${activeTab === 'products'
+              ? 'bg-teal-600 text-white shadow-xs'
+              : 'text-slate-700 hover:bg-slate-100'
+              }`}
           >
             <Package className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">Data Produk</span>
@@ -2280,11 +2277,10 @@ export const DashboardAdmin = () => {
 
           <button
             onClick={() => setActiveTab('users')}
-            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer truncate ${
-              activeTab === 'users'
-                ? 'bg-teal-600 text-white shadow-xs'
-                : 'text-slate-700 hover:bg-slate-100'
-            }`}
+            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer truncate ${activeTab === 'users'
+              ? 'bg-teal-600 text-white shadow-xs'
+              : 'text-slate-700 hover:bg-slate-100'
+              }`}
           >
             <FileText className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">Pengguna ({users.length})</span>
@@ -2295,11 +2291,10 @@ export const DashboardAdmin = () => {
         <div className="hidden sm:flex space-x-2 border-b border-slate-200 mb-6 shrink-0 overflow-x-auto max-w-full w-full pb-1">
           <button
             onClick={() => setActiveTab('orders')}
-            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'orders'
-                ? 'border-teal-600 text-teal-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'orders'
+              ? 'border-teal-600 text-teal-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
           >
             <ShoppingBag className="w-4 h-4" />
             <span>Permintaan Transaksi</span>
@@ -2312,11 +2307,10 @@ export const DashboardAdmin = () => {
 
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'analytics'
-                ? 'border-teal-600 text-teal-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'analytics'
+              ? 'border-teal-600 text-teal-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
           >
             <TrendingUp className="w-4 h-4 text-teal-600" />
             <span>Grafik & Tren Penjualan</span>
@@ -2324,11 +2318,10 @@ export const DashboardAdmin = () => {
 
           <button
             onClick={() => setActiveTab('products')}
-            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'products'
-                ? 'border-teal-600 text-teal-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'products'
+              ? 'border-teal-600 text-teal-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
           >
             <Package className="w-4 h-4" />
             <span>Data Produk</span>
@@ -2336,11 +2329,10 @@ export const DashboardAdmin = () => {
 
           <button
             onClick={() => setActiveTab('users')}
-            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'users'
-                ? 'border-teal-600 text-teal-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'users'
+              ? 'border-teal-600 text-teal-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
           >
             <FileText className="w-4 h-4" />
             <span>Daftar Pengguna ({users.length})</span>
@@ -2577,319 +2569,318 @@ export const DashboardAdmin = () => {
                 </div>
               ) : (
                 filteredOrders.map(order => (
-                    <div 
-                      key={order.id} 
-                      className={`bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col transition-all ${
-                        (!order.status || order.status === 'Menunggu Konfirmasi') 
-                          ? 'border-amber-300 ring-2 ring-amber-400/20' 
-                          : 'border-slate-200'
+                  <div
+                    key={order.id}
+                    className={`bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col transition-all ${(!order.status || order.status === 'Menunggu Konfirmasi')
+                      ? 'border-amber-300 ring-2 ring-amber-400/20'
+                      : 'border-slate-200'
                       }`}
-                    >
-                      {/* Order Header Info */}
-                      <div className="bg-slate-50 border-b border-slate-100 p-4 sm:px-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                        <div className="flex flex-wrap items-center gap-4">
-                          <div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">ID Order #{order.id}</span>
-                            <p className="text-xs font-semibold text-slate-800">
-                              {format(new Date(order.createdAt), 'dd MMMM yyyy, HH:mm', { locale: idLocale })}
-                            </p>
-                          </div>
-
-                          <div className="hidden sm:block w-px h-8 bg-slate-200"></div>
-
-                          <div>
-                            <p className="text-xs font-extrabold text-slate-900">{order.user?.nama || 'Pengguna Dihapus'}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="px-2 py-0.5 bg-teal-50 text-teal-800 font-bold text-[10px] rounded-md border border-teal-200">
-                                {order.user?.pt || 'PT. Siemens Indonesia'}
-                              </span>
-                              <span className="text-[10px] text-slate-500 font-medium">{order.user?.departemen || '-'}</span>
-                            </div>
-                          </div>
-
-                          <div className="hidden sm:block w-px h-8 bg-slate-200"></div>
-
-                          {order.user?.no_hp && (
-                            <a
-                              href={`https://wa.me/62${order.user.no_hp.replace(/^0/, '')}?text=${encodeURIComponent(`Halo Sdr/i ${order.user.nama}, mengenai pesanan #${order.id} BelanjaIn Saza...`)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg border border-emerald-200 text-xs font-bold transition-colors"
-                            >
-                              <Phone className="w-3 h-3 mr-1" />
-                              {order.user.no_hp}
-                            </a>
-                          )}
+                  >
+                    {/* Order Header Info */}
+                    <div className="bg-slate-50 border-b border-slate-100 p-4 sm:px-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">ID Order #{order.id}</span>
+                          <p className="text-xs font-semibold text-slate-800">
+                            {format(new Date(order.createdAt), 'dd MMMM yyyy, HH:mm', { locale: idLocale })}
+                          </p>
                         </div>
 
-                        <div className="flex items-center justify-between lg:justify-end gap-3 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200">
-                          <div className="text-right">
-                            <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Transaksi</span>
-                            <span className="text-base font-extrabold text-teal-700">
-                              Rp {order.total_amount.toLocaleString('id-ID')}
+                        <div className="hidden sm:block w-px h-8 bg-slate-200"></div>
+
+                        <div>
+                          <p className="text-xs font-extrabold text-slate-900">{order.user?.nama || 'Pengguna Dihapus'}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="px-2 py-0.5 bg-teal-50 text-teal-800 font-bold text-[10px] rounded-md border border-teal-200">
+                              {order.user?.pt || 'PT. Siemens Indonesia'}
                             </span>
+                            <span className="text-[10px] text-slate-500 font-medium">{order.user?.departemen || '-'}</span>
                           </div>
-
-                          <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border whitespace-nowrap shrink-0 ${getStatusBadgeStyle(order.status)}`}>
-                            {order.status || 'Menunggu Konfirmasi'}
-                          </span>
-
-                          <button
-                            onClick={() => handlePrintReceipt(order.id)}
-                            className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-colors border border-transparent hover:border-teal-200 cursor-pointer shrink-0 no-print"
-                            title={`Cetak Struk Pesanan #${order.id}`}
-                          >
-                            <Printer className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSingleOrder(order.id)}
-                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-200 cursor-pointer shrink-0 no-print"
-                            title={`Hapus Transaksi Pesanan #${order.id}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </div>
+
+                        <div className="hidden sm:block w-px h-8 bg-slate-200"></div>
+
+                        {order.user?.no_hp && (
+                          <a
+                            href={`https://wa.me/62${order.user.no_hp.replace(/^0/, '')}?text=${encodeURIComponent(`Halo Sdr/i ${order.user.nama}, mengenai pesanan #${order.id} BelanjaIn Saza...`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg border border-emerald-200 text-xs font-bold transition-colors"
+                          >
+                            <Phone className="w-3 h-3 mr-1" />
+                            {order.user.no_hp}
+                          </a>
+                        )}
                       </div>
 
-                      {/* Stage Status Management Bar */}
-                      <div className="p-4 sm:px-6 bg-slate-50/70 border-b border-slate-100 flex flex-col items-start justify-between gap-3">
-                        <div className="w-full">
-                          <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1">
-                            Update Tahap Status Pesanan:
-                          </p>
-                          {order.status === 'Pengajuan Pembatalan' ? (
-                            <div className="p-4 bg-amber-50/90 border-2 border-amber-300 rounded-2xl text-amber-900 text-xs font-semibold w-full space-y-3 shadow-xs">
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-amber-200/80">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-600 text-white font-black text-[10px] uppercase tracking-wider rounded-lg shadow-2xs">
-                                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-100" />
-                                    <span>Pengajuan Pembatalan Karyawan</span>
-                                  </span>
-                                  <span className="text-amber-950 font-extrabold text-xs">
-                                    • Membutuhkan Konfirmasi Admin
-                                  </span>
-                                </div>
-                                <span className="text-[11px] font-bold text-amber-800">
-                                  Status: Menunggu Konfirmasi
+                      <div className="flex items-center justify-between lg:justify-end gap-3 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200">
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Transaksi</span>
+                          <span className="text-base font-extrabold text-teal-700">
+                            Rp {order.total_amount.toLocaleString('id-ID')}
+                          </span>
+                        </div>
+
+                        <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border whitespace-nowrap shrink-0 ${getStatusBadgeStyle(order.status)}`}>
+                          {order.status || 'Menunggu Konfirmasi'}
+                        </span>
+
+                        <button
+                          onClick={() => handlePrintReceipt(order.id)}
+                          className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-colors border border-transparent hover:border-teal-200 cursor-pointer shrink-0 no-print"
+                          title={`Cetak Struk Pesanan #${order.id}`}
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSingleOrder(order.id)}
+                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-200 cursor-pointer shrink-0 no-print"
+                          title={`Hapus Transaksi Pesanan #${order.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Stage Status Management Bar */}
+                    <div className="p-4 sm:px-6 bg-slate-50/70 border-b border-slate-100 flex flex-col items-start justify-between gap-3">
+                      <div className="w-full">
+                        <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1">
+                          Update Tahap Status Pesanan:
+                        </p>
+                        {order.status === 'Pengajuan Pembatalan' ? (
+                          <div className="p-4 bg-amber-50/90 border-2 border-amber-300 rounded-2xl text-amber-900 text-xs font-semibold w-full space-y-3 shadow-xs">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-amber-200/80">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-600 text-white font-black text-[10px] uppercase tracking-wider rounded-lg shadow-2xs">
+                                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-100" />
+                                  <span>Pengajuan Pembatalan Karyawan</span>
+                                </span>
+                                <span className="text-amber-950 font-extrabold text-xs">
+                                  • Membutuhkan Konfirmasi Admin
                                 </span>
                               </div>
-
-                              <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200/90 text-slate-800">
-                                <span className="font-extrabold text-amber-950">Catatan/Alasan Pengajuan: </span>
-                                <span className="font-medium">{order.keterangan ? order.keterangan.replace(/^Pengajuan Pembatalan:\s*/, '') : 'Tidak ada alasan dicantumkan.'}</span>
-                              </div>
-
-                              <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2 pt-1">
-                                <button
-                                  onClick={() => {
-                                    setCancellationNoteInput('Pembatalan Disetujui Admin.');
-                                    setCancellationActionError('');
-                                    setCancellationActionSuccess('');
-                                    setCancellationConfirmModal({
-                                      orderId: order.id,
-                                      type: 'approve',
-                                      orderNumber: order.id
-                                    });
-                                  }}
-                                  className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-extrabold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                                >
-                                  <Check className="w-4 h-4 shrink-0" />
-                                  <span>Setujui Pembatalan</span>
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setCancellationNoteInput('Pesanan sedang diproses dan tidak dapat dibatalkan.');
-                                    setCancellationActionError('');
-                                    setCancellationActionSuccess('');
-                                    setCancellationConfirmModal({
-                                      orderId: order.id,
-                                      type: 'reject',
-                                      orderNumber: order.id
-                                    });
-                                  }}
-                                  className="flex-1 sm:flex-none px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-extrabold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                                >
-                                  <X className="w-4 h-4 shrink-0" />
-                                  <span>Tolak Pembatalan</span>
-                                </button>
-                                <button
-                                  onClick={() => openStatusModal(order)}
-                                  className="w-full sm:w-auto px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                                  <span>Edit Detail Status</span>
-                                </button>
-                              </div>
+                              <span className="text-[11px] font-bold text-amber-800">
+                                Status: Menunggu Konfirmasi
+                              </span>
                             </div>
-                          ) : order.status === 'Dibatalkan' ? (
-                            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-semibold flex items-center justify-between gap-3 w-full">
-                              <div>
-                                <span className="font-extrabold text-red-900 mr-2">🔒 Non-Aktif (Dibatalkan):</span>
-                                <span>{order.keterangan || 'Pesanan telah dibatalkan.'}</span>
-                              </div>
-                              <button
-                                onClick={() => openStatusModal(order)}
-                                className="px-2.5 py-1 bg-white border border-red-300 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition-colors shrink-0 shadow-sm"
-                              >
-                                Edit Catatan / Status
-                              </button>
+
+                            <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200/90 text-slate-800">
+                              <span className="font-extrabold text-amber-950">Catatan/Alasan Pengajuan: </span>
+                              <span className="font-medium">{order.keterangan ? order.keterangan.replace(/^Pengajuan Pembatalan:\s*/, '') : 'Tidak ada alasan dicantumkan.'}</span>
                             </div>
-                          ) : (
-                            <div className="flex flex-wrap items-center gap-1.5">
+
+                            <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2 pt-1">
                               <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'Proses', 'Pesanan telah diterima dan sedang diproses')}
-                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                                onClick={() => {
+                                  setCancellationNoteInput('Pembatalan Disetujui Admin.');
+                                  setCancellationActionError('');
+                                  setCancellationActionSuccess('');
+                                  setCancellationConfirmModal({
+                                    orderId: order.id,
+                                    type: 'approve',
+                                    orderNumber: order.id
+                                  });
+                                }}
+                                className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-extrabold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
                               >
-                                &rarr; Proses
-                              </button>
-                              <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'Menyiapkan Pesanan', 'Admin sedang menyiapkan barang pesanan Anda')}
-                                className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-                              >
-                                &rarr; Menyiapkan
-                              </button>
-                              <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'Pengiriman', 'Pesanan sedang dalam proses pengiriman')}
-                                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-                              >
-                                &rarr; Pengiriman
-                              </button>
-                              <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'Siap Diambil', 'Pesanan sudah siap diambil di lokasi Koperasi / PT. Siemens Indonesia')}
-                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-                              >
-                                &rarr; Siap Diambil
-                              </button>
-                              <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'Selesai', 'Pesanan telah selesai diserahkan ke karyawan')}
-                                className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-                              >
-                                &rarr; Selesai
+                                <Check className="w-4 h-4 shrink-0" />
+                                <span>Setujui Pembatalan</span>
                               </button>
                               <button
                                 onClick={() => {
-                                  setSelectedOrderForStatus(order);
-                                  setNewStatusValue('Dibatalkan');
-                                  setNewKeteranganValue('Dibatalkan oleh Admin.');
+                                  setCancellationNoteInput('Pesanan sedang diproses dan tidak dapat dibatalkan.');
+                                  setCancellationActionError('');
+                                  setCancellationActionSuccess('');
+                                  setCancellationConfirmModal({
+                                    orderId: order.id,
+                                    type: 'reject',
+                                    orderNumber: order.id
+                                  });
                                 }}
-                                className="px-2.5 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                                className="flex-1 sm:flex-none px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-extrabold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
                               >
-                                Batalkan
+                                <X className="w-4 h-4 shrink-0" />
+                                <span>Tolak Pembatalan</span>
                               </button>
                               <button
                                 onClick={() => openStatusModal(order)}
-                                className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+                                className="w-full sm:w-auto px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                               >
-                                Edit Custom + Catatan
+                                <Edit3 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                <span>Edit Detail Status</span>
                               </button>
                             </div>
-                          )}
-                        </div>
-
-                        {order.keterangan && (
-                          <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 max-w-md w-full md:w-auto">
-                            <span className="font-bold text-teal-800">Catatan/Instruksi Admin:</span> {order.keterangan}
+                          </div>
+                        ) : order.status === 'Dibatalkan' ? (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-semibold flex items-center justify-between gap-3 w-full">
+                            <div>
+                              <span className="font-extrabold text-red-900 mr-2">🔒 Non-Aktif (Dibatalkan):</span>
+                              <span>{order.keterangan || 'Pesanan telah dibatalkan.'}</span>
+                            </div>
+                            <button
+                              onClick={() => openStatusModal(order)}
+                              className="px-2.5 py-1 bg-white border border-red-300 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition-colors shrink-0 shadow-sm"
+                            >
+                              Edit Catatan / Status
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              onClick={() => handleUpdateOrderStatus(order.id, 'Proses', 'Pesanan telah diterima dan sedang diproses')}
+                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                            >
+                              &rarr; Proses
+                            </button>
+                            <button
+                              onClick={() => handleUpdateOrderStatus(order.id, 'Menyiapkan Pesanan', 'Admin sedang menyiapkan barang pesanan Anda')}
+                              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                            >
+                              &rarr; Menyiapkan
+                            </button>
+                            <button
+                              onClick={() => handleUpdateOrderStatus(order.id, 'Pengiriman', 'Pesanan sedang dalam proses pengiriman')}
+                              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                            >
+                              &rarr; Pengiriman
+                            </button>
+                            <button
+                              onClick={() => handleUpdateOrderStatus(order.id, 'Siap Diambil', 'Pesanan sudah siap diambil di lokasi Koperasi / PT. Siemens Indonesia')}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                            >
+                              &rarr; Siap Diambil
+                            </button>
+                            <button
+                              onClick={() => handleUpdateOrderStatus(order.id, 'Selesai', 'Pesanan telah selesai diserahkan ke karyawan')}
+                              className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                            >
+                              &rarr; Selesai
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedOrderForStatus(order);
+                                setNewStatusValue('Dibatalkan');
+                                setNewKeteranganValue('Dibatalkan oleh Admin.');
+                              }}
+                              className="px-2.5 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              Batalkan
+                            </button>
+                            <button
+                              onClick={() => openStatusModal(order)}
+                              className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+                            >
+                              Edit Custom + Catatan
+                            </button>
                           </div>
                         )}
                       </div>
 
-                      {/* Items Table */}
-                      <div className="p-4 sm:p-6">
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Detail Barang Dipesan ({order.items.length} jenis)</p>
-                        <div className="divide-y divide-slate-100">
-                          {order.items.map((item) => (
-                            <div key={item.id} className="py-2.5 flex justify-between items-center text-xs">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 font-bold shrink-0">
-                                  {item.quantity}x
-                                </div>
-                                <div>
-                                  <p className="font-bold text-slate-800">{item.product?.nama_barang || 'Produk Dihapus'}</p>
-                                  <p className="text-[10px] text-slate-400">Harga: Rp {item.price.toLocaleString('id-ID')}</p>
-                                </div>
-                              </div>
-                              <span className="font-bold text-slate-900">
-                                Rp {(item.quantity * item.price).toLocaleString('id-ID')}
-                              </span>
-                            </div>
-                          ))}
+                      {order.keterangan && (
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 max-w-md w-full md:w-auto">
+                          <span className="font-bold text-teal-800">Catatan/Instruksi Admin:</span> {order.keterangan}
                         </div>
-                      </div>
-
-                      {/* Professional Thermal Receipt Design (Print Only) */}
-                      {printingOrderId === order.id && createPortal(
-                        <div className="print-section text-black bg-white py-4" style={{ fontFamily: 'monospace' }}>
-                          <div className="w-full px-4 py-2 no-print-border">
-                            <div className="text-center mb-6">
-                              <h2 className="font-extrabold text-xl mb-1">BELANJAIN SAZA DI KOKSI</h2>
-                              <p className="text-xs font-bold">Koperasi Karyawan Siemens Indonesia (KOKSI)</p>
-                              <p className="text-xs">PT. Siemens Indonesia</p>
-                              <div className="border-b-2 border-dashed border-black my-4"></div>
-                            </div>
-                            <div className="mb-4 text-xs leading-tight space-y-1">
-                              <div className="flex"><span className="w-16">No Order</span><span className="mr-2">:</span> <span className="font-bold">#{order.id}</span></div>
-                              <div className="flex"><span className="w-16">Tanggal</span><span className="mr-2">:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
-                              <div className="flex"><span className="w-16">Pemesan</span><span className="mr-2">:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
-                              <div className="flex"><span className="w-16">Dept</span><span className="mr-2">:</span> <span>{order.user?.departemen || '-'}</span></div>
-                              <div className="flex"><span className="w-16">No. HP</span><span className="mr-2">:</span> <span>{order.user?.no_hp || '-'}</span></div>
-                            </div>
-                            <div className="border-b-2 border-dashed border-black my-4"></div>
-                            <div className="mb-4">
-                              <table className="w-full text-xs">
-                                <thead>
-                                  <tr className="border-b border-black">
-                                    <th className="text-left py-1.5 w-7/12">Item</th>
-                                    <th className="text-center py-1.5 w-2/12">Qty</th>
-                                    <th className="text-right py-1.5 w-3/12">Total</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="align-top">
-                                  {order.items.map((item, idx) => (
-                                    <tr key={idx} className="border-b border-dashed border-gray-300">
-                                      <td className="py-2.5 pr-2">{item.product?.nama_barang} <br/><span className="text-[10px] text-gray-500">@ Rp {item.price.toLocaleString('id-ID')}</span></td>
-                                      <td className="text-center py-2.5">{item.quantity}</td>
-                                      <td className="text-right py-2.5">{(item.price * item.quantity).toLocaleString('id-ID')}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                            
-                            {(() => {
-                              const itemSum = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                              const handlingFee = order.total_amount > itemSum ? order.total_amount - itemSum : 0;
-                              return (
-                                <div className="mt-4 text-xs">
-                                  <div className="flex justify-between mb-1">
-                                    <span>Subtotal</span>
-                                    <span>Rp {itemSum.toLocaleString('id-ID')}</span>
-                                  </div>
-                                  <div className="flex justify-between mb-2">
-                                    <span>Biaya Penanganan</span>
-                                    <span>Rp {handlingFee.toLocaleString('id-ID')}</span>
-                                  </div>
-                                  <div className="border-b-2 border-dashed border-black my-2"></div>
-                                  <div className="flex justify-between font-extrabold text-sm py-2">
-                                    <span>TOTAL PEMBAYARAN</span>
-                                    <span>Rp {order.total_amount.toLocaleString('id-ID')}</span>
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                            
-                            <div className="border-b-2 border-dashed border-black my-2"></div>
-                            <div className="text-center text-[10px] mt-6 italic text-gray-800 space-y-1.5">
-                              <p className="font-bold">Terima kasih telah berbelanja di KOKSI</p>
-                              <p>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</p>
-                              <p>Cutoff pembayaran tanggal 10 setiap bulannya.</p>
-                              <p className="mt-3 text-[9px] uppercase">** BUKTI PEMBAYARAN SAH **</p>
-                            </div>
-                          </div>
-                        </div>,
-                        document.body
                       )}
                     </div>
-                  ))
+
+                    {/* Items Table */}
+                    <div className="p-4 sm:p-6">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Detail Barang Dipesan ({order.items.length} jenis)</p>
+                      <div className="divide-y divide-slate-100">
+                        {order.items.map((item) => (
+                          <div key={item.id} className="py-2.5 flex justify-between items-center text-xs">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 font-bold shrink-0">
+                                {item.quantity}x
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-800">{item.product?.nama_barang || 'Produk Dihapus'}</p>
+                                <p className="text-[10px] text-slate-400">Harga: Rp {item.price.toLocaleString('id-ID')}</p>
+                              </div>
+                            </div>
+                            <span className="font-bold text-slate-900">
+                              Rp {(item.quantity * item.price).toLocaleString('id-ID')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Professional Thermal Receipt Design (Print Only) */}
+                    {printingOrderId === order.id && createPortal(
+                      <div className="print-section text-black bg-white flex justify-center py-8" style={{ fontFamily: 'monospace' }}>
+                        <div className="w-full max-w-2xl px-12 py-8 border border-slate-200 rounded-lg shadow-sm no-print-border">
+                          <div className="text-center mb-6">
+                            <h2 className="font-extrabold text-xl mb-1">BELANJAIN SAZA DI KOKSI</h2>
+                            <p className="text-xs font-bold">Koperasi Karyawan Siemens Indonesia (KOKSI)</p>
+                            <p className="text-xs">PT. Siemens Indonesia</p>
+                            <div className="border-b-2 border-dashed border-black my-4"></div>
+                          </div>
+                          <div className="mb-4 text-xs leading-tight space-y-1">
+                            <div className="flex"><span className="w-16">No Order</span><span className="mr-2">:</span> <span className="font-bold">#{order.id}</span></div>
+                            <div className="flex"><span className="w-16">Tanggal</span><span className="mr-2">:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
+                            <div className="flex"><span className="w-16">Pemesan</span><span className="mr-2">:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
+                            <div className="flex"><span className="w-16">Dept</span><span className="mr-2">:</span> <span>{order.user?.departemen || '-'}</span></div>
+                            <div className="flex"><span className="w-16">No. HP</span><span className="mr-2">:</span> <span>{order.user?.no_hp || '-'}</span></div>
+                          </div>
+                          <div className="border-b-2 border-dashed border-black my-4"></div>
+                          <div className="mb-4">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b border-black">
+                                  <th className="text-left py-1.5 w-7/12">Item</th>
+                                  <th className="text-center py-1.5 w-2/12">Qty</th>
+                                  <th className="text-right py-1.5 w-3/12">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody className="align-top">
+                                {order.items.map((item, idx) => (
+                                  <tr key={idx} className="border-b border-dashed border-gray-300">
+                                    <td className="py-2.5 pr-2">{item.product?.nama_barang} <br /><span className="text-[10px] text-gray-500">@ Rp {item.price.toLocaleString('id-ID')}</span></td>
+                                    <td className="text-center py-2.5">{item.quantity}</td>
+                                    <td className="text-right py-2.5">{(item.price * item.quantity).toLocaleString('id-ID')}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {(() => {
+                            const itemSum = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                            const handlingFee = order.total_amount > itemSum ? order.total_amount - itemSum : 0;
+                            return (
+                              <div className="mt-4 text-xs">
+                                <div className="flex justify-between mb-1">
+                                  <span>Subtotal</span>
+                                  <span>Rp {itemSum.toLocaleString('id-ID')}</span>
+                                </div>
+                                <div className="flex justify-between mb-2">
+                                  <span>Biaya Penanganan</span>
+                                  <span>Rp {handlingFee.toLocaleString('id-ID')}</span>
+                                </div>
+                                <div className="border-b-2 border-dashed border-black my-2"></div>
+                                <div className="flex justify-between font-extrabold text-sm py-2">
+                                  <span>TOTAL PEMBAYARAN</span>
+                                  <span>Rp {order.total_amount.toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          <div className="border-b-2 border-dashed border-black my-2"></div>
+                          <div className="text-center text-[10px] mt-6 italic text-gray-800 space-y-1.5">
+                            <p className="font-bold">Terima kasih telah berbelanja di KOKSI</p>
+                            <p>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</p>
+                            <p>Cut Off Pembayaran tanggal 10 setiap bulannya.</p>
+                            <p className="mt-3 text-[9px] uppercase">** BUKTI PEMBAYARAN SAH **</p>
+                          </div>
+                        </div>
+                      </div>,
+                      document.body
+                    )}
+                  </div>
+                ))
               )}
             </div>
           </div>
@@ -2911,17 +2902,17 @@ export const DashboardAdmin = () => {
                 <p className="text-xs text-slate-500">Kelola katalog produk, kategori, harga, dan stok barang BelanjaIn Saza</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <input 
-                  type="file" 
-                  accept=".xlsx, .xls, .csv" 
-                  className="hidden" 
+                <input
+                  type="file"
+                  accept=".xlsx, .xls, .csv"
+                  className="hidden"
                   ref={fileInputRef}
                   onChange={(e) => {
                     handleFileUpload(e);
                     setIsImportModalOpen(false);
                   }}
                 />
-                
+
                 {/* 1. IMPORT DATA EXCEL */}
                 <button
                   onClick={() => setIsImportModalOpen(true)}
@@ -3029,7 +3020,7 @@ export const DashboardAdmin = () => {
                   .filter((p) => {
                     const matchCat = productCategoryFilter === 'Semua' || p.kategori === productCategoryFilter;
                     const matchSub = productSubCategoryFilter === 'Semua' || p.sub_kategori === productSubCategoryFilter;
-                    const matchQuery = !productSearch || 
+                    const matchQuery = !productSearch ||
                       p.nama_barang.toLowerCase().includes(productSearch.toLowerCase()) ||
                       p.kategori.toLowerCase().includes(productSearch.toLowerCase()) ||
                       (p.sub_kategori || '').toLowerCase().includes(productSearch.toLowerCase());
@@ -3061,15 +3052,15 @@ export const DashboardAdmin = () => {
                       </div>
 
                       <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                        <button 
-                          onClick={() => openEditModal(p)} 
+                        <button
+                          onClick={() => openEditModal(p)}
                           className="flex items-center gap-1 text-slate-700 hover:text-teal-700 px-3 py-1.5 bg-slate-100 hover:bg-teal-50 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                         >
                           <Edit2 className="w-3.5 h-3.5 text-teal-600" />
                           <span>Edit Produk</span>
                         </button>
-                        <button 
-                          onClick={() => setDeleteProductConfirmModal({ id: p.id, nama: p.nama_barang })} 
+                        <button
+                          onClick={() => setDeleteProductConfirmModal({ id: p.id, nama: p.nama_barang })}
                           className="flex items-center gap-1 text-red-600 hover:text-red-700 px-3 py-1.5 bg-red-50 hover:bg-red-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5 text-red-600" />
@@ -3100,43 +3091,43 @@ export const DashboardAdmin = () => {
                       .filter((p) => {
                         const matchCat = productCategoryFilter === 'Semua' || p.kategori === productCategoryFilter;
                         const matchSub = productSubCategoryFilter === 'Semua' || p.sub_kategori === productSubCategoryFilter;
-                        const matchQuery = !productSearch || 
+                        const matchQuery = !productSearch ||
                           p.nama_barang.toLowerCase().includes(productSearch.toLowerCase()) ||
                           p.kategori.toLowerCase().includes(productSearch.toLowerCase()) ||
                           (p.sub_kategori || '').toLowerCase().includes(productSearch.toLowerCase());
                         return matchCat && matchSub && matchQuery;
                       })
                       .map((p) => (
-                      <tr key={p.id} className="hover:bg-teal-50/30 transition-colors">
-                        <td className="px-6 py-4">
-                          <p className="font-semibold text-slate-800">{p.nama_barang}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="inline-block px-2.5 py-1 bg-teal-50 text-teal-800 border border-teal-200 rounded-lg text-xs font-bold">
-                            {p.kategori}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="inline-block px-2.5 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium">
-                            {p.sub_kategori || '-'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm font-bold text-teal-700 text-right">
-                          {p.harga > 0 ? `Rp ${p.harga.toLocaleString('id-ID')}` : <span className="text-slate-400">-</span>}
-                        </td>
+                        <tr key={p.id} className="hover:bg-teal-50/30 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="font-semibold text-slate-800">{p.nama_barang}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-block px-2.5 py-1 bg-teal-50 text-teal-800 border border-teal-200 rounded-lg text-xs font-bold">
+                              {p.kategori}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-block px-2.5 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium">
+                              {p.sub_kategori || '-'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm font-bold text-teal-700 text-right">
+                            {p.harga > 0 ? `Rp ${p.harga.toLocaleString('id-ID')}` : <span className="text-slate-400">-</span>}
+                          </td>
 
-                        <td className="px-6 py-4">
-                          <div className="flex justify-center space-x-3">
-                            <button onClick={() => openEditModal(p)} className="text-slate-400 hover:text-teal-600 p-2 bg-slate-50 hover:bg-teal-50 rounded-lg transition-colors cursor-pointer" title="Edit Produk">
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => setDeleteProductConfirmModal({ id: p.id, nama: p.nama_barang })} className="text-slate-400 hover:text-red-600 p-2 bg-slate-50 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Hapus Produk">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          <td className="px-6 py-4">
+                            <div className="flex justify-center space-x-3">
+                              <button onClick={() => openEditModal(p)} className="text-slate-400 hover:text-teal-600 p-2 bg-slate-50 hover:bg-teal-50 rounded-lg transition-colors cursor-pointer" title="Edit Produk">
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => setDeleteProductConfirmModal({ id: p.id, nama: p.nama_barang })} className="text-slate-400 hover:text-red-600 p-2 bg-slate-50 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Hapus Produk">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                     {products.length === 0 && (
                       <tr>
                         <td colSpan={6} className="px-6 py-8 text-center text-slate-500">Belum ada produk.</td>
@@ -3182,10 +3173,10 @@ export const DashboardAdmin = () => {
                   .filter(u => {
                     const matchPt = ptFilter === 'Semua' || (u.pt || '').toLowerCase() === ptFilter.toLowerCase();
                     const query = userSearch.toLowerCase();
-                    const matchSearch = !query || 
-                      (u.nama || '').toLowerCase().includes(query) || 
-                      (u.no_hp || '').toLowerCase().includes(query) || 
-                      (u.pt || '').toLowerCase().includes(query) || 
+                    const matchSearch = !query ||
+                      (u.nama || '').toLowerCase().includes(query) ||
+                      (u.no_hp || '').toLowerCase().includes(query) ||
+                      (u.pt || '').toLowerCase().includes(query) ||
                       (u.departemen || '').toLowerCase().includes(query);
                     return matchPt && matchSearch;
                   })
@@ -3207,13 +3198,12 @@ export const DashboardAdmin = () => {
                           </div>
                         </div>
                         <div className="shrink-0">
-                          <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${
-                            u.role === 'admin' 
-                              ? 'bg-amber-100 text-amber-900 border-amber-200' 
-                              : u.role === 'it' 
-                              ? 'bg-purple-100 text-purple-900 border-purple-200' 
+                          <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${u.role === 'admin'
+                            ? 'bg-amber-100 text-amber-900 border-amber-200'
+                            : u.role === 'it'
+                              ? 'bg-purple-100 text-purple-900 border-purple-200'
                               : 'bg-slate-100 text-slate-700 border-slate-200'
-                          }`}>
+                            }`}>
                             {u.role || 'user'}
                           </span>
                         </div>
@@ -3230,11 +3220,10 @@ export const DashboardAdmin = () => {
                                 type="button"
                                 disabled={updatingRoleId === u.id || (u.role || 'user') === r}
                                 onClick={() => handleRoleChange(u.id, r)}
-                                className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase transition-all border cursor-pointer ${
-                                  (u.role || 'user') === r
-                                    ? 'bg-slate-900 text-white border-slate-800 shadow-xs'
-                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                                }`}
+                                className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase transition-all border cursor-pointer ${(u.role || 'user') === r
+                                  ? 'bg-slate-900 text-white border-slate-800 shadow-xs'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                  }`}
                               >
                                 {r}
                               </button>
@@ -3244,21 +3233,21 @@ export const DashboardAdmin = () => {
 
                         {/* Action Buttons */}
                         <div className="flex items-center justify-end gap-1.5">
-                          <button 
+                          <button
                             onClick={() => openEditUserModal(u)}
                             className="px-2.5 py-1 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
                           >
                             <Edit3 className="w-3 h-3 text-teal-600" />
                             <span>Edit</span>
                           </button>
-                          <button 
+                          <button
                             onClick={() => openResetPasswordModal(u)}
                             className="px-2.5 py-1 text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
                           >
                             <Key className="w-3 h-3 text-slate-600" />
                             <span>Reset PW</span>
                           </button>
-                          <button 
+                          <button
                             onClick={() => openDeleteUserModal(u)}
                             className="px-2.5 py-1 text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
                           >
@@ -3290,89 +3279,87 @@ export const DashboardAdmin = () => {
                       .filter(u => {
                         const matchPt = ptFilter === 'Semua' || (u.pt || '').toLowerCase() === ptFilter.toLowerCase();
                         const query = userSearch.toLowerCase();
-                        const matchSearch = !query || 
-                          (u.nama || '').toLowerCase().includes(query) || 
-                          (u.no_hp || '').toLowerCase().includes(query) || 
-                          (u.pt || '').toLowerCase().includes(query) || 
+                        const matchSearch = !query ||
+                          (u.nama || '').toLowerCase().includes(query) ||
+                          (u.no_hp || '').toLowerCase().includes(query) ||
+                          (u.pt || '').toLowerCase().includes(query) ||
                           (u.departemen || '').toLowerCase().includes(query);
                         return matchPt && matchSearch;
                       })
                       .map((u) => (
-                      <tr key={u.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-4">
-                          <p className="font-semibold text-slate-800">{u.nama}</p>
-                          <p className="text-xs text-slate-500">{u.no_hp}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="inline-block px-2.5 py-0.5 bg-teal-50 text-teal-800 font-bold text-xs rounded-full border border-teal-100 mb-0.5">
-                            {u.pt}
-                          </span>
-                          <p className="text-xs text-slate-500">{u.departemen}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col gap-1.5">
-                            <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-lg border inline-block w-fit ${
-                              u.role === 'admin' 
-                                ? 'bg-amber-100 text-amber-900 border-amber-200 font-black' 
-                                : u.role === 'it' 
-                                ? 'bg-purple-100 text-purple-900 border-purple-200 font-black' 
-                                : 'bg-slate-100 text-slate-700 border-slate-200'
-                            }`}>
-                              {u.role || 'user'}
+                        <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="font-semibold text-slate-800">{u.nama}</p>
+                            <p className="text-xs text-slate-500">{u.no_hp}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-block px-2.5 py-0.5 bg-teal-50 text-teal-800 font-bold text-xs rounded-full border border-teal-100 mb-0.5">
+                              {u.pt}
                             </span>
+                            <p className="text-xs text-slate-500">{u.departemen}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col gap-1.5">
+                              <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-lg border inline-block w-fit ${u.role === 'admin'
+                                ? 'bg-amber-100 text-amber-900 border-amber-200 font-black'
+                                : u.role === 'it'
+                                  ? 'bg-purple-100 text-purple-900 border-purple-200 font-black'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                                }`}>
+                                {u.role || 'user'}
+                              </span>
 
-                            <div className="flex items-center gap-1">
-                              {(['user', 'admin', 'it'] as const).map((r) => (
-                                <button
-                                  key={r}
-                                  type="button"
-                                  disabled={updatingRoleId === u.id || (u.role || 'user') === r}
-                                  onClick={() => handleRoleChange(u.id, r)}
-                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase transition-all border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                                    (u.role || 'user') === r
+                              <div className="flex items-center gap-1">
+                                {(['user', 'admin', 'it'] as const).map((r) => (
+                                  <button
+                                    key={r}
+                                    type="button"
+                                    disabled={updatingRoleId === u.id || (u.role || 'user') === r}
+                                    onClick={() => handleRoleChange(u.id, r)}
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase transition-all border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${(u.role || 'user') === r
                                       ? 'bg-slate-900 text-white border-slate-800 shadow-xs'
                                       : 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200'
-                                  }`}
-                                  title={`Ubah role ke ${r.toUpperCase()}`}
-                                >
-                                  {updatingRoleId === u.id ? '...' : r}
-                                </button>
-                              ))}
+                                      }`}
+                                    title={`Ubah role ke ${r.toUpperCase()}`}
+                                  >
+                                    {updatingRoleId === u.id ? '...' : r}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex items-center justify-center gap-2 flex-wrap">
-                            <button 
-                              onClick={() => openEditUserModal(u)}
-                              title="Edit Profil Pengguna Ini"
-                              className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-bold rounded-xl transition-all border border-teal-200 flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                              <span>Edit Profil</span>
-                            </button>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center gap-2 flex-wrap">
+                              <button
+                                onClick={() => openEditUserModal(u)}
+                                title="Edit Profil Pengguna Ini"
+                                className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-bold rounded-xl transition-all border border-teal-200 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                              >
+                                <Edit3 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                                <span>Edit Profil</span>
+                              </button>
 
-                            <button 
-                              onClick={() => openResetPasswordModal(u)}
-                              title="Reset Password Pengguna"
-                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all border border-slate-200/80 hover:border-slate-300 flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                            >
-                              <Key className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-                              <span>Reset Password</span>
-                            </button>
+                              <button
+                                onClick={() => openResetPasswordModal(u)}
+                                title="Reset Password Pengguna"
+                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all border border-slate-200/80 hover:border-slate-300 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                              >
+                                <Key className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                                <span>Reset Password</span>
+                              </button>
 
-                            <button 
-                              onClick={() => openDeleteUserModal(u)}
-                              title="Hapus Akun Pengguna (Sertakan Alasan)"
-                              className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 text-xs font-bold rounded-xl transition-all border border-red-200/80 flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                              <span>Hapus Akun</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              <button
+                                onClick={() => openDeleteUserModal(u)}
+                                title="Hapus Akun Pengguna (Sertakan Alasan)"
+                                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 text-xs font-bold rounded-xl transition-all border border-red-200/80 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                                <span>Hapus Akun</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                     {users.length === 0 && (
                       <tr>
                         <td colSpan={4} className="px-6 py-8 text-center text-slate-500">Belum ada pengguna.</td>
@@ -3412,11 +3399,10 @@ export const DashboardAdmin = () => {
                 <span className="text-xs font-bold text-slate-300">Status Fitur:</span>
                 <button
                   onClick={() => toggleBarcodeFeature(!isBarcodeFeatureActive)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
-                    isBarcodeFeatureActive
-                      ? 'bg-teal-500 text-slate-900 shadow-md shadow-teal-500/20'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${isBarcodeFeatureActive
+                    ? 'bg-teal-500 text-slate-900 shadow-md shadow-teal-500/20'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
                 >
                   {isBarcodeFeatureActive ? 'FITUR AKTIF' : 'DRAFT / TERPESAN'}
                 </button>
@@ -3505,11 +3491,10 @@ export const DashboardAdmin = () => {
 
                 {/* Feedback Toast Result */}
                 {barcodeVerifyMessage && (
-                  <div className={`p-4 rounded-2xl border text-xs leading-relaxed animate-in fade-in zoom-in duration-200 ${
-                    barcodeVerifyMessage.type === 'success' 
-                      ? 'bg-teal-50 border-teal-200 text-teal-900' 
-                      : 'bg-red-50 border-red-200 text-red-900'
-                  }`}>
+                  <div className={`p-4 rounded-2xl border text-xs leading-relaxed animate-in fade-in zoom-in duration-200 ${barcodeVerifyMessage.type === 'success'
+                    ? 'bg-teal-50 border-teal-200 text-teal-900'
+                    : 'bg-red-50 border-red-200 text-red-900'
+                    }`}>
                     <p className="font-extrabold text-sm flex items-center gap-2 mb-1">
                       {barcodeVerifyMessage.type === 'success' ? (
                         <CheckCircle className="w-5 h-5 text-teal-600 shrink-0" />
@@ -3547,8 +3532,8 @@ export const DashboardAdmin = () => {
 
                   <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                     {orders.filter(o => o.status !== 'Dibatalkan' && o.status !== 'Selesai').map((ord) => (
-                      <div 
-                        key={ord.id} 
+                      <div
+                        key={ord.id}
                         className="p-3 bg-slate-50 border border-slate-200 rounded-xl transition-all flex justify-between items-center gap-2 hover:bg-slate-100"
                       >
                         <div>
@@ -3601,7 +3586,7 @@ export const DashboardAdmin = () => {
                 <h3 className="font-bold text-sm">Update Status Pesanan #{selectedOrderForStatus.id}</h3>
                 <p className="text-[10px] text-teal-400 font-medium">{selectedOrderForStatus.user?.nama} ({selectedOrderForStatus.user?.pt})</p>
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedOrderForStatus(null)}
                 className="text-slate-400 hover:text-white"
               >
@@ -3670,7 +3655,7 @@ export const DashboardAdmin = () => {
               <h3 className="text-lg font-bold text-slate-900">
                 {editingProduct ? 'Edit Produk' : 'Tambah Produk'}
               </h3>
-              <button 
+              <button
                 onClick={() => setIsModalOpen(false)}
                 className="text-slate-400 hover:text-slate-700"
               >
@@ -3697,7 +3682,7 @@ export const DashboardAdmin = () => {
                     }
 
                     setFormData({
-                      ...formData, 
+                      ...formData,
                       nama_barang: newName,
                       kategori: newCat,
                       sub_kategori: newSub
@@ -3740,7 +3725,7 @@ export const DashboardAdmin = () => {
                   list="sub-kategori-options"
                   placeholder="Opsional"
                   value={formData.sub_kategori}
-                  onChange={(e) => setFormData({...formData, sub_kategori: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, sub_kategori: e.target.value })}
                   className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 sm:text-sm font-semibold text-slate-800 transition-colors"
                 />
                 <datalist id="sub-kategori-options">
@@ -3758,7 +3743,7 @@ export const DashboardAdmin = () => {
                     required
                     min="0"
                     value={formData.harga}
-                    onChange={(e) => setFormData({...formData, harga: parseInt(e.target.value) || 0})}
+                    onChange={(e) => setFormData({ ...formData, harga: parseInt(e.target.value) || 0 })}
                     className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
                   />
                 </div>
@@ -3769,7 +3754,7 @@ export const DashboardAdmin = () => {
                     required
                     min="0"
                     value={formData.stok}
-                    onChange={(e) => setFormData({...formData, stok: parseInt(e.target.value) || 0})}
+                    onChange={(e) => setFormData({ ...formData, stok: parseInt(e.target.value) || 0 })}
                     className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
                   />
                 </div>
@@ -3828,18 +3813,17 @@ export const DashboardAdmin = () => {
                 <div>
                   <span className="text-xs font-bold text-slate-800 block">Status Fitur Barcode</span>
                   <p className="text-[10px] text-slate-500 mt-0.5">
-                    {isBarcodeFeatureActive 
-                      ? 'Fitur Aktif & Siap Menerima Pindai Barcode dari Alat Scanner/Kamera.' 
+                    {isBarcodeFeatureActive
+                      ? 'Fitur Aktif & Siap Menerima Pindai Barcode dari Alat Scanner/Kamera.'
                       : 'Fitur Tersimpan (Non-Aktif). Aktifkan jika ingin digunakan resmi.'}
                   </p>
                 </div>
                 <button
                   onClick={() => toggleBarcodeFeature(!isBarcodeFeatureActive)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                    isBarcodeFeatureActive
-                      ? 'bg-teal-600 text-white hover:bg-teal-700'
-                      : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${isBarcodeFeatureActive
+                    ? 'bg-teal-600 text-white hover:bg-teal-700'
+                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                    }`}
                 >
                   {isBarcodeFeatureActive ? 'Status: AKTIF' : 'Aktifkan Fitur'}
                 </button>
@@ -3872,11 +3856,10 @@ export const DashboardAdmin = () => {
 
               {/* Feedback Alert */}
               {barcodeVerifyMessage && (
-                <div className={`p-4 rounded-2xl border text-xs leading-relaxed ${
-                  barcodeVerifyMessage.type === 'success' 
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
-                    : 'bg-red-50 border-red-200 text-red-900'
-                }`}>
+                <div className={`p-4 rounded-2xl border text-xs leading-relaxed ${barcodeVerifyMessage.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : 'bg-red-50 border-red-200 text-red-900'
+                  }`}>
                   <p className="font-bold flex items-center gap-1.5 mb-1">
                     {barcodeVerifyMessage.type === 'success' ? (
                       <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -4010,12 +3993,12 @@ export const DashboardAdmin = () => {
                 <p className="text-[11px] text-orange-800/80 mb-3">
                   Merapikan data kategori produk lama yang berantakan menggunakan sistem cerdas (Smart Categorizer). Otomatis berjalan setelah upload.
                 </p>
-                
+
                 {isCleaningUpCategories ? (
                   <div className="space-y-2">
                     <div className="w-full bg-orange-200/50 rounded-full h-2 overflow-hidden">
-                      <div 
-                        className="bg-orange-500 h-2 rounded-full transition-all duration-300" 
+                      <div
+                        className="bg-orange-500 h-2 rounded-full transition-all duration-300"
                         style={{ width: `${cleanupProgress.total > 0 ? Math.round((cleanupProgress.current / cleanupProgress.total) * 100) : 0}%` }}
                       ></div>
                     </div>
@@ -4033,11 +4016,10 @@ export const DashboardAdmin = () => {
                 )}
 
                 {cleanupMessage && !isCleaningUpCategories && (
-                  <div className={`mt-3 p-2 rounded-lg text-[10px] font-medium border ${
-                    cleanupMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-                    cleanupMessage.type === 'error' ? 'bg-red-50 text-red-700 border-red-100' : 
-                    'bg-blue-50 text-blue-700 border-blue-100'
-                  }`}>
+                  <div className={`mt-3 p-2 rounded-lg text-[10px] font-medium border ${cleanupMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                    cleanupMessage.type === 'error' ? 'bg-red-50 text-red-700 border-red-100' :
+                      'bg-blue-50 text-blue-700 border-blue-100'
+                    }`}>
                     {cleanupMessage.text}
                   </div>
                 )}
@@ -4146,15 +4128,15 @@ export const DashboardAdmin = () => {
                     const d = wedDate.getDate();
                     const m = wedDate.getMonth();
                     const y = wedDate.getFullYear();
-                    
+
                     const startD = new Date(wedDate);
                     startD.setDate(startD.getDate() - 7);
-                    
+
                     const endD = new Date(wedDate);
                     endD.setDate(endD.getDate() - 1);
 
                     const label = `Rabu, ${d} ${MONTH_NAMES[m]} ${y} (Periode: ${startD.getDate()} ${MONTH_NAMES[startD.getMonth()]} - ${endD.getDate()} ${MONTH_NAMES[endD.getMonth()]})`;
-                    
+
                     return (
                       <option key={idx} value={wedDate.toISOString()}>
                         {label}
@@ -4608,11 +4590,10 @@ export const DashboardAdmin = () => {
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
-                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-bold ${
-                  cancellationConfirmModal.type === 'approve'
-                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                    : 'bg-rose-100 text-rose-700 border border-rose-200'
-                }`}>
+                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-bold ${cancellationConfirmModal.type === 'approve'
+                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                  : 'bg-rose-100 text-rose-700 border border-rose-200'
+                  }`}>
                   {cancellationConfirmModal.type === 'approve' ? (
                     <Check className="w-5 h-5" />
                   ) : (
@@ -5034,11 +5015,10 @@ export const DashboardAdmin = () => {
             <div className="flex gap-3 px-6 py-3 bg-slate-50 border-b border-slate-100 shrink-0">
               <button
                 onClick={() => setImportResultTab('inserted')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
-                  importResultTab === 'inserted'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
-                    : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
-                }`}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${importResultTab === 'inserted'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
+                  : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+                  }`}
               >
                 <CheckCircle className="w-3.5 h-3.5" />
                 Produk Baru
@@ -5048,11 +5028,10 @@ export const DashboardAdmin = () => {
               </button>
               <button
                 onClick={() => setImportResultTab('updated')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
-                  importResultTab === 'updated'
-                    ? 'bg-sky-600 text-white border-sky-600 shadow-sm shadow-sky-600/30'
-                    : 'bg-white text-sky-700 border-sky-200 hover:bg-sky-50'
-                }`}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${importResultTab === 'updated'
+                  ? 'bg-sky-600 text-white border-sky-600 shadow-sm shadow-sky-600/30'
+                  : 'bg-white text-sky-700 border-sky-200 hover:bg-sky-50'
+                  }`}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Diperbarui
@@ -5062,11 +5041,10 @@ export const DashboardAdmin = () => {
               </button>
               <button
                 onClick={() => setImportResultTab('rejected')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
-                  importResultTab === 'rejected'
-                    ? 'bg-rose-600 text-white border-rose-600 shadow-sm shadow-rose-600/30'
-                    : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
-                }`}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${importResultTab === 'rejected'
+                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm shadow-rose-600/30'
+                  : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
+                  }`}
               >
                 <AlertCircle className="w-3.5 h-3.5" />
                 Ditolak
