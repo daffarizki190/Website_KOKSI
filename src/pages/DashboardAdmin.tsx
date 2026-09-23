@@ -2818,8 +2818,8 @@ export const DashboardAdmin = () => {
 
                       {/* Professional Thermal Receipt Design (Print Only) */}
                       {printingOrderId === order.id && createPortal(
-                        <div className="print-section text-black bg-white flex justify-center py-4" style={{ fontFamily: 'monospace' }}>
-                          <div className="w-full max-w-[400px] px-4 py-6 border border-slate-200 rounded-lg shadow-sm no-print-border">
+                        <div className="print-section text-black bg-white py-4" style={{ fontFamily: 'monospace' }}>
+                          <div className="w-full px-4 py-2 no-print-border">
                             <div className="text-center mb-6">
                               <h2 className="font-extrabold text-xl mb-1">BELANJAIN SAZA DI KOKSI</h2>
                               <p className="text-xs font-bold">Koperasi Karyawan Siemens Indonesia (KOKSI)</p>
@@ -2827,11 +2827,11 @@ export const DashboardAdmin = () => {
                               <div className="border-b-2 border-dashed border-black my-4"></div>
                             </div>
                             <div className="mb-4 text-xs leading-tight space-y-1">
-                              <div className="flex"><span className="w-20">No Order</span><span className="mr-2">:</span> <span className="font-bold">#{order.id}</span></div>
-                              <div className="flex"><span className="w-20">Tanggal</span><span className="mr-2">:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
-                              <div className="flex"><span className="w-20">Pemesan</span><span className="mr-2">:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
-                              <div className="flex"><span className="w-20">Dept</span><span className="mr-2">:</span> <span>{order.user?.departemen || '-'}</span></div>
-                              <div className="flex"><span className="w-20">No. HP</span><span className="mr-2">:</span> <span>{order.user?.no_hp || '-'}</span></div>
+                              <div className="flex"><span className="w-16">No Order</span><span className="mr-2">:</span> <span className="font-bold">#{order.id}</span></div>
+                              <div className="flex"><span className="w-16">Tanggal</span><span className="mr-2">:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
+                              <div className="flex"><span className="w-16">Pemesan</span><span className="mr-2">:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
+                              <div className="flex"><span className="w-16">Dept</span><span className="mr-2">:</span> <span>{order.user?.departemen || '-'}</span></div>
+                              <div className="flex"><span className="w-16">No. HP</span><span className="mr-2">:</span> <span>{order.user?.no_hp || '-'}</span></div>
                             </div>
                             <div className="border-b-2 border-dashed border-black my-4"></div>
                             <div className="mb-4">
