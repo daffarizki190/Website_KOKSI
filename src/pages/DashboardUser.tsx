@@ -47,6 +47,7 @@ export const DashboardUser = () => {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
+  const [isDemoModeLoaded, setIsDemoModeLoaded] = useState(false);
 
   const [isOrderingClosed, setIsOrderingClosed] = useState(() => {
     const jakartaTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
@@ -65,7 +66,8 @@ export const DashboardUser = () => {
           setIsDemoModeActive(true);
         }
       })
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setIsDemoModeLoaded(true));
   }, []);
 
   const [showClosedModal, setShowClosedModal] = useState(() => {
@@ -1316,7 +1318,7 @@ export const DashboardUser = () => {
 
       {/* Global Ordering Closed Modal */}
       <AnimatePresence>
-        {showClosedModal && (
+        {showClosedModal && isDemoModeLoaded && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
