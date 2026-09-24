@@ -3470,7 +3470,7 @@ export const DashboardAdmin = () => {
                   <div className="flex flex-col sm:flex-row gap-2.5">
                     <button
                       type="submit"
-                      disabled={verifyingBarcode}
+                      disabled={false}
                       className="flex-1 py-3 px-5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-extrabold text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <ScanLine className="w-4 h-4 text-teal-200" />
