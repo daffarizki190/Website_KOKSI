@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { BelanjainLogo } from '../components/BelanjainLogo';
 
 import { Product, CartItem } from '../types';
+import { TourGuide } from '../components/TourGuide';
 
 export const DashboardUser = () => {
   const { user, token, logout } = useAuth();
