@@ -11,7 +11,6 @@ import {
   Calendar, FileSpreadsheet, Building2, Key, Lock, Eye, EyeOff, Server,
   User as UserIcon, Edit3, Save, TrendingUp, BarChart2, Bell, Printer
 } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
 import XLSX from 'xlsx-js-style';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -93,7 +92,7 @@ export const DashboardAdmin = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [activeTab, setActiveTab] = useState<'orders' | 'analytics' | 'products' | 'users' | 'scan'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'analytics' | 'products' | 'users'>('orders');
 
   // Users state
   const [users, setUsers] = useState<any[]>([]);
@@ -150,13 +149,6 @@ export const DashboardAdmin = () => {
   const [newKeteranganValue, setNewKeteranganValue] = useState('');
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  // Barcode Pickup State (Stored / Deactivated until requested)
-  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
-  const [isBarcodeFeatureActive, setIsBarcodeFeatureActive] = useState<boolean>(false);
-  const [scannedBarcodeInput, setScannedBarcodeInput] = useState('');
-  const [verifyingBarcode, setVerifyingBarcode] = useState(false);
-  const [barcodeVerifyMessage, setBarcodeVerifyMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [isCameraActive, setIsCameraActive] = useState(false);
 
   // Monthly Export Excel Modal State
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -3791,124 +3783,6 @@ export const DashboardAdmin = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL FITUR: PEMINDAIAN BARCODE / QR CODE UNTUK PENGAMBILAN PESANAN */}
-      {isBarcodeModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-slate-900 text-teal-400 flex items-center justify-center font-bold shadow-sm">
-                  <ScanLine className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-1.5">
-                    Modul Fitur: Verifikasi Barcode
-                  </h3>
-                  <p className="text-[11px] text-slate-500 font-medium">Konfirmasi Otomatis Pengambilan Barang BelanjaIn Saza</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setIsBarcodeModalOpen(false);
-                  setBarcodeVerifyMessage(null);
-                  setScannedBarcodeInput('');
-                }}
-                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="py-5 space-y-4">
-              {/* Feature Status Toggle Bar */}
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-bold text-slate-800 block">Status Fitur Barcode</span>
-                  <p className="text-[10px] text-slate-500 mt-0.5">
-                    {isBarcodeFeatureActive
-                      ? 'Fitur Aktif & Siap Menerima Pindai Barcode dari Alat Scanner/Kamera.'
-                      : 'Fitur Tersimpan (Non-Aktif). Aktifkan jika ingin digunakan resmi.'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => toggleBarcodeFeature(!isBarcodeFeatureActive)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${isBarcodeFeatureActive
-                    ? 'bg-teal-600 text-white hover:bg-teal-700'
-                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                    }`}
-                >
-                  {isBarcodeFeatureActive ? 'Status: AKTIF' : 'Aktifkan Fitur'}
-                </button>
-              </div>
-
-              {/* Form Input / Barcode Scanner Input */}
-              <form onSubmit={handleVerifyBarcode} className="space-y-3">
-                <label className="block text-xs font-bold text-slate-700">
-                  Masukkan / Tempel Kode Barcode Pesanan (atau Pemindai Barcode Gun)
-                </label>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    value={scannedBarcodeInput}
-                    onChange={(e) => setScannedBarcodeInput(e.target.value)}
-                    placeholder="Contoh: SAZA-PKP-1002"
-                    autoFocus
-                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  />
-                  <button
-                    type="submit"
-                    disabled={verifyingBarcode}
-                    className="px-5 py-3 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl transition-colors shadow-sm whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <ScanLine className="w-4 h-4 text-teal-200" />
-                    <span>{verifyingBarcode ? 'Memverifikasi...' : 'Verifikasi'}</span>
-                  </button>
-                </div>
-              </form>
-
-              {/* Feedback Alert */}
-              {barcodeVerifyMessage && (
-                <div className={`p-4 rounded-2xl border text-xs leading-relaxed ${barcodeVerifyMessage.type === 'success'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                  : 'bg-red-50 border-red-200 text-red-900'
-                  }`}>
-                  <p className="font-bold flex items-center gap-1.5 mb-1">
-                    {barcodeVerifyMessage.type === 'success' ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-                    )}
-                    {barcodeVerifyMessage.type === 'success' ? 'Verifikasi Selesai' : 'Gagal Verifikasi'}
-                  </p>
-                  {barcodeVerifyMessage.text}
-                </div>
-              )}
-
-              {/* Instruction Note */}
-              <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl text-[11px] text-amber-900">
-                <p className="font-bold mb-0.5">Catatan Fitur:</p>
-                <p className="text-amber-800 leading-snug">
-                  Kode program backend & frontend telah disimpan secara lengkap. Saat alat pemindai fisik / kamera admin memindai barcode karyawan, pesanan akan langsung otomatis diperbarui menjadi status <span className="font-bold">"Selesai"</span>.
-                </p>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                onClick={() => {
-                  setIsBarcodeModalOpen(false);
-                  setBarcodeVerifyMessage(null);
-                  setScannedBarcodeInput('');
-                }}
-                className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
-              >
-                Tutup Modul Barcode
-              </button>
-            </div>
           </div>
         </div>
       )}

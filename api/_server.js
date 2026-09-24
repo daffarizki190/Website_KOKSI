@@ -597,7 +597,7 @@ app.post("/api/auth/login", async (req, res) => {
         const token = jwtSign(
           { id: user.id, role: user.role, no_hp: user.no_hp, nama: user.nama },
           JWT_SECRET,
-          { expiresIn: "7d" }
+          { expiresIn: "365d" }
         );
         res.json({
           token,
@@ -626,7 +626,7 @@ app.post("/api/auth/login", async (req, res) => {
       const token = jwtSign(
         { id: demo.id, role: demo.role, no_hp: cleanNoHp, nama: demo.nama },
         JWT_SECRET,
-        { expiresIn: "7d" }
+        { expiresIn: "365d" }
       );
       res.json({ token, user: { id: demo.id, nama: demo.nama, role: demo.role, pt: demo.pt, departemen: demo.departemen, no_hp: cleanNoHp } });
       return;
@@ -3442,3 +3442,4 @@ export {
   app,
   seedDefaultUsers
 };
+
