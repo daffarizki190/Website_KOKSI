@@ -341,6 +341,15 @@ export const DashboardAdmin = () => {
     }
   };
 
+  // Product Form state
+  const [formData, setFormData] = useState({
+    nama_barang: '',
+    kategori: dynamicCategories[0]?.name || 'Umum',
+    sub_kategori: dynamicCategories[0]?.subCategories[0] || '',
+    harga: 0,
+    stok: 0
+  });
+
   const [productSearch, setProductSearch] = useState('');
   const [productCategoryFilter, setProductCategoryFilter] = useState('Semua');
   const [productSubCategoryFilter, setProductSubCategoryFilter] = useState('Semua');
