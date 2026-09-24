@@ -552,6 +552,7 @@ export const DashboardUser = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col w-full max-w-full overflow-x-hidden">
+      <TourGuide />
       {/* Header */}
       <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 shrink-0 w-full max-w-full">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 w-full">
@@ -562,14 +563,14 @@ export const DashboardUser = () => {
             <div className="flex items-center gap-1.5 sm:gap-3">
               <button 
                 onClick={() => navigate('/orders')}
-                className="relative p-2 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 hover:text-teal-800 rounded-xl transition-colors cursor-pointer shadow-sm"
+                className="tour-history relative p-2 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 hover:text-teal-800 rounded-xl transition-colors cursor-pointer shadow-sm"
                 title="Riwayat Pesanan"
               >
                 <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
               <button 
                 onClick={() => setIsCartOpen(true)}
-                className="relative p-2 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 hover:text-teal-800 rounded-xl transition-colors cursor-pointer shadow-sm"
+                className="tour-cart relative p-2 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 hover:text-teal-800 rounded-xl transition-colors cursor-pointer shadow-sm"
                 title="Keranjang Saya"
               >
                 <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -596,7 +597,7 @@ export const DashboardUser = () => {
         
         {/* Search Bar */}
         <div className="flex items-center gap-2 mb-3 shrink-0">
-          <div className="relative flex-1">
+          <div className="relative flex-1 tour-search">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
             </div>
@@ -620,7 +621,7 @@ export const DashboardUser = () => {
 
         {/* Main Category Tabs */}
         <div className="mb-2.5 shrink-0">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none no-scrollbar">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none no-scrollbar tour-categories">
             <button
               onClick={() => handleCategorySelect('Semua')}
               className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-xs ${
