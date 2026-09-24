@@ -71,29 +71,62 @@ export const TourGuide: React.FC = () => {
       continuous={true}
       scrollToFirstStep={true}
       onEvent={handleJoyrideCallback}
-      options={{
-        primaryColor: '#0f766e', // teal-700
-        zIndex: 1000,
-        showProgress: true,
-        buttons: ['skip', 'back', 'close', 'primary'],
-      }}
       styles={{
+        options: {
+          arrowColor: '#ffffff',
+          backgroundColor: '#ffffff',
+          primaryColor: '#0d9488', // teal-600
+          textColor: '#334155', // slate-700
+          overlayColor: 'rgba(15, 23, 42, 0.65)', // dark overlay
+          zIndex: 9999,
+        },
+        tooltip: {
+          borderRadius: '20px',
+          padding: '24px',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+          fontFamily: 'inherit',
+        },
         tooltipContainer: {
-          textAlign: 'left'
+          textAlign: 'left',
+        },
+        tooltipTitle: {
+          fontSize: '18px',
+          fontWeight: 800,
+          color: '#0f766e', // teal-700
+          marginBottom: '10px',
+        },
+        tooltipContent: {
+          fontSize: '14px',
+          lineHeight: '1.6',
+          color: '#475569', // slate-600
+          paddingRight: '10px'
         },
         buttonPrimary: {
-          backgroundColor: '#0d9488' // teal-600
+          backgroundColor: '#0d9488',
+          borderRadius: '10px',
+          padding: '10px 18px',
+          fontWeight: 700,
+          fontSize: '13px',
+          border: 'none'
         },
         buttonBack: {
-          marginRight: 10
-        }
+          marginRight: '14px',
+          color: '#64748b', // slate-500
+          fontWeight: 600,
+          fontSize: '13px',
+        },
+        buttonSkip: {
+          color: '#94a3b8', // slate-400
+          fontSize: '13px',
+          fontWeight: 600,
+        },
       }}
       locale={{
         back: 'Kembali',
         close: 'Tutup',
-        last: 'Selesai',
+        last: 'Mulai Belanja',
         next: 'Lanjut',
-        skip: 'Lewati Panduan'
+        skip: 'Lewati'
       }}
     />
   );
