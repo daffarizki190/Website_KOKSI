@@ -65,7 +65,7 @@ export const TourGuide: React.FC = () => {
       run={run}
       continuous={true}
       scrollToFirstStep={true}
-      callback={handleJoyrideCallback}
+      onEvent={handleJoyrideCallback}
       options={{
         primaryColor: '#0f766e', // teal-700
         zIndex: 1000,
