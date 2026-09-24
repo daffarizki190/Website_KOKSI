@@ -29,7 +29,7 @@ export const TourGuide: React.FC = () => {
     {
       target: 'body',
       placement: 'center',
-      content: 'Selamat Datang di BelanjaIn Saza! Mari ikuti tur singkat untuk melihat cara memesan barang.',
+      content: 'Selamat Datang di BelanjaIn Saza! Mari ikuti panduan singkat untuk melihat cara memesan barang.',
       title: 'Selamat Datang',
     },
     {
@@ -88,7 +88,7 @@ export const TourGuide: React.FC = () => {
         close: 'Tutup',
         last: 'Selesai',
         next: 'Lanjut',
-        skip: 'Lewati Tour'
+        skip: 'Lewati Panduan'
       }}
     />
   );
