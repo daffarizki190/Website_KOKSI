@@ -5,7 +5,10 @@ export const TourGuide: React.FC = () => {
   const [run, setRun] = useState(false);
 
   useEffect(() => {
-    const hasSeenTour = localStorage.getItem('hasSeenTourGuide');
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+    const storageKey = isStandalone ? 'hasSeenTourGuide_PWA' : 'hasSeenTourGuide';
+    
+    const hasSeenTour = localStorage.getItem(storageKey);
     if (!hasSeenTour) {
       // Small delay to ensure DOM is fully rendered
       const timer = setTimeout(() => {
@@ -21,7 +24,9 @@ export const TourGuide: React.FC = () => {
     
     if (finishedStatuses.includes(status)) {
       setRun(false);
-      localStorage.setItem('hasSeenTourGuide', 'true');
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+      const storageKey = isStandalone ? 'hasSeenTourGuide_PWA' : 'hasSeenTourGuide';
+      localStorage.setItem(storageKey, 'true');
     }
   };
 

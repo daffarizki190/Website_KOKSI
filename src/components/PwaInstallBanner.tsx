@@ -18,11 +18,7 @@ export const PwaInstallBanner = () => {
       return; // Jangan tampilkan apa-apa jika sudah di-install
     }
 
-    // 2. Cek apakah user sudah pernah menutup banner di sesi ini
-    const dismissed = sessionStorage.getItem('install_banner_dismissed');
-    if (dismissed) {
-      return;
-    }
+    // 2. Tidak lagi mengecek sessionStorage agar banner selalu muncul saat di-refresh (jika belum diinstal)
 
     // 3. Deteksi tipe perangkat (iOS vs lainnya)
     const userAgent = window.navigator.userAgent.toLowerCase();
@@ -78,7 +74,6 @@ export const PwaInstallBanner = () => {
 
   const dismissBanner = () => {
     setShowBanner(false);
-    sessionStorage.setItem('install_banner_dismissed', 'true');
   };
 
   return (
