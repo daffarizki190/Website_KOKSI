@@ -1862,16 +1862,6 @@ app.put("/api/orders/:id/status", requireAuth, requireAdmin, async (req, res) =>
       if (keterangan !== void 0) memOrder.keterangan = keterangan;
     }
     try {
-      const statusIcon = status === "Selesai" ? "\u2705" : status === "Dibatalkan" ? "\u{1F6AB}" : "\u{1F504}";
-      const tgStatusMsg = `${statusIcon} *STATUS PESANAN DIUPDATE (#${orderId})*
-\u26A1 *Status Baru:* ${status}
-\u{1F4DD} *Keterangan:* ${keterangan || "-"}
-Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB`;
-      const adminChatIds = getAdminChatIds();
-      for (const cid of adminChatIds) {
-        sendTelegramMessage(cid, tgStatusMsg).catch(() => {
-        });
-      }
     } catch (e) {
     }
     res.json(updated[0] || memOrder || { success: true });
@@ -1922,16 +1912,6 @@ app.put("/api/orders/:id/cancel", requireAuth, async (req, res) => {
           }
         }
       }
-      try {
-        const tgMsg = `\u{1F6AB} *PESANAN #${orderId} DIBATALKAN OLEH ADMIN*
-\u{1F4DD} *Alasan:* ${alasan.toString().trim()}
-\u{1F4E6} Stok barang telah dikembalikan ke sistem.
-Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB`;
-        const adminChatIds = getAdminChatIds();
-        for (const cid of adminChatIds) {
-          sendTelegramMessage(cid, tgMsg).catch(() => {
-          });
-        }
       } catch (e) {
       }
       res.json({ message: "Pesanan berhasil dibatalkan oleh Admin dan stok telah dikembalikan.", order: updated2[0] || memOrder2 });
@@ -1941,16 +1921,6 @@ Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB`;
       status: "Pengajuan Pembatalan",
       keterangan: `Pengajuan Pembatalan: ${alasan.toString().trim()}`
     }).where(eq(orders.id, orderId)).returning();
-    try {
-      const tgMsg = `\u26A0\uFE0F *PENGAJUAN PEMBATALAN PESANAN (#${orderId})*
-\u{1F464} *Pemohon:* ${req.user?.nama || "Karyawan"} (${req.user?.no_hp || "-"})
-\u{1F4DD} *Alasan:* ${alasan.toString().trim()}
-\u26A1 *Aksi:* Buka Admin Portal atau ketik \`/batal ${orderId} ${alasan.toString().trim()}\` untuk menyetujui.`;
-      const adminChatIds = getAdminChatIds();
-      for (const cid of adminChatIds) {
-        sendTelegramMessage(cid, tgMsg).catch(() => {
-        });
-      }
     } catch (e) {
     }
     const memOrder = demoOrdersStore.find((o) => o.id === orderId);

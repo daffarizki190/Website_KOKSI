@@ -562,14 +562,14 @@ export const DashboardUser = () => {
             <div className="flex items-center gap-1.5 sm:gap-3">
               <button 
                 onClick={() => navigate('/orders')}
-                className="relative p-2 text-slate-600 hover:text-teal-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                className="relative p-2 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 hover:text-teal-800 rounded-xl transition-colors cursor-pointer shadow-sm"
                 title="Riwayat Pesanan"
               >
                 <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
               <button 
                 onClick={() => setIsCartOpen(true)}
-                className="relative p-2 text-slate-600 hover:text-teal-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                className="relative p-2 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 hover:text-teal-800 rounded-xl transition-colors cursor-pointer shadow-sm"
                 title="Keranjang Saya"
               >
                 <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -990,7 +990,7 @@ export const DashboardUser = () => {
 
                       <button
                         onClick={handleLogout}
-                        className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors cursor-pointer text-xs uppercase tracking-wider"
+                        className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 font-bold rounded-xl hover:bg-rose-100 hover:border-rose-300 transition-colors cursor-pointer text-xs uppercase tracking-wider"
                       >
                         <LogOut className="w-4 h-4" />
                         <span>Keluar Akun</span>

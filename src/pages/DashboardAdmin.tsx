@@ -2221,7 +2221,7 @@ export const DashboardAdmin = () => {
             </button>
             <button
               onClick={handleLogout}
-              className="p-1.5 sm:p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              className="p-1.5 sm:p-2 text-rose-400 hover:text-white bg-rose-500/10 hover:bg-rose-500 rounded-xl transition-all cursor-pointer shadow-sm"
               title="Logout"
             >
               <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />

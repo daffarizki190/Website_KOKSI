@@ -188,7 +188,7 @@ export default function OrderHistory() {
             <div className="flex items-center">
               <button 
                 onClick={() => navigate('/dashboard')}
-                className="mr-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                className="mr-4 p-2.5 text-teal-700 bg-teal-50 border border-teal-100 hover:bg-teal-100 hover:text-teal-800 rounded-xl transition-colors cursor-pointer shadow-sm"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>

@@ -13,6 +13,7 @@ import { DashboardAdmin } from './pages/DashboardAdmin';
 import { DashboardIT } from './pages/DashboardIT';
 import OrderHistory from './pages/OrderHistory';
 import { Splash } from './components/Splash';
+import { PwaInstallBanner } from './components/PwaInstallBanner';
 import React, { useState } from 'react';
 
 const ProtectedRoute = ({ children, requireAdmin = false, requireIT = false }: { children: React.ReactNode, requireAdmin?: boolean, requireIT?: boolean }) => {
@@ -84,6 +85,7 @@ const AppContent = () => {
         />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      <PwaInstallBanner />
     </Router>
   );
 };
