@@ -1912,8 +1912,7 @@ app.put("/api/orders/:id/cancel", requireAuth, async (req, res) => {
           }
         }
       }
-      } catch (e) {
-      }
+
       res.json({ message: "Pesanan berhasil dibatalkan oleh Admin dan stok telah dikembalikan.", order: updated2[0] || memOrder2 });
       return;
     }
@@ -1921,8 +1920,7 @@ app.put("/api/orders/:id/cancel", requireAuth, async (req, res) => {
       status: "Pengajuan Pembatalan",
       keterangan: `Pengajuan Pembatalan: ${alasan.toString().trim()}`
     }).where(eq(orders.id, orderId)).returning();
-    } catch (e) {
-    }
+
     const memOrder = demoOrdersStore.find((o) => o.id === orderId);
     if (memOrder) {
       memOrder.status = "Pengajuan Pembatalan";
