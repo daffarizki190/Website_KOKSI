@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { Loader2, UserPlus, ArrowRight, ShieldCheck, UserCheck, Wrench, KeyRound, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
@@ -10,8 +10,16 @@ export const Login = () => {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loadingRole, setLoadingRole] = useState<string | null>(null);
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'admin') navigate('/admin', { replace: true });
+      else if (user.role === 'it') navigate('/it', { replace: true });
+      else navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
 
   const [showDemoAccounts, setShowDemoAccounts] = useState(true);
 
