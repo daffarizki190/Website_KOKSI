@@ -34,10 +34,15 @@ const ProtectedRoute = ({ children, requireAdmin = false, requireIT = false }: {
 };
 
 const AppContent = () => {
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => {
+    return !sessionStorage.getItem('hasSeenSplash');
+  });
 
   if (showSplash) {
-    return <Splash onFinish={() => setShowSplash(false)} />;
+    return <Splash onFinish={() => {
+      sessionStorage.setItem('hasSeenSplash', 'true');
+      setShowSplash(false);
+    }} />;
   }
 
   return (
