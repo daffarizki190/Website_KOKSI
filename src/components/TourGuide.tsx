@@ -65,12 +65,12 @@ export const TourGuide: React.FC = () => {
       run={run}
       continuous={true}
       scrollToFirstStep={true}
-      showProgress={true}
-      showSkipButton={true}
       callback={handleJoyrideCallback}
       options={{
         primaryColor: '#0f766e', // teal-700
         zIndex: 1000,
+        showProgress: true,
+        buttons: ['skip', 'back', 'close', 'primary'],
       }}
       styles={{
         tooltipContainer: {
