@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Joyride, { Step, STATUS } from 'react-joyride';
+import { Joyride, Step, STATUS } from 'react-joyride';
 
 export const TourGuide: React.FC = () => {
   const [run, setRun] = useState(false);

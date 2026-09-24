@@ -815,7 +815,6 @@ export const DashboardAdmin = () => {
     const subCat = p.sub_kategori || '';
 
     setFormData({
-      id: p.id,
       nama_barang: p.nama_barang,
       kategori: cat,
       sub_kategori: subCat,
