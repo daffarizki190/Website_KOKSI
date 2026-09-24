@@ -68,15 +68,15 @@ export const TourGuide: React.FC = () => {
       showProgress={true}
       showSkipButton={true}
       callback={handleJoyrideCallback}
+      options={{
+        primaryColor: '#0f766e', // teal-700
+        zIndex: 1000,
+      }}
       styles={{
-        options: {
-          primaryColor: '#0f766e', // teal-700
-          zIndex: 1000,
-        },
         tooltipContainer: {
           textAlign: 'left'
         },
-        buttonNext: {
+        buttonPrimary: {
           backgroundColor: '#0d9488' // teal-600
         },
         buttonBack: {
