@@ -6,6 +6,13 @@ export const TourGuide: React.FC = () => {
 
   useEffect(() => {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+    
+    // Jika aplikasi baru saja diinstal, paksa tour untuk berjalan
+    if (isStandalone && localStorage.getItem('force_tour_on_next_pwa_load') === 'true') {
+      localStorage.removeItem('hasSeenTourGuide_PWA');
+      localStorage.removeItem('force_tour_on_next_pwa_load');
+    }
+
     const storageKey = isStandalone ? 'hasSeenTourGuide_PWA' : 'hasSeenTourGuide';
     
     const hasSeenTour = localStorage.getItem(storageKey);

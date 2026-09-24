@@ -42,10 +42,17 @@ export const PwaInstallBanner = () => {
       setShowBanner(true);
     };
 
+    const handleAppInstalled = () => {
+      // Ketika user berhasil menginstal aplikasi, beri tanda agar saat PWA dibuka, tour berjalan kembali
+      localStorage.setItem('force_tour_on_next_pwa_load', 'true');
+    };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
