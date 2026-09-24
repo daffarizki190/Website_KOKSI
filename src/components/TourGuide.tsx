@@ -78,15 +78,15 @@ export const TourGuide: React.FC = () => {
       continuous={true}
       scrollToFirstStep={true}
       onEvent={handleJoyrideCallback}
+      options={{
+        arrowColor: '#ffffff',
+        backgroundColor: '#ffffff',
+        primaryColor: '#0d9488', // teal-600
+        textColor: '#334155', // slate-700
+        overlayColor: 'rgba(15, 23, 42, 0.65)', // dark overlay
+        zIndex: 9999,
+      }}
       styles={{
-        options: {
-          arrowColor: '#ffffff',
-          backgroundColor: '#ffffff',
-          primaryColor: '#0d9488', // teal-600
-          textColor: '#334155', // slate-700
-          overlayColor: 'rgba(15, 23, 42, 0.65)', // dark overlay
-          zIndex: 9999,
-        },
         tooltip: {
           borderRadius: '20px',
           padding: '24px',
