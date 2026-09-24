@@ -980,18 +980,7 @@ app.delete('/api/users/:id', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-const DEFAULT_CATALOG_PRODUCTS: any[] = [
-  { id: 1, nama_barang: 'Beras Premium Ramos 5kg', kategori: 'Makanan & Minuman', sub_kategori: 'Beras', harga: 68000, stok: 45 },
-  { id: 2, nama_barang: 'Minyak Goreng Sania 2 Liter', kategori: 'Makanan & Minuman', sub_kategori: 'Minyak', harga: 34000, stok: 60 },
-  { id: 3, nama_barang: 'Gula Pasir Gulaku 1kg', kategori: 'Makanan & Minuman', sub_kategori: 'Gula', harga: 17500, stok: 35 },
-  { id: 4, nama_barang: 'Indomie Goreng Spesial (Karton)', kategori: 'Makanan & Minuman', sub_kategori: 'Mie Instan', harga: 118000, stok: 20 },
-  { id: 5, nama_barang: 'Kopi Kapal Api Spesial Mix 10s', kategori: 'Makanan & Minuman', sub_kategori: 'Kopi', harga: 14500, stok: 80 },
-  { id: 6, nama_barang: 'Sabun Mandi Lifebuoy 4x110g', kategori: 'Perawatan Diri', sub_kategori: 'Sabun Mandi', harga: 22000, stok: 50 },
-  { id: 7, nama_barang: 'Pasta Gigi Pepsodent 190g', kategori: 'Perawatan Diri', sub_kategori: 'Pasta Gigi', harga: 16000, stok: 40 },
-  { id: 8, nama_barang: 'Deterjen Rinso Molto 770g', kategori: 'Kebutuhan Rumah', sub_kategori: 'Deterjen', harga: 24000, stok: 30 },
-  { id: 9, nama_barang: 'Sunlight Jeruk Nipis 700ml', kategori: 'Kebutuhan Rumah', sub_kategori: 'Pembersih', harga: 15500, stok: 55 },
-  { id: 10, nama_barang: 'Tissue Wajah Paseo 250 Sheets', kategori: 'Kebutuhan Rumah', sub_kategori: 'Tissue', harga: 18000, stok: 65 }
-];
+const DEFAULT_CATALOG_PRODUCTS: any[] = [];
 
 let inMemoryProducts: any[] = [...DEFAULT_CATALOG_PRODUCTS];
 
@@ -999,18 +988,14 @@ app.get('/api/products', requireAuth, async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (!isDbConfigured) {
-      res.json(inMemoryProducts);
+      res.json([]);
       return;
     }
     const productList = await withDbRetry(() => db.select().from(products));
-    if (productList.length === 0) {
-      res.json(inMemoryProducts);
-      return;
-    }
     res.json(productList);
   } catch (error) {
-    console.warn('Database query during products fetch:', error);
-    res.json(inMemoryProducts);
+    console.error('Database query error during products fetch:', error);
+    res.status(500).json({ error: 'Gagal mengambil data produk' });
   }
 });
 
