@@ -11,7 +11,7 @@ import { Login } from './pages/Login';
 
 import { DashboardUser } from './pages/DashboardUser';
 import { DashboardAdmin } from './pages/DashboardAdmin';
-import { ScanBarcodeAdmin } from './pages/ScanBarcodeAdmin';
+import { ScanBarcodeAdmin } from './pages/ScanBarcode';
 import { DashboardIT } from './pages/DashboardIT';
 import OrderHistory from './pages/OrderHistory';
 import { Splash } from './components/Splash';
