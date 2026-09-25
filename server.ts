@@ -52,9 +52,14 @@ const app = express();
 app.set('trust proxy', 1);
 
 // --- KONFIGURASI FOLDER UPLOAD & MULTER ---
-const uploadDir = path.join(process.cwd(), 'uploads');
+const isVercel = process.env.VERCEL === '1';
+const uploadDir = isVercel ? path.join('/tmp', 'uploads') : path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+  try {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  } catch (err) {
+    console.warn('Warning: Could not create upload directory (Serverless environment?)', err);
+  }
 }
 
 const storage = multer.diskStorage({
