@@ -7,6 +7,7 @@ interface User {
   pt: string;
   departemen: string;
   no_hp: string;
+  mustChangePassword?: boolean;
 }
 
 interface AuthContextType {

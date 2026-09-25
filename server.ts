@@ -6,8 +6,10 @@ import type { Request, Response, NextFunction } from 'express';
 import * as path from 'path';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
+import multer from 'multer';
+import fs from 'fs';
 import { db, withDbRetry } from './src/db/index';
-import { users, products, orders, orderItems, cartItems, activityLogs, pushSubscriptions } from './src/db/schema';
+import { users, products, orders, orderItems, cartItems, activityLogs, pushSubscriptions, chats } from './src/db/schema';
 import { eq, asc, desc, and, sql } from 'drizzle-orm';
 import webpush from 'web-push';
 
@@ -48,6 +50,39 @@ const bcryptCompare = async (s: string, hash: string): Promise<boolean> => {
 const app = express();
 // Enable proxy trust so that client IP and headers are correctly resolved behind reverse proxy
 app.set('trust proxy', 1);
+
+// --- KONFIGURASI FOLDER UPLOAD & MULTER ---
+const uploadDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, 'product-' + uniqueSuffix + ext);
+  }
+});
+
+const upload = multer({ 
+  storage, 
+  limits: { fileSize: 2 * 1024 * 1024 }, // Max 2MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Hanya file gambar yang diizinkan!'));
+    }
+  }
+});
+
+app.use('/uploads', express.static(uploadDir));
+
+// ------------------------------------------
 
 app.use((req, res, next) => { console.log("=> " + req.method + " " + req.path); next(); });
 const PORT = Number(process.env.PORT) || 3000;
@@ -359,7 +394,8 @@ app.get(['/api/health', '/health'], async (req, res) => {
 });
 
 // --- AUTH ROUTES ---
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', requireAuth, requireAdmin, async (req, res) => {
+
   try {
     const { nama, pt, departemen, no_hp, password } = req.body;
 
@@ -437,6 +473,7 @@ app.post('/api/auth/login', async (req, res) => {
       return;
     }
     const cleanNoHp = normalizePhone(no_hp);
+    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
 
     // 1. Database Lookup for All Users (Live PostgreSQL / Neon DB)
     let user: any = null;
@@ -453,16 +490,39 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     if (user) {
+      // Pengecekan Akun Terkunci
+      if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
+        const timeLeft = Math.ceil((new Date(user.lockedUntil).getTime() - new Date().getTime()) / 60000);
+        res.status(403).json({ error: `Akun Anda sementara dikunci karena terlalu banyak percobaan gagal. Silakan coba lagi dalam ${timeLeft} menit.` });
+        return;
+      }
+
       const isPassValid = await bcryptCompare(password, user.password).catch(() => false);
       const isDemoPresetPass = (cleanNoHp === '081234567890' && password === 'admin123') ||
                                (cleanNoHp === '081222333444' && password === 'user123') ||
                                (cleanNoHp === '081299998888' && password === 'it123456');
 
       if (isPassValid || isDemoPresetPass) {
+        // Jika sukses: Reset reset lockout & record history
+        try {
+          await withDbRetry(() => 
+            db.update(users)
+              .set({ 
+                failedLoginAttempts: 0, 
+                lockedUntil: null,
+                lastLoginIp: String(clientIp),
+                lastLoginAt: new Date()
+              })
+              .where(eq(users.id, user.id))
+          );
+        } catch (e) {
+          console.error("Gagal update info login user", e);
+        }
+
         const token = jwtSign(
           { id: user.id, role: user.role, no_hp: user.no_hp, nama: user.nama },
           JWT_SECRET,
-          { expiresIn: '7d' }
+          { expiresIn: '7d' } // Sesi habis dalam 7 hari
         );
         res.json({
           token,
@@ -472,12 +532,39 @@ app.post('/api/auth/login', async (req, res) => {
             role: user.role,
             pt: user.pt,
             departemen: user.departemen,
-            no_hp: user.no_hp
+            no_hp: user.no_hp,
+            mustChangePassword: isDemoPresetPass ? false : user.mustChangePassword
           }
         });
         return;
       } else {
-        res.status(401).json({ error: 'Password yang Anda masukkan salah' });
+        // Jika gagal: Tambah failed login attempts
+        const currentFailures = (user.failedLoginAttempts || 0) + 1;
+        let lockTime: Date | null = null;
+        
+        // 5x salah password = lockout 15 menit
+        if (currentFailures >= 5) {
+          lockTime = new Date(Date.now() + 15 * 60 * 1000);
+        }
+
+        try {
+          await withDbRetry(() => 
+            db.update(users)
+              .set({ 
+                failedLoginAttempts: currentFailures,
+                lockedUntil: lockTime
+              })
+              .where(eq(users.id, user.id))
+          );
+        } catch (e) {
+          console.error("Gagal mengupdate failedLoginAttempts", e);
+        }
+
+        if (currentFailures >= 5) {
+          res.status(403).json({ error: 'Terlalu banyak percobaan gagal. Akun dikunci demi keamanan selama 15 menit.' });
+        } else {
+          res.status(401).json({ error: `Password salah. Sisa percobaan Anda: ${5 - currentFailures}` });
+        }
         return;
       }
     }
@@ -500,10 +587,10 @@ app.post('/api/auth/login', async (req, res) => {
       return;
     }
 
-    res.status(401).json({ error: 'Nomor HP tidak ditemukan. Silakan periksa kembali atau daftar akun baru.' });
+    res.status(401).json({ error: 'Nomor HP tidak terdaftar. Hubungi Admin/IT untuk meminta akses.' });
   } catch (error: any) {
     console.error('Login error:', error?.message || error);
-    res.status(401).json({ error: 'Gagal masuk. Silakan periksa nomor HP dan password Anda.' });
+    res.status(500).json({ error: 'Sistem sedang sibuk. Silakan coba beberapa saat lagi.' });
   }
 });
 
@@ -525,6 +612,7 @@ app.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
     }
 
     if (u) {
+      const isDemoUser = ['081234567890', '081222333444', '081299998888'].includes(u.no_hp);
       res.json({
         user: {
           id: u.id,
@@ -532,7 +620,8 @@ app.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
           role: u.role,
           pt: u.pt,
           departemen: u.departemen,
-          no_hp: u.no_hp
+          no_hp: u.no_hp,
+          mustChangePassword: isDemoUser ? false : u.mustChangePassword
         }
       });
       return;
@@ -545,7 +634,8 @@ app.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
         role: req.user?.role || 'user',
         no_hp: req.user?.no_hp,
         pt: 'PT. Siemens Indonesia',
-        departemen: '-'
+        departemen: '-',
+        mustChangePassword: false
       }
     });
   } catch (err: any) {
@@ -556,9 +646,66 @@ app.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
         role: req.user?.role || 'user',
         no_hp: req.user?.no_hp,
         pt: 'PT. Siemens Indonesia',
-        departemen: '-'
+        departemen: '-',
+        mustChangePassword: false
       }
     });
+  }
+});
+
+// Endpoint untuk ganti password wajib (Force Password Change)
+app.post('/api/auth/change-password', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const userId = Number(req.user?.id);
+    const userNoHp = req.user?.no_hp;
+
+    if (!userId && !userNoHp) {
+      res.status(401).json({ error: 'Sesi tidak valid.' });
+      return;
+    }
+
+    // Cari user
+    let user: any = null;
+    if (userId) {
+      const list = await withDbRetry(() => db.select().from(users).where(eq(users.id, userId)));
+      user = list[0];
+    } else if (userNoHp) {
+      const cleanPhone = normalizePhone(userNoHp);
+      const list = await withDbRetry(() => db.select().from(users).where(eq(users.no_hp, cleanPhone)));
+      user = list[0];
+    }
+
+    if (!user) {
+      res.status(404).json({ error: 'Pengguna tidak ditemukan.' });
+      return;
+    }
+
+    // Bypass verification for demo accounts to avoid lockout in demo mode
+    const isDemoAccount = ['081234567890', '081222333444', '081299998888'].includes(user.no_hp);
+    const isPassValid = await bcryptCompare(oldPassword, user.password).catch(() => false);
+
+    if (!isPassValid && !isDemoAccount) {
+      res.status(401).json({ error: 'Password lama yang Anda masukkan salah.' });
+      return;
+    }
+
+    // Update password baru & hilangkan flag mustChangePassword
+    const hashedNewPassword = await bcryptHash(newPassword);
+    
+    await withDbRetry(() => 
+      db.update(users)
+        .set({ 
+          password: hashedNewPassword, 
+          mustChangePassword: false 
+        })
+        .where(eq(users.id, user.id))
+    );
+
+    res.json({ message: 'Password berhasil diubah!' });
+  } catch (error: any) {
+    console.error('Change password error:', error?.message || error);
+    res.status(500).json({ error: 'Gagal mengubah password. Silakan coba lagi.' });
   }
 });
 
@@ -753,6 +900,55 @@ app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
   } catch (error: any) {
     console.error('Failed to fetch users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) {
+      res.status(500).json({ error: 'Database belum dikonfigurasi!' });
+      return;
+    }
+
+    const { nama, pt, departemen, no_hp } = req.body;
+    if (!nama || !pt || !departemen || !no_hp) {
+      res.status(400).json({ error: 'Semua field (Nama, PT, Departemen, No HP) harus diisi!' });
+      return;
+    }
+
+    // Cek duplikasi no_hp
+    const existing = await withDbRetry(() => db.select({ id: users.id }).from(users).where(eq(users.no_hp, no_hp)).limit(1));
+    if (existing.length > 0) {
+      res.status(400).json({ error: 'Nomor HP sudah terdaftar!' });
+      return;
+    }
+
+    // Default password Saza12345
+    const hashedPassword = await bcryptHash('Saza12345', 10);
+
+    const [newUser] = await withDbRetry(() => db.insert(users).values({
+      nama,
+      pt,
+      departemen,
+      no_hp,
+      password: hashedPassword,
+      role: 'anggota',
+      mustChangePassword: true
+    }).returning({
+      id: users.id,
+      nama: users.nama,
+      pt: users.pt,
+      departemen: users.departemen,
+      no_hp: users.no_hp,
+      role: users.role,
+      createdAt: users.createdAt
+    }));
+
+    res.json(newUser);
+  } catch (error: any) {
+    console.error('Failed to create user:', error);
+    res.status(500).json({ error: 'Gagal menambahkan karyawan baru!' });
   }
 });
 
@@ -980,18 +1176,69 @@ app.delete('/api/users/:id', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-const DEFAULT_CATALOG_PRODUCTS: any[] = [];
+const DEFAULT_CATALOG_PRODUCTS: any[] = [
+  {
+    id: 1,
+    nama_barang: "Indomie Goreng Original",
+    kategori: "Makanan & Minuman Siap Saji (F&B)",
+    sub_kategori: "Makanan Instan",
+    harga: 3500,
+    stok: 100,
+    imageUrl: "https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?q=80&w=200&auto=format&fit=crop"
+  },
+  {
+    id: 2,
+    nama_barang: "Kopi Susu Dingin",
+    kategori: "Makanan & Minuman Siap Saji (F&B)",
+    sub_kategori: "Minuman Dingin",
+    harga: 12000,
+    stok: 50,
+    imageUrl: "https://images.unsplash.com/photo-1559525839-b184a4d698c7?q=80&w=200&auto=format&fit=crop"
+  },
+  {
+    id: 3,
+    nama_barang: "Roti Coklat Klasik",
+    kategori: "Makanan & Minuman Siap Saji (F&B)",
+    sub_kategori: "Roti & Pastry",
+    harga: 8000,
+    stok: 30,
+    imageUrl: "https://images.unsplash.com/photo-1598373182133-52452f7691ef?q=80&w=200&auto=format&fit=crop"
+  },
+  {
+    id: 4,
+    nama_barang: "Pulpen Gel Hitam",
+    kategori: "Alat Tulis Kantor (ATK)",
+    sub_kategori: "Alat Tulis",
+    harga: 3500,
+    stok: 200,
+    imageUrl: "https://images.unsplash.com/photo-1585336261022-680e295ce3fe?q=80&w=200&auto=format&fit=crop"
+  }
+];
 
 let inMemoryProducts: any[] = [...DEFAULT_CATALOG_PRODUCTS];
+
+// Endpoint upload gambar independen
+app.post('/api/upload', requireAuth, requireAdmin, upload.single('image'), (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ error: 'Tidak ada file gambar yang diupload.' });
+    return;
+  }
+  // URL path relatif untuk database
+  res.json({ imageUrl: `/uploads/${req.file.filename}` });
+});
 
 app.get('/api/products', requireAuth, async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (!isDbConfigured) {
-      res.json([]);
+      res.json(inMemoryProducts);
       return;
     }
     const productList = await withDbRetry(() => db.select().from(products));
+    if (productList.length === 0) {
+      res.json(inMemoryProducts);
+      return;
+    }
     res.json(productList);
   } catch (error) {
     console.error('Database query error during products fetch:', error);
@@ -1001,18 +1248,18 @@ app.get('/api/products', requireAuth, async (req, res) => {
 
 app.post('/api/products', requireAuth, requireAdmin, async (req: any, res) => {
   try {
-    const { nama_barang, kategori, sub_kategori, harga, stok } = req.body;
+    const { nama_barang, kategori, sub_kategori, harga, stok, imageUrl } = req.body;
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (!isDbConfigured) {
       const newId = inMemoryProducts.length > 0 ? Math.max(...inMemoryProducts.map(p => p.id)) + 1 : 1;
-      const newP = { id: newId, nama_barang, kategori, sub_kategori: sub_kategori || '', harga: Number(harga), stok: Number(stok) };
+      const newP = { id: newId, nama_barang, kategori, sub_kategori: sub_kategori || '', harga: Number(harga), stok: Number(stok), imageUrl: imageUrl || '' };
       inMemoryProducts.push(newP);
       res.status(201).json(newP);
       return;
     }
     await ensureDatabaseSchema();
     const newProduct = await withDbRetry(() => db.insert(products).values({
-      nama_barang, kategori, sub_kategori, harga: Number(harga), stok: Number(stok)
+      nama_barang, kategori, sub_kategori, harga: Number(harga), stok: Number(stok), imageUrl: imageUrl || ''
     }).returning());
     await logActivity(req.user?.id || null, req.user?.nama || 'Admin', 'Tambah Produk', `Menambahkan produk baru: ${nama_barang} (Kategori: ${kategori})`);
     res.status(201).json(newProduct[0]);
@@ -1021,22 +1268,25 @@ app.post('/api/products', requireAuth, requireAdmin, async (req: any, res) => {
   }
 });
 
-app.put('/api/products/:id', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/products/:id', requireAuth, requireAdmin, async (req: any, res) => {
   try {
-    const { nama_barang, kategori, sub_kategori, harga, stok } = req.body;
+    const { nama_barang, kategori, sub_kategori, harga, stok, imageUrl } = req.body;
     const productId = Number(req.params.id);
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (!isDbConfigured) {
       const idx = inMemoryProducts.findIndex(p => p.id === productId);
       if (idx !== -1) {
-        inMemoryProducts[idx] = { ...inMemoryProducts[idx], nama_barang, kategori, sub_kategori: sub_kategori || inMemoryProducts[idx].sub_kategori, harga: Number(harga), stok: Number(stok) };
+        inMemoryProducts[idx] = { ...inMemoryProducts[idx], nama_barang, kategori, sub_kategori: sub_kategori || inMemoryProducts[idx].sub_kategori, harga: Number(harga), stok: Number(stok), imageUrl: imageUrl !== undefined ? imageUrl : inMemoryProducts[idx].imageUrl };
         res.json(inMemoryProducts[idx]);
         return;
       }
     }
     await ensureDatabaseSchema();
+    const updateData: any = { nama_barang, kategori, sub_kategori, harga: Number(harga), stok: Number(stok) };
+    if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
+    
     const updated = await withDbRetry(() => db.update(products)
-      .set({ nama_barang, kategori, sub_kategori, harga: Number(harga), stok: Number(stok) })
+      .set(updateData)
       .where(eq(products.id, productId))
       .returning());
     res.json(updated[0]);
@@ -1313,7 +1563,8 @@ app.get('/api/cart', requireAuth, async (req: AuthRequest, res) => {
       kategori: item.product.kategori,
       harga: item.product.harga,
       stok: item.product.stok,
-      quantity: item.cartItem.quantity
+      quantity: item.cartItem.quantity,
+      catatan: item.cartItem.catatan
     }));
 
     res.json(formattedCart);
@@ -1334,7 +1585,8 @@ app.get('/api/cart', requireAuth, async (req: AuthRequest, res) => {
         kategori: prod.kategori,
         harga: prod.harga,
         stok: prod.stok,
-        quantity: item.quantity
+        quantity: item.quantity,
+        catatan: (item as any).catatan || null
       };
     });
     res.json(formatted);
@@ -1345,6 +1597,7 @@ app.post('/api/cart', requireAuth, async (req: AuthRequest, res) => {
   const userId = req.user!.id;
   const productId = Number(req.body.productId);
   const quantity = Math.max(1, Number(req.body.quantity) || 1);
+  const catatan = req.body.catatan || null;
 
   if (!productId || isNaN(productId)) {
     res.status(400).json({ error: 'ID produk tidak valid' });
@@ -1356,8 +1609,9 @@ app.post('/api/cart', requireAuth, async (req: AuthRequest, res) => {
   const existingIdx = currentMem.findIndex(i => i.productId === productId);
   if (existingIdx >= 0) {
     currentMem[existingIdx].quantity += quantity;
+    if (catatan !== null) (currentMem[existingIdx] as any).catatan = catatan;
   } else {
-    currentMem.push({ productId, quantity });
+    currentMem.push({ productId, quantity, catatan } as any);
   }
   memoryCartStore.set(userId, currentMem);
 
@@ -1375,13 +1629,17 @@ app.post('/api/cart', requireAuth, async (req: AuthRequest, res) => {
 
     if (existing.length > 0) {
       await db.update(cartItems)
-        .set({ quantity: existing[0].quantity + quantity })
+        .set({ 
+          quantity: existing[0].quantity + quantity,
+          ...(catatan !== null && { catatan })
+        })
         .where(eq(cartItems.id, existing[0].id));
     } else {
       await db.insert(cartItems).values({
         userId,
         productId,
-        quantity
+        quantity,
+        catatan
       });
     }
     res.json({ success: true });
@@ -1395,6 +1653,7 @@ app.put('/api/cart/:productId', requireAuth, async (req: AuthRequest, res) => {
   const userId = req.user!.id;
   const productId = Number(req.params.productId);
   const quantity = Number(req.body.quantity);
+  const catatan = req.body.catatan !== undefined ? req.body.catatan : undefined;
 
   if (!productId || isNaN(productId)) {
     res.status(400).json({ error: 'ID produk tidak valid' });
@@ -1409,8 +1668,9 @@ app.put('/api/cart/:productId', requireAuth, async (req: AuthRequest, res) => {
     const existingIdx = currentMem.findIndex(i => i.productId === productId);
     if (existingIdx >= 0) {
       currentMem[existingIdx].quantity = quantity;
+      if (catatan !== undefined) (currentMem[existingIdx] as any).catatan = catatan;
     } else {
-      currentMem.push({ productId, quantity });
+      currentMem.push({ productId, quantity, catatan: catatan || null } as any);
     }
   }
   memoryCartStore.set(userId, currentMem);
@@ -1432,14 +1692,18 @@ app.put('/api/cart/:productId', requireAuth, async (req: AuthRequest, res) => {
         .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, productId)));
 
       if (existing.length > 0) {
+        const updateData: any = { quantity };
+        if (catatan !== undefined) updateData.catatan = catatan;
+
         await db.update(cartItems)
-          .set({ quantity })
+          .set(updateData)
           .where(eq(cartItems.id, existing[0].id));
       } else {
         await db.insert(cartItems).values({
           userId,
           productId,
-          quantity
+          quantity,
+          catatan: catatan || null
         });
       }
     }
@@ -1604,7 +1868,7 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
     const orderId = 1000 + demoOrdersStore.length + 1;
     const orderItemsList = items.map((item, idx) => {
       const prod = DEFAULT_CATALOG_PRODUCTS.find(p => p.id === Number(item.productId)) || { nama_barang: `Barang #${item.productId}` };
-      return { id: idx + 1, orderId, productId: Number(item.productId), quantity: Number(item.quantity), price: Number(item.price) || 0, product: { id: Number(item.productId), nama_barang: prod.nama_barang } };
+      return { id: idx + 1, orderId, productId: Number(item.productId), quantity: Number(item.quantity), price: Number(item.price) || 0, catatan: item.catatan || null, product: { id: Number(item.productId), nama_barang: prod.nama_barang } };
     });
     const newOrderObj = {
       id: orderId, userId: userId || 999, total_amount: Math.round(Number(total_amount) || 0), status: 'Proses',
@@ -1700,7 +1964,8 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
           orderId: oId,
           productId: Number(item.productId),
           quantity: Math.round(Number(item.quantity) || 1),
-          price: Math.round(Number(item.price) || 0)
+          price: Math.round(Number(item.price) || 0),
+          catatan: item.catatan || null
         });
       }
 
@@ -1995,6 +2260,20 @@ app.put('/api/orders/:id/status', requireAuth, requireAdmin, async (req: AuthReq
     const updateData: any = { status };
     if (keterangan !== undefined) updateData.keterangan = keterangan;
 
+    // --- ADDED FOR BARCODE PICKUP FEATURE ---
+    if (status === 'Siap di ambil' || status === 'Siap Di Ambil') {
+      const crypto = require('crypto');
+      const pickupToken = crypto.randomBytes(16).toString('hex');
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      updateData.pickupToken = pickupToken;
+      updateData.pickupTokenExpiresAt = expiresAt;
+    } else if (status === 'Selesai') {
+      // Clear token when finished
+      updateData.pickupToken = null;
+      updateData.pickupTokenExpiresAt = null;
+    }
+    // ------------------------------------------
+
     const updated = await db.update(orders)
       .set(updateData)
       .where(eq(orders.id, orderId))
@@ -2005,6 +2284,10 @@ app.put('/api/orders/:id/status', requireAuth, requireAdmin, async (req: AuthReq
     if (memOrder) {
       memOrder.status = status;
       if (keterangan !== undefined) memOrder.keterangan = keterangan;
+      if (updateData.pickupToken !== undefined) {
+         (memOrder as any).pickupToken = updateData.pickupToken;
+         (memOrder as any).pickupTokenExpiresAt = updateData.pickupTokenExpiresAt;
+      }
     }
 
     // Auto-send Telegram Notification on Status Update
@@ -2032,6 +2315,73 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB`;
       return;
     }
     res.status(500).json({ error: 'Failed to update order status' });
+  }
+});
+
+// Endpoint untuk verifikasi Barcode / QR Code Pengambilan (Admin Only)
+app.post('/api/orders/pickup', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+  const { pickupToken } = req.body;
+  if (!pickupToken) {
+    res.status(400).json({ error: 'Token pengambilan (Barcode) tidak boleh kosong!' });
+    return;
+  }
+
+  try {
+    await ensureDatabaseSchema();
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    
+    let targetOrder = null;
+
+    if (isDbConfigured) {
+      const orderList = await db.select().from(orders).where(eq(orders.pickupToken, pickupToken));
+      if (orderList.length > 0) {
+        targetOrder = orderList[0];
+      }
+    } else {
+      // In-memory fallback check
+      targetOrder = demoOrdersStore.find(o => (o as any).pickupToken === pickupToken);
+    }
+
+    if (!targetOrder) {
+      res.status(404).json({ error: 'Barcode tidak ditemukan atau sudah pernah digunakan!' });
+      return;
+    }
+
+    if (targetOrder.status === 'Selesai') {
+      res.status(400).json({ error: 'Pesanan ini sudah berstatus Selesai.' });
+      return;
+    }
+
+    if (targetOrder.pickupTokenExpiresAt && new Date(targetOrder.pickupTokenExpiresAt) < new Date()) {
+      res.status(400).json({ error: 'Barcode ini sudah kadaluarsa! Silakan minta pengguna untuk memperbarui Barcode di halamannya.' });
+      return;
+    }
+
+    // Berhasil scan! Update jadi selesai dan hapus token
+    const updateData = {
+      status: 'Selesai',
+      keterangan: 'Pesanan telah diambil (Via Scan Barcode)',
+      pickupToken: null,
+      pickupTokenExpiresAt: null
+    };
+
+    if (isDbConfigured) {
+      await db.update(orders).set(updateData).where(eq(orders.id, targetOrder.id));
+    }
+    
+    // In-memory update
+    const memOrder = demoOrdersStore.find(o => o.id === targetOrder.id);
+    if (memOrder) {
+      memOrder.status = updateData.status;
+      memOrder.keterangan = updateData.keterangan;
+      (memOrder as any).pickupToken = null;
+      (memOrder as any).pickupTokenExpiresAt = null;
+    }
+
+    res.json({ success: true, message: 'Scan Barcode Berhasil! Pesanan selesai diserahkan.', orderId: targetOrder.id });
+  } catch (error) {
+    console.error('Failed to process pickup token:', error);
+    res.status(500).json({ error: 'Terjadi kesalahan sistem saat memverifikasi Barcode.' });
   }
 });
 
@@ -3774,6 +4124,114 @@ async function seedDefaultUsers() {
     console.error('Seed users error:', err);
   }
 }
+
+// --- CHAT ENDPOINTS ---
+app.get('/api/chats', requireAuth, async (req: any, res) => {
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) return res.json([]);
+    
+    // Auto-cleanup: delete chats older than 30 days
+    await withDbRetry(() => db.delete(chats).where(sql`${chats.createdAt} < NOW() - INTERVAL '30 days'`));
+
+    let query: any;
+    if (req.user.role === 'admin' || req.user.role === 'it') {
+      const userId = req.query.userId;
+      if (userId) {
+        query = await withDbRetry(() => db.select({
+          id: chats.id,
+          senderId: chats.senderId,
+          receiverId: chats.receiverId,
+          message: chats.message,
+          isRead: chats.isRead,
+          createdAt: chats.createdAt,
+          senderNama: users.nama,
+        })
+        .from(chats)
+        .leftJoin(users, eq(chats.senderId, users.id))
+        .where(
+          sql`(${chats.senderId} = ${Number(userId)} AND ${chats.receiverId} IS NULL) 
+           OR (${chats.receiverId} = ${Number(userId)})`
+        )
+        .orderBy(asc(chats.createdAt)));
+      } else {
+        // Get all unique users who have sent a message (receiver is null means sent to admin)
+        const chatUsers = await withDbRetry(() => db.selectDistinct({
+          senderId: chats.senderId,
+          nama: users.nama,
+          pt: users.pt
+        })
+        .from(chats)
+        .innerJoin(users, eq(chats.senderId, users.id))
+        .where(sql`${chats.receiverId} IS NULL`)
+        );
+        return res.json(chatUsers);
+      }
+    } else {
+      // User only sees their own chat with Admin
+      query = await withDbRetry(() => db.select({
+        id: chats.id,
+        senderId: chats.senderId,
+        receiverId: chats.receiverId,
+        message: chats.message,
+        isRead: chats.isRead,
+        createdAt: chats.createdAt,
+        senderNama: users.nama,
+      })
+      .from(chats)
+      .leftJoin(users, eq(chats.senderId, users.id))
+      .where(
+        sql`(${chats.senderId} = ${req.user.id} AND ${chats.receiverId} IS NULL) 
+         OR (${chats.receiverId} = ${req.user.id})`
+      )
+      .orderBy(asc(chats.createdAt)));
+    }
+    res.json(query);
+  } catch (err) {
+    console.error('Fetch chats error:', err);
+    res.status(500).json({ error: 'Gagal mengambil data pesan' });
+  }
+});
+
+app.post('/api/chats', requireAuth, async (req: any, res) => {
+  try {
+    const { message, receiverId } = req.body;
+    if (!message || message.trim() === '') return res.status(400).json({ error: 'Pesan tidak boleh kosong' });
+
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) return res.json({ id: Date.now(), message, senderId: req.user.id, createdAt: new Date() });
+
+    const newChat = await withDbRetry(() => db.insert(chats).values({
+      senderId: req.user.id,
+      receiverId: receiverId ? Number(receiverId) : null,
+      message: message.trim()
+    }).returning());
+
+    res.status(201).json(newChat[0]);
+  } catch (err) {
+    console.error('Post chat error:', err);
+    res.status(500).json({ error: 'Gagal mengirim pesan' });
+  }
+});
+
+app.patch('/api/chats/read', requireAuth, requireAdmin, async (req: any, res) => {
+  try {
+    const { userId } = req.body; // Mark messages from this user as read
+    if (!userId) return res.status(400).json({ error: 'UserId diperlukan' });
+
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) return res.json({ success: true });
+
+    await withDbRetry(() => db.update(chats)
+      .set({ isRead: true })
+      .where(and(eq(chats.senderId, Number(userId)), eq(chats.isRead, false)))
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Gagal memperbarui status pesan' });
+  }
+});
 
 // Explicit API 404 fallback: ensure API requests never serve HTML fallback
 app.all('/api/*', (req, res) => {

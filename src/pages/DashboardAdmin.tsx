@@ -9,7 +9,7 @@ import {
   Phone, MessageSquare, Search, Filter, AlertCircle, AlertTriangle, Check, X,
   QrCode, ScanLine, Camera, CameraOff, Inbox, FilterX, PackageSearch,
   Calendar, FileSpreadsheet, Building2, Key, Lock, Eye, EyeOff, Server,
-  User as UserIcon, Edit3, Save, TrendingUp, BarChart2, Bell, Printer
+  User as UserIcon, Edit3, Save, TrendingUp, BarChart2, Bell, Printer, UserPlus
 } from 'lucide-react';
 import XLSX from 'xlsx-js-style';
 import { format } from 'date-fns';
@@ -25,6 +25,7 @@ interface Product {
   sub_kategori?: string | null;
   harga: number;
   stok: number;
+  imageUrl?: string | null;
 }
 
 interface ImportResultItem {
@@ -50,6 +51,7 @@ interface OrderItem {
   productId: number;
   quantity: number;
   price: number;
+  catatan?: string;
   product?: {
     nama_barang: string;
   };
@@ -227,6 +229,59 @@ export const DashboardAdmin = () => {
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [updatingRoleId, setUpdatingRoleId] = useState<number | null>(null);
 
+  // Add User Modal State
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [addUserName, setAddUserName] = useState('');
+  const [addUserPt, setAddUserPt] = useState('PT. Siemens Indonesia');
+  const [addUserDepartemen, setAddUserDepartemen] = useState('');
+  const [addUserNoHp, setAddUserNoHp] = useState('');
+  const [isAddingUser, setIsAddingUser] = useState(false);
+  const [addUserError, setAddUserError] = useState('');
+  const [addUserSuccess, setAddUserSuccess] = useState('');
+
+  const handleAddUser = async () => {
+    setAddUserError('');
+    setAddUserSuccess('');
+    
+    if (!addUserName || !addUserPt || !addUserDepartemen || !addUserNoHp) {
+      setAddUserError('Semua kolom wajib diisi.');
+      return;
+    }
+    
+    setIsAddingUser(true);
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nama: addUserName,
+          pt: addUserPt,
+          departemen: addUserDepartemen,
+          no_hp: addUserNoHp
+        })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menambahkan karyawan');
+      
+      setAddUserSuccess('Karyawan berhasil ditambahkan. Password sementara: Saza12345');
+      fetchUsers();
+      
+      setTimeout(() => {
+        setIsAddUserModalOpen(false);
+        setAddUserName('');
+        setAddUserDepartemen('');
+        setAddUserNoHp('');
+        setAddUserError('');
+        setAddUserSuccess('');
+      }, 3000);
+    } catch (err: any) {
+      setAddUserError(err.message);
+    } finally {
+      setIsAddingUser(false);
+    }
+  };
+
   // Cancellation Action Modal State
   const [cancellationConfirmModal, setCancellationConfirmModal] = useState<{
     orderId: number;
@@ -341,14 +396,17 @@ export const DashboardAdmin = () => {
     }
   };
 
-  // Product Form state
   const [formData, setFormData] = useState({
     nama_barang: '',
-    kategori: dynamicCategories[0]?.name || 'Umum',
-    sub_kategori: dynamicCategories[0]?.subCategories[0] || '',
+    kategori: CATEGORY_STRUCTURES[0]?.name || 'Umum',
+    sub_kategori: CATEGORY_STRUCTURES[0]?.subCategories[0] || '',
     harga: 0,
-    stok: 0
+    stok: 0,
+    imageUrl: ''
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const [productSearch, setProductSearch] = useState('');
   const [productCategoryFilter, setProductCategoryFilter] = useState('Semua');
@@ -796,21 +854,24 @@ export const DashboardAdmin = () => {
 
   const openAddModal = () => {
     setEditingProduct(null);
-    const initialCategory = dynamicCategories[0]?.name || 'Umum';
-    const initialSubCategory = dynamicCategories[0]?.subCategories[0] || '';
+    setImageFile(null);
+    const initialCategory = CATEGORY_STRUCTURES[0]?.name || 'Umum';
+    const initialSubCategory = CATEGORY_STRUCTURES[0]?.subCategories[0] || '';
 
     setFormData({
       nama_barang: '',
       kategori: initialCategory,
       sub_kategori: initialSubCategory,
       harga: 0,
-      stok: 0
+      stok: 0,
+      imageUrl: ''
     });
     setIsModalOpen(true);
   };
 
   const openEditModal = (p: Product) => {
     setEditingProduct(p);
+    setImageFile(null);
     const cat = p.kategori || 'Umum';
     const subCat = p.sub_kategori || '';
 
@@ -819,7 +880,8 @@ export const DashboardAdmin = () => {
       kategori: cat,
       sub_kategori: subCat,
       harga: p.harga,
-      stok: p.stok
+      stok: p.stok,
+      imageUrl: p.imageUrl || ''
     });
     setIsModalOpen(true);
   };
@@ -860,6 +922,33 @@ export const DashboardAdmin = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      setIsUploading(true);
+      let finalImageUrl = formData.imageUrl;
+
+      if (imageFile) {
+        const uploadData = new FormData();
+        uploadData.append('image', imageFile);
+        
+        const authToken = token || localStorage.getItem('token');
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: uploadData
+        });
+        
+        if (uploadRes.ok) {
+          const uploadJson = await uploadRes.json();
+          finalImageUrl = uploadJson.imageUrl;
+        } else {
+          toast.error('Gagal mengupload gambar');
+          setIsUploading(false);
+          return;
+        }
+      }
+
+      const payload = { ...formData, imageUrl: finalImageUrl };
       const url = editingProduct ? `/api/products/${editingProduct.id}` : '/api/products';
       const method = editingProduct ? 'PUT' : 'POST';
 
@@ -869,7 +958,7 @@ export const DashboardAdmin = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (res.ok) {
@@ -882,6 +971,8 @@ export const DashboardAdmin = () => {
     } catch (err) {
       console.error(err);
       toast.error('Terjadi kesalahan saat menyimpan produk');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -2263,6 +2354,14 @@ export const DashboardAdmin = () => {
                   <AlertTriangle className="w-4 h-4" />
                   <span>{isDemoOrderingEnabled ? 'Mode Demo Aktif' : 'Mode Demo Mati'}</span>
                 </button>
+                <button
+                  onClick={() => navigate('/admin/scan')}
+                  className="flex items-center space-x-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl transition-all shadow-md cursor-pointer border border-indigo-700"
+                  title="Buka kamera untuk scan barcode pesanan"
+                >
+                  <ScanLine className="w-4 h-4 text-indigo-200" />
+                  <span>Scan Barcode</span>
+                </button>
 
                 <button
                   onClick={() => setActiveTab('analytics')}
@@ -2677,6 +2776,9 @@ export const DashboardAdmin = () => {
                               <div>
                                 <p className="font-bold text-slate-800">{item.product?.nama_barang || 'Produk Dihapus'}</p>
                                 <p className="text-[10px] text-slate-400">Harga: Rp {item.price.toLocaleString('id-ID')}</p>
+                                {item.catatan && (
+                                  <p className="text-[10px] text-orange-500 font-medium italic mt-0.5">Catatan: {item.catatan}</p>
+                                )}
                               </div>
                             </div>
                             <span className="font-bold text-slate-900">
@@ -2717,7 +2819,13 @@ export const DashboardAdmin = () => {
                               <tbody className="align-top">
                                 {order.items.map((item, idx) => (
                                   <tr key={idx} className="border-b border-dashed border-gray-300">
-                                    <td className="py-2.5 pr-2">{item.product?.nama_barang} <br /><span className="text-[10px] text-gray-500">@ Rp {item.price.toLocaleString('id-ID')}</span></td>
+                                    <td className="py-2.5 pr-2">
+                                      {item.product?.nama_barang} <br />
+                                      <span className="text-[10px] text-gray-500">@ Rp {item.price.toLocaleString('id-ID')}</span>
+                                      {item.catatan && (
+                                        <><br/><span className="text-[10px] text-black italic">Catatan: {item.catatan}</span></>
+                                      )}
+                                    </td>
                                     <td className="text-center py-2.5">{item.quantity}</td>
                                     <td className="text-right py-2.5">{(item.price * item.quantity).toLocaleString('id-ID')}</td>
                                   </tr>
@@ -3059,6 +3167,13 @@ export const DashboardAdmin = () => {
                   onChange={(e) => setUserSearch(e.target.value)}
                   className="px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-sm w-full sm:w-56"
                 />
+                <button
+                  onClick={() => setIsAddUserModalOpen(true)}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 shadow-sm w-full sm:w-auto"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Tambah Karyawan</span>
+                </button>
               </div>
             </div>
 
@@ -3387,45 +3502,87 @@ export const DashboardAdmin = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Kategori Utama</label>
-                <input
-                  type="text"
-                  list="kategori-options"
+                <select
                   required
-                  placeholder="Contoh: F&B"
                   value={formData.kategori}
                   onChange={(e) => {
                     const newCat = e.target.value;
-                    const availableSubs = dynamicCategories.find(c => c.name === newCat)?.subCategories || [];
+                    const catData = CATEGORY_STRUCTURES.find(c => c.name === newCat);
+                    const availableSubs = catData ? catData.subCategories : [];
                     setFormData({
                       ...formData,
                       kategori: newCat,
-                      sub_kategori: availableSubs[0] || formData.sub_kategori
+                      sub_kategori: availableSubs[0] || ''
                     });
                   }}
                   className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 sm:text-sm font-bold text-slate-800 transition-colors"
-                />
-                <datalist id="kategori-options">
-                  {dynamicCategories.map((cat) => (
-                    <option key={cat.name} value={cat.name} />
+                >
+                  <option value="" disabled>Pilih Kategori</option>
+                  {CATEGORY_STRUCTURES.map((cat) => (
+                    <option key={cat.id} value={cat.name}>{cat.name}</option>
                   ))}
-                </datalist>
+                </select>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Sub-Kategori</label>
-                <input
-                  type="text"
-                  list="sub-kategori-options"
-                  placeholder="Opsional"
+                <select
+                  required
                   value={formData.sub_kategori}
                   onChange={(e) => setFormData({ ...formData, sub_kategori: e.target.value })}
                   className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 sm:text-sm font-semibold text-slate-800 transition-colors"
-                />
-                <datalist id="sub-kategori-options">
-                  {dynamicCategories.find(c => c.name === formData.kategori)?.subCategories.map((subName) => (
-                    <option key={subName} value={subName} />
+                >
+                  <option value="" disabled>Pilih Sub-Kategori</option>
+                  {CATEGORY_STRUCTURES.find(c => c.name === formData.kategori)?.subCategories.map((subName) => (
+                    <option key={subName} value={subName}>{subName}</option>
                   ))}
-                </datalist>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Gambar Produk</label>
+                <div className="mt-1 flex items-center gap-4">
+                  {(imageFile || formData.imageUrl) ? (
+                    <div className="relative w-16 h-16 rounded overflow-hidden border border-slate-200">
+                      <img 
+                        src={imageFile ? URL.createObjectURL(imageFile) : formData.imageUrl} 
+                        alt="Preview" 
+                        className="object-cover w-full h-full"
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => { setImageFile(null); setFormData({...formData, imageUrl: ''}); }}
+                        className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-bl"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 bg-slate-100 rounded border border-dashed border-slate-300 flex items-center justify-center">
+                      <Camera className="w-6 h-6 text-slate-400" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      ref={imageInputRef}
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setImageFile(e.target.files[0]);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => imageInputRef.current?.click()}
+                      className="px-4 py-2 border border-slate-300 shadow-sm text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50"
+                    >
+                      Pilih Gambar
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -4779,6 +4936,117 @@ export const DashboardAdmin = () => {
           </div>
         </div>
       )}
+      {/* ===================== MODAL TAMBAH KARYAWAN ===================== */}
+      {isAddUserModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-100 flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 leading-tight">Tambah Karyawan</h3>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">Password sementara <span className="font-bold text-teal-600 font-mono bg-teal-50 px-1 rounded">Saza12345</span></p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAddUserModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5">Nama Lengkap <span className="text-rose-500">*</span></label>
+                <input
+                  type="text"
+                  value={addUserName}
+                  onChange={(e) => setAddUserName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all"
+                  placeholder="Masukkan nama lengkap"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5">No Handphone <span className="text-rose-500">*</span></label>
+                <input
+                  type="tel"
+                  value={addUserNoHp}
+                  onChange={(e) => setAddUserNoHp(e.target.value.replace(/\D/g, ''))}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all"
+                  placeholder="Contoh: 081234567890"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5">Perusahaan (PT) <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    value={addUserPt}
+                    onChange={(e) => setAddUserPt(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5">Departemen <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    value={addUserDepartemen}
+                    onChange={(e) => setAddUserDepartemen(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all"
+                    placeholder="Contoh: Produksi"
+                  />
+                </div>
+              </div>
+
+              {addUserError && (
+                <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-xs font-semibold text-rose-600 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <p>{addUserError}</p>
+                </div>
+              )}
+              {addUserSuccess && (
+                <div className="p-3 bg-teal-50 border border-teal-100 rounded-xl text-xs font-semibold text-teal-700 flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <p>{addUserSuccess}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 flex gap-2">
+              <button
+                onClick={() => setIsAddUserModalOpen(false)}
+                className="flex-1 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-sm font-bold transition-colors"
+                disabled={isAddingUser}
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleAddUser}
+                disabled={isAddingUser}
+                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm shadow-teal-600/20"
+              >
+                {isAddingUser ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Menyimpan...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>Simpan Data</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

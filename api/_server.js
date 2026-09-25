@@ -597,7 +597,7 @@ app.post("/api/auth/login", async (req, res) => {
         const token = jwtSign(
           { id: user.id, role: user.role, no_hp: user.no_hp, nama: user.nama },
           JWT_SECRET,
-          { expiresIn: "365d" }
+          { expiresIn: "7d" }
         );
         res.json({
           token,
@@ -626,7 +626,7 @@ app.post("/api/auth/login", async (req, res) => {
       const token = jwtSign(
         { id: demo.id, role: demo.role, no_hp: cleanNoHp, nama: demo.nama },
         JWT_SECRET,
-        { expiresIn: "365d" }
+        { expiresIn: "7d" }
       );
       res.json({ token, user: { id: demo.id, nama: demo.nama, role: demo.role, pt: demo.pt, departemen: demo.departemen, no_hp: cleanNoHp } });
       return;
@@ -1024,7 +1024,18 @@ app.delete("/api/users/:id", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Gagal menghapus akun pengguna" });
   }
 });
-var DEFAULT_CATALOG_PRODUCTS = [];
+var DEFAULT_CATALOG_PRODUCTS = [
+  { id: 1, nama_barang: "Beras Premium Ramos 5kg", kategori: "Makanan & Minuman", sub_kategori: "Beras", harga: 68e3, stok: 45 },
+  { id: 2, nama_barang: "Minyak Goreng Sania 2 Liter", kategori: "Makanan & Minuman", sub_kategori: "Minyak", harga: 34e3, stok: 60 },
+  { id: 3, nama_barang: "Gula Pasir Gulaku 1kg", kategori: "Makanan & Minuman", sub_kategori: "Gula", harga: 17500, stok: 35 },
+  { id: 4, nama_barang: "Indomie Goreng Spesial (Karton)", kategori: "Makanan & Minuman", sub_kategori: "Mie Instan", harga: 118e3, stok: 20 },
+  { id: 5, nama_barang: "Kopi Kapal Api Spesial Mix 10s", kategori: "Makanan & Minuman", sub_kategori: "Kopi", harga: 14500, stok: 80 },
+  { id: 6, nama_barang: "Sabun Mandi Lifebuoy 4x110g", kategori: "Perawatan Diri", sub_kategori: "Sabun Mandi", harga: 22e3, stok: 50 },
+  { id: 7, nama_barang: "Pasta Gigi Pepsodent 190g", kategori: "Perawatan Diri", sub_kategori: "Pasta Gigi", harga: 16e3, stok: 40 },
+  { id: 8, nama_barang: "Deterjen Rinso Molto 770g", kategori: "Kebutuhan Rumah", sub_kategori: "Deterjen", harga: 24e3, stok: 30 },
+  { id: 9, nama_barang: "Sunlight Jeruk Nipis 700ml", kategori: "Kebutuhan Rumah", sub_kategori: "Pembersih", harga: 15500, stok: 55 },
+  { id: 10, nama_barang: "Tissue Wajah Paseo 250 Sheets", kategori: "Kebutuhan Rumah", sub_kategori: "Tissue", harga: 18e3, stok: 65 }
+];
 var inMemoryProducts = [...DEFAULT_CATALOG_PRODUCTS];
 app.get("/api/products", requireAuth, async (req, res) => {
   try {
@@ -1459,7 +1470,7 @@ app.delete("/api/cart", requireAuth, async (req, res) => {
 var demoOrdersStore = [];
 var globalDemoMode = false;
 if (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST) {
-  db.query("SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'").then((res) => {
+  db.execute(sql`SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'`).then((res) => {
     if (res.rows.length > 0) {
       globalDemoMode = res.rows[0].setting_value === "true";
     }
@@ -1469,7 +1480,7 @@ app.get("/api/settings/demo-mode", async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (isDbConfigured) {
-      const result = await db.query("SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'");
+      const result = await db.execute(sql`SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'`);
       if (result.rows.length > 0) {
         globalDemoMode = result.rows[0].setting_value === "true";
       }
@@ -1488,11 +1499,12 @@ app.post("/api/settings/demo-mode", requireAuth, async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (isDbConfigured) {
-      await db.query(`
+      const demoVal = globalDemoMode ? "true" : "false";
+      await db.execute(sql`
         INSERT INTO settings (setting_key, setting_value) 
-        VALUES ('demo_mode', $1)
-        ON CONFLICT (setting_key) DO UPDATE SET setting_value = $1, updated_at = NOW()
-      `, [globalDemoMode ? "true" : "false"]);
+        VALUES ('demo_mode', ${demoVal})
+        ON CONFLICT (setting_key) DO UPDATE SET setting_value = ${demoVal}, updated_at = NOW()
+      `);
     }
   } catch (err) {
     console.error("Error saving demo mode to DB:", err);
@@ -1508,7 +1520,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
   try {
     const isDbConfigured2 = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (isDbConfigured2) {
-      const result = await db.query("SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'");
+      const result = await db.execute(sql`SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'`);
       if (result.rows.length > 0) {
         isDemoMode = result.rows[0].setting_value === "true" || isDemoMode;
       }
@@ -1862,6 +1874,16 @@ app.put("/api/orders/:id/status", requireAuth, requireAdmin, async (req, res) =>
       if (keterangan !== void 0) memOrder.keterangan = keterangan;
     }
     try {
+      const statusIcon = status === "Selesai" ? "\u2705" : status === "Dibatalkan" ? "\u{1F6AB}" : "\u{1F504}";
+      const tgStatusMsg = `${statusIcon} *STATUS PESANAN DIUPDATE (#${orderId})*
+\u26A1 *Status Baru:* ${status}
+\u{1F4DD} *Keterangan:* ${keterangan || "-"}
+Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB`;
+      const adminChatIds = getAdminChatIds();
+      for (const cid of adminChatIds) {
+        sendTelegramMessage(cid, tgStatusMsg).catch(() => {
+        });
+      }
     } catch (e) {
     }
     res.json(updated[0] || memOrder || { success: true });
@@ -1912,7 +1934,18 @@ app.put("/api/orders/:id/cancel", requireAuth, async (req, res) => {
           }
         }
       }
-
+      try {
+        const tgMsg = `\u{1F6AB} *PESANAN #${orderId} DIBATALKAN OLEH ADMIN*
+\u{1F4DD} *Alasan:* ${alasan.toString().trim()}
+\u{1F4E6} Stok barang telah dikembalikan ke sistem.
+Waktu: ${(/* @__PURE__ */ new Date()).toLocaleString("id-ID")} WIB`;
+        const adminChatIds = getAdminChatIds();
+        for (const cid of adminChatIds) {
+          sendTelegramMessage(cid, tgMsg).catch(() => {
+          });
+        }
+      } catch (e) {
+      }
       res.json({ message: "Pesanan berhasil dibatalkan oleh Admin dan stok telah dikembalikan.", order: updated2[0] || memOrder2 });
       return;
     }
@@ -1920,7 +1953,18 @@ app.put("/api/orders/:id/cancel", requireAuth, async (req, res) => {
       status: "Pengajuan Pembatalan",
       keterangan: `Pengajuan Pembatalan: ${alasan.toString().trim()}`
     }).where(eq(orders.id, orderId)).returning();
-
+    try {
+      const tgMsg = `\u26A0\uFE0F *PENGAJUAN PEMBATALAN PESANAN (#${orderId})*
+\u{1F464} *Pemohon:* ${req.user?.nama || "Karyawan"} (${req.user?.no_hp || "-"})
+\u{1F4DD} *Alasan:* ${alasan.toString().trim()}
+\u26A1 *Aksi:* Buka Admin Portal atau ketik \`/batal ${orderId} ${alasan.toString().trim()}\` untuk menyetujui.`;
+      const adminChatIds = getAdminChatIds();
+      for (const cid of adminChatIds) {
+        sendTelegramMessage(cid, tgMsg).catch(() => {
+        });
+      }
+    } catch (e) {
+    }
     const memOrder = demoOrdersStore.find((o) => o.id === orderId);
     if (memOrder) {
       memOrder.status = "Pengajuan Pembatalan";
@@ -3440,4 +3484,3 @@ export {
   app,
   seedDefaultUsers
 };
-

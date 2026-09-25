@@ -376,6 +376,27 @@ export const DashboardUser = () => {
     }
   };
 
+  const updateCartNote = async (id: number, catatan: string) => {
+    const item = cart.find(i => i.id === id);
+    if (!item) return;
+
+    // Optimistic UI update
+    setCart(prev => prev.map(i => i.id === id ? { ...i, catatan } : i));
+
+    try {
+      await fetch(`/api/cart/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ quantity: item.quantity, catatan })
+      });
+    } catch (err) {
+      console.warn('Cart backend sync note:', err);
+    }
+  };
+
   const confirmCheckout = async () => {
     setIsCheckingOut(true);
     setCheckoutError(null);
@@ -383,7 +404,7 @@ export const DashboardUser = () => {
       const cartSubtotal = cart.reduce((sum, item) => sum + (item.harga * item.quantity), 0);
       const handlingFee = cart.length > 0 ? 2000 : 0;
       const total_amount = cartSubtotal + handlingFee;
-      const items = cart.map(item => ({ productId: item.id, quantity: item.quantity, price: item.harga }));
+      const items = cart.map(item => ({ productId: item.id, quantity: item.quantity, price: item.harga, catatan: item.catatan }));
       
       const res = await fetch('/api/orders', {
         method: 'POST',
@@ -890,6 +911,15 @@ export const DashboardUser = () => {
                           <span className="text-slate-500">x Rp {item.harga.toLocaleString('id-ID')}</span>
                         </div>
                         <p className="font-bold text-slate-700">Rp {(item.harga * item.quantity).toLocaleString('id-ID')}</p>
+                      </div>
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          placeholder="Tulis catatan (opsional)..."
+                          value={item.catatan || ''}
+                          onChange={(e) => updateCartNote(item.id, e.target.value)}
+                          className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-md focus:ring-1 focus:ring-teal-500 focus:border-transparent transition-colors"
+                        />
                       </div>
                     </div>
                   ))

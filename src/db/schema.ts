@@ -1,4 +1,4 @@
-import { integer, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { integer, pgTable, serial, text, timestamp, varchar, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 export const users = pgTable('users', {
@@ -7,8 +7,16 @@ export const users = pgTable('users', {
   pt: text('pt').notNull(),
   departemen: text('departemen').notNull(),
   no_hp: text('no_hp').notNull().unique(),
-  role: varchar('role', { length: 20 }).notNull().default('user'), // 'user' | 'admin'
+  role: varchar('role', { length: 20 }).notNull().default('user'), // 'user' | 'admin' | 'it'
   password: text('password').notNull(),
+  
+  // Fitur Keamanan
+  mustChangePassword: boolean('must_change_password').default(true),
+  failedLoginAttempts: integer('failed_login_attempts').default(0),
+  lockedUntil: timestamp('locked_until'),
+  lastLoginIp: text('last_login_ip'),
+  lastLoginAt: timestamp('last_login_at'),
+
   createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -19,6 +27,7 @@ export const products = pgTable('products', {
   sub_kategori: text('sub_kategori'),
   harga: integer('harga').notNull(),
   stok: integer('stok').notNull().default(0),
+  imageUrl: text('image_url'),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -28,6 +37,8 @@ export const orders = pgTable('orders', {
   total_amount: integer('total_amount').notNull(),
   status: text('status').notNull().default('Proses'),
   keterangan: text('keterangan'),
+  pickupToken: text('pickup_token').unique(),
+  pickupTokenExpiresAt: timestamp('pickup_token_expires_at'),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -37,6 +48,7 @@ export const orderItems = pgTable('order_items', {
   productId: integer('product_id').references(() => products.id),  // nullable: product may be deleted but order must survive
   quantity: integer('quantity').notNull(),
   price: integer('price').notNull(),
+  catatan: text('catatan'),
 });
 
 export const cartItems = pgTable('cart_items', {
@@ -44,6 +56,7 @@ export const cartItems = pgTable('cart_items', {
   userId: integer('user_id').references(() => users.id).notNull(),
   productId: integer('product_id').references(() => products.id).notNull(),
   quantity: integer('quantity').notNull(),
+  catatan: text('catatan'),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -115,5 +128,27 @@ export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one })
   user: one(users, {
     fields: [pushSubscriptions.userId],
     references: [users.id],
+  }),
+}));
+
+export const chats = pgTable('chats', {
+  id: serial('id').primaryKey(),
+  senderId: integer('sender_id').references(() => users.id).notNull(),
+  receiverId: integer('receiver_id').references(() => users.id), // null jika broadcast atau ke semua admin
+  message: text('message').notNull(),
+  isRead: boolean('is_read').default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const chatsRelations = relations(chats, ({ one }) => ({
+  sender: one(users, {
+    fields: [chats.senderId],
+    references: [users.id],
+    relationName: 'sender',
+  }),
+  receiver: one(users, {
+    fields: [chats.receiverId],
+    references: [users.id],
+    relationName: 'receiver',
   }),
 }));

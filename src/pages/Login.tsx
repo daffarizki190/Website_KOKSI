@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
-import { Loader2, UserPlus, ArrowRight, ShieldCheck, UserCheck, Wrench, KeyRound, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Loader2, ArrowRight, ShieldCheck, UserCheck, Wrench, KeyRound, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
 import { BelanjainLogo } from '../components/BelanjainLogo';
 
 export const Login = () => {
@@ -230,14 +230,6 @@ export const Login = () => {
           </form>
 
           <div className="mt-4 text-center space-y-3">
-             <Link
-               to="/register"
-               className="w-full inline-flex justify-center items-center py-2 px-4 border border-teal-600 rounded-xl text-xs sm:text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 transition-colors"
-             >
-               <UserPlus className="w-4 h-4 mr-1.5" />
-               Daftar Akun Baru
-             </Link>
-
               <p className="text-xs font-medium text-slate-600">
                 Lupa password? <span className="text-teal-600 font-bold cursor-pointer">Hubungi Admin</span>
               </p>

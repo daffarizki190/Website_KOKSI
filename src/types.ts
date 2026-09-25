@@ -10,6 +10,7 @@ export interface Product {
 
 export interface CartItem extends Product {
   quantity: number;
+  catatan?: string | null;
 }
 
 export interface User {
@@ -32,6 +33,7 @@ export interface OrderItem {
     kategori?: string;
     sub_kategori?: string;
   };
+  catatan?: string | null;
 }
 
 export interface Order {
