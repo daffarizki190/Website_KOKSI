@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingBag, ArrowLeft, Loader2, Package, Search, X, CheckCircle2, AlertTriangle, AlertCircle, ShoppingCart, ShieldCheck, Clock, ArrowRight, RefreshCw, RotateCcw, XCircle } from 'lucide-react';
+import { ShoppingBag, ArrowLeft, Loader2, Package, Search, X, CheckCircle2, AlertTriangle, AlertCircle, ShoppingCart, ShieldCheck, Clock, ArrowRight, RefreshCw, RotateCcw, XCircle, ScanLine } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useAuth } from '../contexts/AuthContext';
 import { getDisplayOrderId } from '../utils/format';
 import { useNotification } from '../contexts/NotificationContext';
+import { QRCodeSVG } from 'qrcode.react';
+
 
 interface OrderItem {
   id: number;
@@ -28,6 +30,8 @@ interface Order {
   createdAt: string;
   status: string;
   keterangan?: string;
+  pickupToken?: string;
+  pickupTokenExpiresAt?: string;
   items: OrderItem[];
 }
 
@@ -342,6 +346,21 @@ export default function OrderHistory() {
                     {!isCancelled && order.status !== 'Pengajuan Pembatalan' && order.keterangan && (
                       <div className="mt-4 p-3 bg-teal-50/80 border border-teal-200 rounded-xl text-teal-900 text-xs">
                         <span className="font-bold">Catatan Koperasi:</span> {order.keterangan}
+                      </div>
+                    )}
+
+                    {order.status === 'Siap di ambil' && order.pickupToken && (
+                      <div className="mt-6 flex flex-col items-center bg-white p-6 rounded-2xl border-2 border-dashed border-teal-200">
+                        <div className="flex items-center gap-2 mb-4">
+                          <ScanLine className="w-5 h-5 text-teal-600" />
+                          <h5 className="font-bold text-teal-900 text-sm uppercase tracking-wide">Gunakan Barcode Ini</h5>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-100 mb-3">
+                          <QRCodeSVG value={order.pickupToken} size={180} level="H" includeMargin={true} />
+                        </div>
+                        <p className="text-xs text-slate-500 text-center font-medium max-w-[280px]">
+                          Gunakan barcode ini pada saat pengambilan. Untuk keamanan, barcode hanya bisa digunakan 1x dan memiliki batas waktu.
+                        </p>
                       </div>
                     )}
                   </div>
