@@ -2294,7 +2294,8 @@ app.put('/api/orders/:id/status', requireAuth, requireAdmin, async (req: AuthReq
       }
     }
 
-    // Auto-send Telegram Notification on Status Update
+    // Auto-send Telegram Notification on Status Update (DISABLED AS PER REQUEST)
+    /*
     try {
       const statusIcon = status === 'Selesai' ? '✅' : status === 'Dibatalkan' ? '🚫' : '🔄';
       const tgStatusMsg = `${statusIcon} *STATUS PESANAN DIUPDATE (#${orderId})*
@@ -2307,6 +2308,7 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB`;
         sendTelegramMessage(cid, tgStatusMsg).catch(() => {});
       }
     } catch (e) {}
+    */
 
     res.json(updated[0] || memOrder || { success: true });
   } catch (error) {
@@ -2438,7 +2440,8 @@ app.put('/api/orders/:id/cancel', requireAuth, async (req: AuthRequest, res) => 
         }
       }
 
-      // Auto-send Telegram Notification to Admin on Cancellation
+      // Auto-send Telegram Notification to Admin on Cancellation (DISABLED)
+      /*
       try {
         const tgMsg = `🚫 *PESANAN #${orderId} DIBATALKAN OLEH ADMIN*
 📝 *Alasan:* ${alasan.toString().trim()}
@@ -2449,6 +2452,7 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB`;
           sendTelegramMessage(cid, tgMsg).catch(() => {});
         }
       } catch (e) {}
+      */
 
       res.json({ message: 'Pesanan berhasil dibatalkan oleh Admin dan stok telah dikembalikan.', order: updated[0] || memOrder });
       return;
@@ -2463,7 +2467,8 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB`;
       .where(eq(orders.id, orderId))
       .returning();
 
-    // Auto-send Telegram Notification to Admin on User Cancellation Request
+    // Auto-send Telegram Notification to Admin on User Cancellation Request (DISABLED)
+    /*
     try {
       const tgMsg = `⚠️ *PENGAJUAN PEMBATALAN PESANAN (#${orderId})*
 👤 *Pemohon:* ${req.user?.nama || 'Karyawan'} (${req.user?.no_hp || '-'})
@@ -2474,6 +2479,7 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB`;
         sendTelegramMessage(cid, tgMsg).catch(() => {});
       }
     } catch (e) {}
+    */
 
     const memOrder = demoOrdersStore.find(o => o.id === orderId);
     if (memOrder) {
