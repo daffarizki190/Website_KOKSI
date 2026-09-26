@@ -46,6 +46,8 @@ export const BackExitGuard: React.FC = () => {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
+  const [hasExited, setHasExited] = useState(false);
+
   useEffect(() => {
     if (PUBLIC_PATHS.includes(location.pathname)) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -60,7 +62,9 @@ export const BackExitGuard: React.FC = () => {
     setShowDialog(false);
     
     // Coba mundur 2 langkah (melewati null state dan floor state)
-    window.history.go(-2);
+    if (window.history.length > 2) {
+      window.history.go(-2);
+    }
     
     // Coba paksa tutup tab (berguna untuk beberapa kondisi PWA)
     setTimeout(() => {
@@ -69,10 +73,10 @@ export const BackExitGuard: React.FC = () => {
 
     // Fallback: Jika setelah 400ms masih ada di halaman ini (karena go(-2) gagal
     // karena tidak ada history sebelumnya, dan close() diblokir browser),
-    // maka kita lempar ke halaman login agar terasa seperti "keluar".
+    // maka kita tampilkan layar "Keluar".
     setTimeout(() => {
-      if (!document.hidden && !PUBLIC_PATHS.includes(window.location.pathname)) {
-        navigate("/login", { replace: true });
+      if (!document.hidden) {
+        setHasExited(true);
       }
     }, 400);
   };
@@ -80,6 +84,18 @@ export const BackExitGuard: React.FC = () => {
   const handleCancel = () => {
     setShowDialog(false);
   };
+
+  if (hasExited) {
+    return (
+      <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-slate-900 text-white p-6 animate-in fade-in duration-300">
+        <LogOut className="w-16 h-16 text-slate-500 mb-6 opacity-80" />
+        <h2 className="text-2xl font-bold mb-2">Sesi Berakhir</h2>
+        <p className="text-slate-400 text-center max-w-sm mb-8 text-sm">
+          Anda telah keluar dari aplikasi BelanjaIn Saza. Silakan tutup tab atau browser Anda.
+        </p>
+      </div>
+    );
+  }
 
   if (!showDialog) return null;
 
