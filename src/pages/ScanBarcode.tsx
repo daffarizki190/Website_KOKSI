@@ -13,6 +13,7 @@ export const ScanBarcodeAdmin = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [camError, setCamError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(true);
+  const [scannerMode, setScannerMode] = useState<'pickup' | 'Menyiapkan' | 'Siap Diambil' | 'Selesai'>('pickup');
   const html5QrRef = useRef<Html5Qrcode | null>(null);
   const isScanningRef = useRef(false);
 
@@ -48,35 +49,55 @@ export const ScanBarcodeAdmin = () => {
 
             try {
               const authToken = token || localStorage.getItem('token');
-              const res = await fetch('/api/orders/pickup', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${authToken}`
-                },
-                body: JSON.stringify({ pickupToken: decodedText })
-              });
+              
+              if (scannerMode === 'pickup') {
+                const res = await fetch('/api/orders/pickup', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${authToken}`
+                  },
+                  body: JSON.stringify({ pickupToken: decodedText })
+                });
 
-              const data = await res.json();
-              if (res.ok) {
-                setScanResult({ type: 'success', message: data.message || 'Pesanan berhasil diselesaikan.', orderId: data.orderId });
-                toast.success(data.message || 'Berhasil verifikasi pengambilan!');
-                setTimeout(() => {
-                  setScanResult(null);
-                  isScanningRef.current = false;
-                  setIsProcessing(false);
-                  try { qr.resume(); } catch (_) {}
-                }, 4000);
+                const data = await res.json();
+                if (res.ok) {
+                  setScanResult({ type: 'success', message: data.message || 'Pesanan berhasil diselesaikan.', orderId: data.orderId });
+                  toast.success(data.message || 'Berhasil verifikasi pengambilan!');
+                } else {
+                  setScanResult({ type: 'error', message: data.error || 'Token tidak valid atau kadaluarsa.' });
+                  toast.error(data.error || 'Gagal memverifikasi token');
+                }
               } else {
-                setScanResult({ type: 'error', message: data.error || 'Token tidak valid atau kadaluarsa.' });
-                toast.error(data.error || 'Gagal memverifikasi token');
-                setTimeout(() => {
-                  setScanResult(null);
-                  isScanningRef.current = false;
-                  setIsProcessing(false);
-                  try { qr.resume(); } catch (_) {}
-                }, 3000);
+                // Update Status Mode (scanned text should be order ID)
+                const orderId = parseInt(decodedText, 10);
+                if (isNaN(orderId)) {
+                  setScanResult({ type: 'error', message: 'Barcode bukan Nomor Order yang valid!' });
+                  toast.error('Barcode bukan Nomor Order!');
+                } else {
+                  const targetStatus = scannerMode === 'Menyiapkan' ? 'Sedang Disiapkan' : scannerMode;
+                  const res = await fetch(`/api/orders/${orderId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+                    body: JSON.stringify({ status: targetStatus })
+                  });
+                  if (res.ok) {
+                    setScanResult({ type: 'success', message: `Status pesanan #${orderId} diubah menjadi ${targetStatus}`, orderId });
+                    toast.success(`Pesanan ${orderId} -> ${targetStatus}`);
+                  } else {
+                    const data = await res.json();
+                    setScanResult({ type: 'error', message: data.error || 'Gagal update status pesanan.' });
+                    toast.error(data.error || 'Gagal update status');
+                  }
+                }
               }
+              
+              setTimeout(() => {
+                setScanResult(null);
+                isScanningRef.current = false;
+                setIsProcessing(false);
+                try { qr.resume(); } catch (_) {}
+              }, 3000);
             } catch (err) {
               setScanResult({ type: 'error', message: 'Kesalahan koneksi ke server.' });
               toast.error('Kesalahan koneksi.');
@@ -137,6 +158,20 @@ export const ScanBarcodeAdmin = () => {
 
       {/* Camera area */}
       <div className="flex-1 flex flex-col items-center justify-center p-4 gap-4">
+
+        <div className="w-full max-w-sm bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col gap-2">
+          <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Mode Scanner</label>
+          <select
+            value={scannerMode}
+            onChange={(e: any) => setScannerMode(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-600 text-white text-sm font-semibold rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
+          >
+            <option value="pickup">Mode: Verifikasi Pengambilan (QR)</option>
+            <option value="Menyiapkan">Ubah Status ➔ Menyiapkan</option>
+            <option value="Siap Diambil">Ubah Status ➔ Siap Diambil</option>
+            <option value="Selesai">Ubah Status ➔ Selesai</option>
+          </select>
+        </div>
 
         {/* QR viewfinder */}
         <div className="relative w-full max-w-sm">
@@ -220,7 +255,9 @@ export const ScanBarcodeAdmin = () => {
         {/* Hint */}
         {!isStarting && !camError && !scanResult && (
           <p className="text-slate-400 text-xs text-center max-w-[260px]">
-            Posisikan QR Code anggota di dalam kotak. Scan otomatis berjalan.
+            {scannerMode === 'pickup' 
+              ? 'Posisikan QR Code token dari anggota di dalam kotak.'
+              : 'Posisikan kode batang (Barcode) Nomor Order di dalam kotak.'} Scan otomatis berjalan.
           </p>
         )}
       </div>
