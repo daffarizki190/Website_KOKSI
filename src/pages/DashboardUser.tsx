@@ -938,6 +938,17 @@ export const DashboardUser = () => {
                   <p className="text-slate-500 text-sm font-bold">Total Pembayaran</p>
                   <p className="text-lg font-black text-teal-800">Rp {cartTotal.toLocaleString('id-ID')}</p>
                 </div>
+                {cartTotal > 300000 && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl">
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-red-700 text-xs font-bold">Kelebihan Plafon ({'>'}300rb)</p>
+                      <p className="text-sm font-black text-red-700">Rp {(cartTotal - 300000).toLocaleString('id-ID')}</p>
+                    </div>
+                    <p className="text-[10px] text-red-500 italic leading-tight">
+                      *Note: Sisa tagihan di atas akan ditagihkan di luar sistem (metode pembayaran mandiri belum aktif).
+                    </p>
+                  </div>
+                )}
                 <button
                   onClick={() => setIsCheckoutConfirmOpen(true)}
                   disabled={cart.length === 0}
@@ -1335,7 +1346,20 @@ export const DashboardUser = () => {
                   Rp {(checkoutSuccessOrder.total_amount || 0).toLocaleString('id-ID')}
                 </span>
               </div>
-              <div className="flex justify-between items-center text-xs text-slate-500 font-semibold border-t border-slate-200/60 pt-2">
+              
+              {checkoutSuccessOrder.total_amount > 300000 && (
+                <div className="mt-2 p-2.5 bg-red-50 border border-red-100 rounded-lg">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-red-700 text-[11px] font-bold">Kelebihan ({'>'}300rb)</span>
+                    <span className="text-xs font-black text-red-700">Rp {(checkoutSuccessOrder.total_amount - 300000).toLocaleString('id-ID')}</span>
+                  </div>
+                  <p className="text-[9px] text-red-500 italic leading-tight">
+                    *Bayar mandiri untuk tagihan ini (pembayaran in-app belum aktif).
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center text-xs text-slate-500 font-semibold border-t border-slate-200/60 pt-2 mt-2">
                 <span>Status Pesanan</span>
                 <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg font-bold text-[11px]">
                   {checkoutSuccessOrder.status || 'Proses'}
