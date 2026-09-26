@@ -109,7 +109,11 @@ export const ScanBarcodeAdmin = () => {
       isScanningRef.current = true; // prevent new scans
       if (html5QrRef.current) {
         html5QrRef.current.stop().catch(() => {}).finally(() => {
-          html5QrRef.current?.clear().catch(() => {});
+          try {
+            html5QrRef.current?.clear();
+          } catch (e) {
+            // ignore
+          }
         });
       }
     };

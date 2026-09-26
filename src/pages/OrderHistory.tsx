@@ -145,83 +145,104 @@ function QRFullscreenModal({ token, expiresAt, orderId, isCompleted, onClose }: 
   // ── QR SCREEN (waiting for scan) ─────────────────────────────────────────
   return (
     <div
-      className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm"
+      className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-md"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
+      {/* Decorative background glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-teal-500/20 blur-[120px] rounded-full pointer-events-none" />
+
       {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+        className="absolute top-6 right-6 w-11 h-11 rounded-full bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all backdrop-blur-md shadow-lg z-50"
       >
         <X className="w-5 h-5" />
       </button>
 
-      {/* Card */}
-      <div className="flex flex-col items-center gap-6 px-6 max-w-sm w-full">
+      {/* Digital Pass Card */}
+      <div className="relative flex flex-col items-center p-8 max-w-sm w-full mx-6 bg-slate-800/80 backdrop-blur-xl border border-slate-700/50 rounded-[2.5rem] shadow-2xl">
+        
         {/* Header */}
-        <div className="text-center">
-          <div className="inline-flex items-center gap-2 bg-teal-500/20 border border-teal-500/30 rounded-full px-4 py-1.5 mb-3">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 bg-teal-500/10 border border-teal-500/20 rounded-full px-5 py-2 mb-4">
             <ScanLine className="w-4 h-4 text-teal-400" />
-            <span className="text-teal-300 text-xs font-bold uppercase tracking-wider">Barcode Pengambilan</span>
+            <span className="text-teal-400 text-xs font-bold uppercase tracking-[0.2em]">Barcode Pengambilan</span>
           </div>
-          <p className="text-white/50 text-xs font-medium">ID: {orderId}</p>
+          <p className="text-slate-400 text-[10px] font-medium uppercase tracking-[0.2em] mb-1">ID Pesanan</p>
+          <p className="text-white text-lg font-semibold tracking-wider">{orderId}</p>
         </div>
 
-        {/* QR Code */}
-        <div className={`relative p-5 rounded-3xl shadow-2xl transition-all ${
-          isExpired ? 'bg-red-50 border-2 border-red-400' :
-          isUrgent ? 'bg-amber-50 border-2 border-amber-400 animate-pulse' :
-          'bg-white border-2 border-teal-200'
+        {/* QR Code Container */}
+        <div className={`relative p-5 rounded-[2rem] transition-all duration-500 ${
+          isExpired ? 'bg-red-500/10 border-2 border-red-500/30 shadow-[0_0_30px_rgba(239,68,68,0.2)]' :
+          isUrgent ? 'bg-amber-500/10 border-2 border-amber-500/30 animate-pulse shadow-[0_0_30px_rgba(245,158,11,0.2)]' :
+          'bg-white shadow-[0_0_50px_rgba(20,184,166,0.3)]'
         }`}>
           {isExpired && (
-            <div className="absolute inset-0 bg-red-500/80 rounded-3xl flex flex-col items-center justify-center gap-2 z-10">
-              <ShieldAlert className="w-12 h-12 text-white" />
-              <p className="text-white font-bold text-sm">Barcode Kadaluarsa</p>
+            <div className="absolute inset-0 bg-slate-900/90 rounded-[2rem] flex flex-col items-center justify-center gap-3 z-10 backdrop-blur-sm">
+              <ShieldAlert className="w-12 h-12 text-red-500" />
+              <p className="text-red-400 font-bold text-sm tracking-widest uppercase">Kadaluarsa</p>
             </div>
           )}
-          <QRCodeSVG
-            value={token}
-            size={240}
-            level="H"
-            includeMargin={false}
-            fgColor={isExpired ? '#ef4444' : '#134e4a'}
-          />
+          <div className="bg-white p-2 rounded-2xl relative z-0">
+            <QRCodeSVG
+              value={token}
+              size={220}
+              level="H"
+              includeMargin={false}
+              fgColor={isExpired ? '#ef4444' : '#0f172a'}
+            />
+          </div>
+          
+          {/* Futuristic Scan Corners */}
+          {!isExpired && (
+            <>
+              <div className="absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] border-teal-500 rounded-tl-[2rem] -translate-x-1 -translate-y-1"></div>
+              <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-teal-500 rounded-tr-[2rem] translate-x-1 -translate-y-1"></div>
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-teal-500 rounded-bl-[2rem] -translate-x-1 translate-y-1"></div>
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] border-teal-500 rounded-br-[2rem] translate-x-1 translate-y-1"></div>
+            </>
+          )}
+        </div>
+
+        {/* Info Text */}
+        <div className="text-center mt-8 mb-6">
+          <p className="text-slate-400 text-xs font-medium leading-relaxed max-w-[240px]">
+            Tunjukkan QR Code ini kepada Karyawan saat pengambilan. Barcode hanya dapat digunakan <strong className="text-white">1 kali</strong>.
+          </p>
         </div>
 
         {/* Timer */}
         {expiresAt && (
-          <div className={`flex items-center gap-3 px-5 py-3 rounded-2xl ${
-            isExpired ? 'bg-red-500/20 border border-red-500/40' :
-            isUrgent ? 'bg-amber-500/20 border border-amber-500/40' :
-            'bg-white/10 border border-white/20'
+          <div className={`w-full flex items-center justify-between px-6 py-4 rounded-2xl transition-colors duration-300 ${
+            isExpired ? 'bg-red-500/10 border border-red-500/20' :
+            isUrgent ? 'bg-amber-500/10 border border-amber-500/20' :
+            'bg-slate-900/50 border border-slate-700/50 shadow-inner'
           }`}>
-            <Timer className={`w-5 h-5 ${
-              isExpired ? 'text-red-400' : isUrgent ? 'text-amber-400' : 'text-teal-400'
-            }`} />
-            <div>
-              <p className="text-white/50 text-[10px] uppercase tracking-widest font-bold">Berlaku sampai</p>
-              {secondsLeft !== null ? (
-                <p className={`font-black text-xl tabular-nums tracking-tight ${
-                  isExpired ? 'text-red-400' : isUrgent ? 'text-amber-300' : 'text-white'
-                }`}>
-                  {isExpired ? 'KADALUARSA' : formatTime(secondsLeft)}
+            <div className="flex items-center gap-3">
+              <Timer className={`w-5 h-5 ${
+                isExpired ? 'text-red-400' : isUrgent ? 'text-amber-400' : 'text-teal-400'
+              }`} />
+              <div className="flex flex-col text-left">
+                <p className="text-slate-400 text-[10px] uppercase tracking-[0.2em] font-bold">
+                  {isExpired ? 'Status' : 'Waktu Tersisa'}
                 </p>
-              ) : (
-                <p className="text-white font-bold text-sm">
-                  {format(new Date(expiresAt), 'dd MMM yyyy, HH:mm', { locale: id })}
-                </p>
-              )}
+                {secondsLeft === null && (
+                  <p className="text-white text-xs font-semibold mt-0.5">
+                    {format(new Date(expiresAt), 'HH:mm', { locale: id })}
+                  </p>
+                )}
+              </div>
             </div>
+            {secondsLeft !== null && (
+              <p className={`font-black text-lg tabular-nums tracking-widest ${
+                isExpired ? 'text-red-400' : isUrgent ? 'text-amber-400' : 'text-white'
+              }`}>
+                {isExpired ? 'HABIS' : formatTime(secondsLeft)}
+              </p>
+            )}
           </div>
         )}
-
-        {/* Info */}
-        <div className="text-center">
-          <p className="text-white/40 text-xs leading-relaxed max-w-[260px]">
-            Tunjukkan kepada petugas Koperasi saat pengambilan.
-            Barcode hanya dapat digunakan <strong className="text-white/60">1 kali</strong>.
-          </p>
-        </div>
       </div>
     </div>
   );
