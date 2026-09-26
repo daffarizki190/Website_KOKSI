@@ -99,55 +99,51 @@ function QRFullscreenModal({ token, expiresAt, orderId, isCompleted, onClose }: 
         <div className="relative flex flex-col items-center gap-6 px-8 max-w-sm w-full text-center">
           {/* Big check icon */}
           <div className="relative">
-            <div className="w-28 h-28 bg-teal-400/20 rounded-full flex items-center justify-center border-2 border-teal-400/40 shadow-2xl shadow-teal-500/30">
-              <div className="w-20 h-20 bg-gradient-to-br from-teal-400 to-emerald-500 rounded-full flex items-center justify-center shadow-xl">
-                <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <div className="w-24 h-24 bg-teal-500/20 rounded-full flex items-center justify-center border-2 border-teal-500/40">
+              <div className="w-16 h-16 bg-teal-500 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
             </div>
-            {/* Star badges */}
-            <div className="absolute -top-1 -right-1 w-7 h-7 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg">
-              <span className="text-xs">⭐</span>
-            </div>
           </div>
 
           {/* Title */}
-          <div>
-            <p className="text-teal-300 text-xs font-bold uppercase tracking-[0.25em] mb-2">✦ Pesanan Selesai ✦</p>
-            <h2 className="text-white font-black text-3xl leading-tight mb-2">
-              Terima Kasih! 🎉
+          <div className="text-center">
+            <p className="text-teal-400 text-xs font-bold uppercase tracking-widest mb-1.5">Pesanan Selesai</p>
+            <h2 className="text-white font-extrabold text-2xl leading-tight mb-1.5">
+              Terima Kasih
             </h2>
-            <p className="text-emerald-300 font-semibold text-base">
+            <p className="text-teal-100/90 font-medium text-sm">
               Pesanan Anda Berhasil Diambil
             </p>
           </div>
 
           {/* Card info */}
-          <div className="w-full bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-5 space-y-3">
+          <div className="w-full bg-slate-900/40 border border-white/10 rounded-xl p-5 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-teal-500/30 rounded-lg flex items-center justify-center">
-                <Package className="w-4 h-4 text-teal-300" />
+              <div className="w-8 h-8 bg-slate-800 rounded-lg flex items-center justify-center">
+                <Package className="w-4 h-4 text-slate-300" />
               </div>
               <div className="text-left">
-                <p className="text-white/50 text-[10px] uppercase tracking-widest font-bold">ID Pesanan</p>
-                <p className="text-white font-bold text-sm">{orderId}</p>
+                <p className="text-slate-400 text-[10px] uppercase tracking-wider font-bold">ID Pesanan</p>
+                <p className="text-white font-medium text-sm">{orderId}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-teal-500/30 rounded-lg flex items-center justify-center">
-                <ShieldCheck className="w-4 h-4 text-teal-300" />
+              <div className="w-8 h-8 bg-slate-800 rounded-lg flex items-center justify-center">
+                <ShieldCheck className="w-4 h-4 text-slate-300" />
               </div>
               <div className="text-left">
-                <p className="text-white/50 text-[10px] uppercase tracking-widest font-bold">Waktu Pengambilan</p>
-                <p className="text-white font-bold text-sm">{format(new Date(), 'dd MMM yyyy, HH:mm', { locale: id })}</p>
+                <p className="text-slate-400 text-[10px] uppercase tracking-wider font-bold">Waktu Pengambilan</p>
+                <p className="text-white font-medium text-sm">{format(new Date(), 'dd MMM yyyy, HH:mm', { locale: id })}</p>
               </div>
             </div>
           </div>
 
           {/* Message */}
-          <p className="text-white/50 text-xs leading-relaxed max-w-[260px]">
-            Semoga produk dari Koperasi BelanjaIn Saza bermanfaat untuk Anda. Sampai jumpa di pesanan berikutnya! 👋
+          <p className="text-slate-400 text-xs leading-relaxed max-w-[280px]">
+            Semoga produk dari Koperasi BelanjaIn Saza bermanfaat untuk Anda.
           </p>
 
           {/* Auto close countdown */}
