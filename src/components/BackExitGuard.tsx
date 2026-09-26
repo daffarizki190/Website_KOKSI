@@ -33,10 +33,9 @@ export const BackExitGuard: React.FC = () => {
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
       if (e.state && e.state._appFloor) {
-        // Kita hit lantai. Segera dorong state baru agar tidak benar-benar keluar
-        window.history.pushState({ ...e.state, _hasFloor: true }, "");
-        
         if (!PUBLIC_PATHS.includes(window.location.pathname)) {
+          // Jangan pushState di sini karena Chrome akan memblokirnya jika berulang
+          // tanpa interaksi user. Kita hanya tampilkan dialog.
           setShowDialog(true);
         }
       }
@@ -83,6 +82,9 @@ export const BackExitGuard: React.FC = () => {
 
   const handleCancel = () => {
     setShowDialog(false);
+    // Setelah user berinteraksi (klik Batal), kita dorong state baru 
+    // agar back button berikutnya bisa ditangkap lagi.
+    window.history.pushState({ ...window.history.state, _hasFloor: true }, "");
   };
 
   if (hasExited) {
