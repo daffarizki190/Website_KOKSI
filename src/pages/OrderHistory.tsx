@@ -36,16 +36,19 @@ interface Order {
 }
 
 // ─── QR Fullscreen Modal ──────────────────────────────────────────────────
-function QRFullscreenModal({ token, expiresAt, orderId, onClose }: {
+function QRFullscreenModal({ token, expiresAt, orderId, isCompleted, onClose }: {
   token: string;
   expiresAt?: string;
   orderId: string;
+  isCompleted?: boolean;
   onClose: () => void;
 }) {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [autoCloseLeft, setAutoCloseLeft] = useState(8);
 
+  // Countdown timer for QR expiry
   useEffect(() => {
-    if (!expiresAt) return;
+    if (!expiresAt || isCompleted) return;
     const calc = () => {
       const diff = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
       setSecondsLeft(diff);
@@ -53,7 +56,20 @@ function QRFullscreenModal({ token, expiresAt, orderId, onClose }: {
     calc();
     const iv = setInterval(calc, 1000);
     return () => clearInterval(iv);
-  }, [expiresAt]);
+  }, [expiresAt, isCompleted]);
+
+  // Auto-close after 8s when completed
+  useEffect(() => {
+    if (!isCompleted) return;
+    setAutoCloseLeft(8);
+    const iv = setInterval(() => {
+      setAutoCloseLeft(prev => {
+        if (prev <= 1) { onClose(); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [isCompleted, onClose]);
 
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600);
@@ -66,6 +82,88 @@ function QRFullscreenModal({ token, expiresAt, orderId, onClose }: {
   const isExpired = secondsLeft !== null && secondsLeft <= 0;
   const isUrgent = secondsLeft !== null && secondsLeft <= 300;
 
+  // ── SUCCESS SCREEN (after scan) ─────────────────────────────────────────
+  if (isCompleted) {
+    return (
+      <div className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-gradient-to-br from-teal-900 via-emerald-900 to-slate-900 overflow-hidden">
+        {/* Decorative rings */}
+        <div className="absolute w-[500px] h-[500px] rounded-full border border-teal-500/10 animate-ping" style={{ animationDuration: '3s' }} />
+        <div className="absolute w-[350px] h-[350px] rounded-full border border-emerald-400/15 animate-ping" style={{ animationDuration: '2s', animationDelay: '0.5s' }} />
+        <div className="absolute w-[200px] h-[200px] rounded-full border border-teal-300/20 animate-ping" style={{ animationDuration: '1.5s', animationDelay: '0.25s' }} />
+
+        {/* Floating sparkles */}
+        {['top-1/4 left-1/4', 'top-1/3 right-1/4', 'bottom-1/3 left-1/3', 'top-1/2 right-1/5', 'bottom-1/4 right-1/3'].map((pos, i) => (
+          <div key={i} className={`absolute ${pos} w-2 h-2 bg-teal-400 rounded-full animate-bounce opacity-60`} style={{ animationDelay: `${i * 0.2}s` }} />
+        ))}
+
+        <div className="relative flex flex-col items-center gap-6 px-8 max-w-sm w-full text-center">
+          {/* Big check icon */}
+          <div className="relative">
+            <div className="w-28 h-28 bg-teal-400/20 rounded-full flex items-center justify-center border-2 border-teal-400/40 shadow-2xl shadow-teal-500/30">
+              <div className="w-20 h-20 bg-gradient-to-br from-teal-400 to-emerald-500 rounded-full flex items-center justify-center shadow-xl">
+                <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+            {/* Star badges */}
+            <div className="absolute -top-1 -right-1 w-7 h-7 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg">
+              <span className="text-xs">⭐</span>
+            </div>
+          </div>
+
+          {/* Title */}
+          <div>
+            <p className="text-teal-300 text-xs font-bold uppercase tracking-[0.25em] mb-2">✦ Pesanan Selesai ✦</p>
+            <h2 className="text-white font-black text-3xl leading-tight mb-2">
+              Terima Kasih! 🎉
+            </h2>
+            <p className="text-emerald-300 font-semibold text-base">
+              Pesanan Anda Berhasil Diambil
+            </p>
+          </div>
+
+          {/* Card info */}
+          <div className="w-full bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-5 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-teal-500/30 rounded-lg flex items-center justify-center">
+                <Package className="w-4 h-4 text-teal-300" />
+              </div>
+              <div className="text-left">
+                <p className="text-white/50 text-[10px] uppercase tracking-widest font-bold">ID Pesanan</p>
+                <p className="text-white font-bold text-sm">{orderId}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-teal-500/30 rounded-lg flex items-center justify-center">
+                <ShieldCheck className="w-4 h-4 text-teal-300" />
+              </div>
+              <div className="text-left">
+                <p className="text-white/50 text-[10px] uppercase tracking-widest font-bold">Waktu Pengambilan</p>
+                <p className="text-white font-bold text-sm">{format(new Date(), 'dd MMM yyyy, HH:mm', { locale: id })}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Message */}
+          <p className="text-white/50 text-xs leading-relaxed max-w-[260px]">
+            Semoga produk dari Koperasi BelanjaIn Saza bermanfaat untuk Anda. Sampai jumpa di pesanan berikutnya! 👋
+          </p>
+
+          {/* Auto close countdown */}
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-white/15 hover:bg-white/25 text-white font-bold rounded-2xl transition-colors border border-white/20 text-sm flex items-center justify-center gap-2"
+          >
+            <X className="w-4 h-4" />
+            Tutup otomatis dalam {autoCloseLeft} detik
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── QR SCREEN (waiting for scan) ─────────────────────────────────────────
   return (
     <div
       className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm"
@@ -171,7 +269,7 @@ export default function OrderHistory() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [qrModal, setQrModal] = useState<{ token: string; expiresAt?: string; orderId: string } | null>(null);
+  const [qrModal, setQrModal] = useState<{ token: string; expiresAt?: string; orderId: string; orderNumId: number } | null>(null);
 
   const navigate = useNavigate();
 
@@ -255,14 +353,19 @@ export default function OrderHistory() {
   return (
     <>
     {/* QR Fullscreen Modal */}
-    {qrModal && (
-      <QRFullscreenModal
-        token={qrModal.token}
-        expiresAt={qrModal.expiresAt}
-        orderId={qrModal.orderId}
-        onClose={() => setQrModal(null)}
-      />
-    )}
+    {qrModal && (() => {
+      const liveOrder = orders.find(o => o.id === qrModal.orderNumId);
+      const isCompleted = liveOrder?.status === 'Selesai' || (!liveOrder?.pickupToken && liveOrder !== undefined);
+      return (
+        <QRFullscreenModal
+          token={qrModal.token}
+          expiresAt={qrModal.expiresAt}
+          orderId={qrModal.orderId}
+          isCompleted={isCompleted}
+          onClose={() => setQrModal(null)}
+        />
+      );
+    })()}
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col w-full max-w-full overflow-x-hidden">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shrink-0 w-full max-w-full">
@@ -481,7 +584,8 @@ export default function OrderHistory() {
                         onClick={() => setQrModal({
                           token: order.pickupToken!,
                           expiresAt: order.pickupTokenExpiresAt,
-                          orderId: getDisplayOrderId(order.id, order.createdAt)
+                          orderId: getDisplayOrderId(order.id, order.createdAt),
+                          orderNumId: order.id
                         })}
                         className="mt-4 w-full group relative overflow-hidden rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-teal-600/30 cursor-pointer"
                       >
