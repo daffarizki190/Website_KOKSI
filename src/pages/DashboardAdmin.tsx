@@ -107,11 +107,15 @@ export const DashboardAdmin = () => {
   // Orders state
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
-  const [scannerMode, setScannerMode] = useState<'detail' | 'proses' | 'siap' | 'selesai'>('detail');
+  const [scannerMode, setScannerMode] = useState<'detail' | 'proses' | 'pengiriman' | 'siap'>('detail');
   
   useBarcodeScanner({
     onScan: (barcode) => {
-      const orderId = parseInt(barcode, 10);
+      let orderIdStr = barcode;
+      if (barcode.startsWith('KOKSI-')) {
+        orderIdStr = barcode.substring(6);
+      }
+      const orderId = parseInt(orderIdStr, 10);
       if (isNaN(orderId)) return;
       
       const order = orders.find(o => o.id === orderId);
@@ -126,9 +130,9 @@ export const DashboardAdmin = () => {
         setNewKeteranganValue(order.keterangan || '');
       } else {
         let targetStatus = '';
-        if (scannerMode === 'proses') targetStatus = 'Sedang Disiapkan';
+        if (scannerMode === 'proses') targetStatus = 'Menyiapkan Pesanan';
+        if (scannerMode === 'pengiriman') targetStatus = 'Pengiriman';
         if (scannerMode === 'siap') targetStatus = 'Siap Diambil';
-        if (scannerMode === 'selesai') targetStatus = 'Selesai';
         
         handleUpdateStatusScanner(order.id, targetStatus);
       }
@@ -154,7 +158,7 @@ export const DashboardAdmin = () => {
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('Semua');
   const [orderPtFilter, setOrderPtFilter] = useState('Semua');
-  const [orderPeriodFilter, setOrderPeriodFilter] = useState('Minggu Ini');
+  const [orderPeriodFilter, setOrderPeriodFilter] = useState(format(new Date(), "RRRR-'W'II"));
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const [printingOrderId, setPrintingOrderId] = useState<number | null>(null);
@@ -742,20 +746,11 @@ export const DashboardAdmin = () => {
       const matchStatus = orderStatusFilter === 'Semua' || (order.status || 'Menunggu Konfirmasi').toLowerCase() === orderStatusFilter.toLowerCase();
       const matchPt = orderPtFilter === 'Semua' || (order.user?.pt || '').toLowerCase() === orderPtFilter.toLowerCase();
       const matchPeriod = (() => {
-        if (orderPeriodFilter === 'Semua') return true;
+        if (!orderPeriodFilter) return true;
         try {
           const d = new Date(order.createdAt);
-          const now = new Date();
-          if (orderPeriodFilter === 'Minggu Ini') {
-            const start = startOfWeek(now, { weekStartsOn: 1 }); // Monday
-            const end = endOfWeek(now, { weekStartsOn: 1 });
-            return d >= start && d <= end;
-          } else if (orderPeriodFilter === 'Bulan Ini') {
-            const start = startOfMonth(now);
-            const end = endOfMonth(now);
-            return d >= start && d <= end;
-          }
-          return true;
+          const orderWeek = format(d, "RRRR-'W'II");
+          return orderWeek === orderPeriodFilter;
         } catch (e) {
           return true;
         }
@@ -781,7 +776,7 @@ export const DashboardAdmin = () => {
 
     const totalNominal = filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
     const filterParts: string[] = [];
-    if (orderPeriodFilter !== 'Semua') filterParts.push(`Periode: "${orderPeriodFilter}"`);
+    if (orderPeriodFilter) filterParts.push(`Periode: Minggu ${orderPeriodFilter}`);
     if (orderStatusFilter !== 'Semua') filterParts.push(`Status: "${orderStatusFilter}"`);
     if (orderPtFilter !== 'Semua') filterParts.push(`PT: "${orderPtFilter}"`);
     if (orderSearch.trim()) filterParts.push(`Pencarian: "${orderSearch.trim()}"`);
@@ -2464,17 +2459,23 @@ export const DashboardAdmin = () => {
                 )}
 
                 {/* Filter Tanggal/Periode */}
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl shadow-sm" title="Filter berdasarkan periode transaksi">
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl shadow-sm relative group" title="Pilih Minggu Transaksi">
                   <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                  <select
+                  <input
+                    type="week"
                     value={orderPeriodFilter}
                     onChange={(e) => setOrderPeriodFilter(e.target.value)}
-                    className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
-                  >
-                    <option value="Minggu Ini">Minggu Ini</option>
-                    <option value="Bulan Ini">Bulan Ini</option>
-                    <option value="Semua">Semua Waktu</option>
-                  </select>
+                    className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer w-32"
+                  />
+                  {orderPeriodFilter && (
+                    <button 
+                      onClick={() => setOrderPeriodFilter('')} 
+                      className="text-slate-400 hover:text-rose-500 absolute -right-2 -top-2 bg-white rounded-full shadow-sm border border-slate-200 w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Tampilkan Semua Waktu"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
 
                 <select
@@ -2513,8 +2514,8 @@ export const DashboardAdmin = () => {
                   >
                     <option value="detail">Mode: Lihat Detail</option>
                     <option value="proses">Ubah ➔ Menyiapkan</option>
+                    <option value="pengiriman">Ubah ➔ Pengiriman</option>
                     <option value="siap">Ubah ➔ Siap Diambil</option>
-                    <option value="selesai">Ubah ➔ Selesai</option>
                   </select>
                 </div>
 
@@ -2579,9 +2580,9 @@ export const DashboardAdmin = () => {
 
                       {/* Filter Badges Display */}
                       <div className="flex items-center justify-center gap-2 flex-wrap mb-6">
-                        {orderPeriodFilter !== 'Semua' && (
+                        {orderPeriodFilter && (
                           <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-lg border border-slate-200">
-                            Periode: <span className="text-teal-700">{orderPeriodFilter}</span>
+                            Minggu: <span className="text-teal-700">{orderPeriodFilter}</span>
                           </span>
                         )}
                         {orderStatusFilter !== 'Semua' && (
@@ -2603,7 +2604,7 @@ export const DashboardAdmin = () => {
 
                       <button
                         onClick={() => {
-                          setOrderPeriodFilter('Semua');
+                          setOrderPeriodFilter(format(new Date(), "RRRR-'W'II"));
                           setOrderStatusFilter('Semua');
                           setOrderPtFilter('Semua');
                           setOrderSearch('');
@@ -2648,7 +2649,7 @@ export const DashboardAdmin = () => {
                             </div>
                           </div>
                           <div className="hidden sm:block bg-white px-2 py-1 rounded border border-slate-100 shadow-sm">
-                            <Barcode value={order.id.toString().padStart(6, '0')} width={1} height={25} fontSize={10} displayValue={false} margin={0} background="transparent" />
+                            <Barcode value={`KOKSI-${order.id}`} width={1.8} height={40} fontSize={0} displayValue={false} text=" " margin={10} background="transparent" />
                           </div>
                         </div>
 
@@ -2783,8 +2784,8 @@ export const DashboardAdmin = () => {
                           <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 w-full">
                             {/* Interactive Visual Stepper */}
                             <div className="flex items-center space-x-1.5 sm:space-x-2 w-full overflow-x-auto pb-1 scrollbar-hide">
-                              {['Proses', 'Menyiapkan Pesanan', 'Pengiriman', 'Siap Diambil', 'Selesai'].map((stage, idx) => {
-                                const currentIdx = ['Proses', 'Menyiapkan Pesanan', 'Pengiriman', 'Siap Diambil', 'Selesai'].indexOf(order.status);
+                              {['Proses', 'Menyiapkan Pesanan', 'Pengiriman', 'Siap Diambil'].map((stage, idx) => {
+                                const currentIdx = ['Proses', 'Menyiapkan Pesanan', 'Pengiriman', 'Siap Diambil'].indexOf(order.status);
                                 const isActive = order.status === stage;
                                 const isPast = currentIdx >= idx;
                                 
@@ -2797,8 +2798,7 @@ export const DashboardAdmin = () => {
                                       stage === 'Proses' ? 'Pesanan sedang diproses' :
                                       stage === 'Menyiapkan Pesanan' ? 'Admin sedang menyiapkan barang' :
                                       stage === 'Pengiriman' ? 'Pesanan dalam pengiriman' :
-                                      stage === 'Siap Diambil' ? 'Pesanan siap diambil' :
-                                      'Pesanan telah selesai diserahkan'
+                                      'Pesanan siap diambil'
                                     )}
                                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-bold transition-all shadow-sm border whitespace-nowrap ${
                                       isActive 
@@ -2894,7 +2894,7 @@ export const DashboardAdmin = () => {
                               <div className="flex"><span className="w-16">No. HP</span><span className="mr-2">:</span> <span>{order.user?.no_hp || '-'}</span></div>
                             </div>
                             <div className="text-right">
-                              <Barcode value={order.id.toString().padStart(6, '0')} width={2} height={50} displayValue={false} margin={0} />
+                              <Barcode value={`KOKSI-${order.id}`} width={2} height={60} fontSize={0} displayValue={false} text=" " margin={10} background="transparent" />
                             </div>
                           </div>
                           <div className="border-b-2 border-dashed border-black my-4"></div>

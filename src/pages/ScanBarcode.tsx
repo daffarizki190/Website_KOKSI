@@ -13,7 +13,7 @@ export const ScanBarcodeAdmin = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [camError, setCamError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(true);
-  const [scannerMode, setScannerMode] = useState<'pickup' | 'Menyiapkan' | 'Diantar' | 'Siap Diambil'>('pickup');
+  const [scannerMode, setScannerMode] = useState<'pickup' | 'Menyiapkan' | 'Pengiriman' | 'Siap Diambil'>('pickup');
   const html5QrRef = useRef<Html5Qrcode | null>(null);
   const isScanningRef = useRef(false);
   const scannerModeRef = useRef(scannerMode);
@@ -76,12 +76,16 @@ export const ScanBarcodeAdmin = () => {
                 }
               } else {
                 // Update Status Mode (scanned text should be order ID)
-                const orderId = parseInt(decodedText, 10);
+                let orderIdStr = decodedText;
+                if (decodedText.startsWith('KOKSI-')) {
+                  orderIdStr = decodedText.substring(6);
+                }
+                const orderId = parseInt(orderIdStr, 10);
                 if (isNaN(orderId)) {
                   setScanResult({ type: 'error', message: 'Barcode bukan Nomor Order yang valid!' });
                   toast.error('Barcode bukan Nomor Order!');
                 } else {
-                  const targetStatus = currentMode === 'Menyiapkan' ? 'Sedang Disiapkan' : currentMode;
+                  const targetStatus = currentMode === 'Menyiapkan' ? 'Menyiapkan Pesanan' : currentMode;
                   const res = await fetch(`/api/orders/${orderId}/status`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
@@ -174,7 +178,7 @@ export const ScanBarcodeAdmin = () => {
           >
             <option value="pickup">Mode: Verifikasi Pengambilan (QR)</option>
             <option value="Menyiapkan">Ubah Status ➔ Menyiapkan</option>
-            <option value="Diantar">Ubah Status ➔ Diantar</option>
+            <option value="Pengiriman">Ubah Status ➔ Pengiriman</option>
             <option value="Siap Diambil">Ubah Status ➔ Siap Diambil</option>
           </select>
         </div>
