@@ -127,7 +127,7 @@ function QRFullscreenModal({ token, expiresAt, orderId, isCompleted, onClose }: 
 
           {/* Footer Message */}
           <p className="text-white/60 text-xs font-medium leading-relaxed max-w-[260px] text-center mt-2">
-            Semoga produk dari KOKSI bermanfaat untuk Anda.
+            Terima kasih telah mempercayakan kebutuhan Anda di KOKSI.
           </p>
 
           {/* Auto close countdown */}
