@@ -2631,13 +2631,18 @@ export const DashboardAdmin = () => {
 
                         <div className="hidden sm:block w-px h-8 bg-slate-200"></div>
 
-                        <div>
-                          <p className="text-xs font-extrabold text-slate-900">{order.user?.nama || 'Pengguna Dihapus'}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="px-2 py-0.5 bg-teal-50 text-teal-800 font-bold text-[10px] rounded-md border border-teal-200">
-                              {order.user?.pt || 'PT. Siemens Indonesia'}
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-medium">{order.user?.departemen || '-'}</span>
+                        <div className="flex items-center gap-4">
+                          <div>
+                            <p className="text-xs font-extrabold text-slate-900">{order.user?.nama || 'Pengguna Dihapus'}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="px-2 py-0.5 bg-teal-50 text-teal-800 font-bold text-[10px] rounded-md border border-teal-200">
+                                {order.user?.pt || 'PT. Siemens Indonesia'}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-medium">{order.user?.departemen || '-'}</span>
+                            </div>
+                          </div>
+                          <div className="hidden sm:block bg-white px-2 py-1 rounded border border-slate-100 shadow-sm">
+                            <Barcode value={order.id.toString()} width={1} height={25} fontSize={10} displayValue={true} margin={0} background="transparent" />
                           </div>
                         </div>
 
