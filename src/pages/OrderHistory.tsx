@@ -382,9 +382,9 @@ export default function OrderHistory() {
               // Update local orders list (so the background UI updates too)
               setOrders(prev => prev.map(o => o.id === numId ? { ...o, pickupToken: data.token, pickupTokenExpiresAt: data.expiresAt } : o));
               
-              toast({ title: "Berhasil", message: "Barcode telah diperbarui.", type: "success" });
+              toast.success("Barcode telah diperbarui.", "Berhasil");
             } catch (err: any) {
-              toast({ title: "Gagal", message: err.message, type: "error" });
+              toast.error(err.message, "Gagal");
             }
           }}
         />
