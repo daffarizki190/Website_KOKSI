@@ -143,7 +143,7 @@ function QRFullscreenModal({ token, expiresAt, orderId, isCompleted, onClose }: 
 
           {/* Message */}
           <p className="text-slate-400 text-xs leading-relaxed max-w-[280px]">
-            Semoga produk dari Koperasi BelanjaIn Saza bermanfaat untuk Anda.
+            Semoga produk dari KOKSI bermanfaat untuk Anda.
           </p>
 
           {/* Auto close countdown */}
