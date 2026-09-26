@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingBag, ArrowLeft, Loader2, Package, Search, X, CheckCircle2, AlertTriangle, AlertCircle, ShoppingCart, ShieldCheck, Clock, ArrowRight, RefreshCw, RotateCcw, XCircle, ScanLine } from 'lucide-react';
-import { format } from 'date-fns';
+import { ShoppingBag, ArrowLeft, Loader2, Package, X, ShoppingCart, ShieldCheck, Clock, ArrowRight, RefreshCw, XCircle, ScanLine, QrCode, Timer, ShieldAlert, Maximize2 } from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useAuth } from '../contexts/AuthContext';
 import { getDisplayOrderId } from '../utils/format';
@@ -35,6 +35,122 @@ interface Order {
   items: OrderItem[];
 }
 
+// ─── QR Fullscreen Modal ──────────────────────────────────────────────────
+function QRFullscreenModal({ token, expiresAt, orderId, onClose }: {
+  token: string;
+  expiresAt?: string;
+  orderId: string;
+  onClose: () => void;
+}) {
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const calc = () => {
+      const diff = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
+      setSecondsLeft(diff);
+    };
+    calc();
+    const iv = setInterval(calc, 1000);
+    return () => clearInterval(iv);
+  }, [expiresAt]);
+
+  const formatTime = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}j ${m.toString().padStart(2,'0')}m ${sec.toString().padStart(2,'0')}d`;
+    return `${m.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`;
+  };
+
+  const isExpired = secondsLeft !== null && secondsLeft <= 0;
+  const isUrgent = secondsLeft !== null && secondsLeft <= 300;
+
+  return (
+    <div
+      className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+      >
+        <X className="w-5 h-5" />
+      </button>
+
+      {/* Card */}
+      <div className="flex flex-col items-center gap-6 px-6 max-w-sm w-full">
+        {/* Header */}
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 bg-teal-500/20 border border-teal-500/30 rounded-full px-4 py-1.5 mb-3">
+            <ScanLine className="w-4 h-4 text-teal-400" />
+            <span className="text-teal-300 text-xs font-bold uppercase tracking-wider">Barcode Pengambilan</span>
+          </div>
+          <p className="text-white/50 text-xs font-medium">ID: {orderId}</p>
+        </div>
+
+        {/* QR Code */}
+        <div className={`relative p-5 rounded-3xl shadow-2xl transition-all ${
+          isExpired ? 'bg-red-50 border-2 border-red-400' :
+          isUrgent ? 'bg-amber-50 border-2 border-amber-400 animate-pulse' :
+          'bg-white border-2 border-teal-200'
+        }`}>
+          {isExpired && (
+            <div className="absolute inset-0 bg-red-500/80 rounded-3xl flex flex-col items-center justify-center gap-2 z-10">
+              <ShieldAlert className="w-12 h-12 text-white" />
+              <p className="text-white font-bold text-sm">Barcode Kadaluarsa</p>
+            </div>
+          )}
+          <QRCodeSVG
+            value={token}
+            size={240}
+            level="H"
+            includeMargin={false}
+            fgColor={isExpired ? '#ef4444' : '#134e4a'}
+          />
+        </div>
+
+        {/* Timer */}
+        {expiresAt && (
+          <div className={`flex items-center gap-3 px-5 py-3 rounded-2xl ${
+            isExpired ? 'bg-red-500/20 border border-red-500/40' :
+            isUrgent ? 'bg-amber-500/20 border border-amber-500/40' :
+            'bg-white/10 border border-white/20'
+          }`}>
+            <Timer className={`w-5 h-5 ${
+              isExpired ? 'text-red-400' : isUrgent ? 'text-amber-400' : 'text-teal-400'
+            }`} />
+            <div>
+              <p className="text-white/50 text-[10px] uppercase tracking-widest font-bold">Berlaku sampai</p>
+              {secondsLeft !== null ? (
+                <p className={`font-black text-xl tabular-nums tracking-tight ${
+                  isExpired ? 'text-red-400' : isUrgent ? 'text-amber-300' : 'text-white'
+                }`}>
+                  {isExpired ? 'KADALUARSA' : formatTime(secondsLeft)}
+                </p>
+              ) : (
+                <p className="text-white font-bold text-sm">
+                  {format(new Date(expiresAt), 'dd MMM yyyy, HH:mm', { locale: id })}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Info */}
+        <div className="text-center">
+          <p className="text-white/40 text-xs leading-relaxed max-w-[260px]">
+            Tunjukkan kepada petugas Koperasi saat pengambilan.
+            Barcode hanya dapat digunakan <strong className="text-white/60">1 kali</strong>.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────
 export default function OrderHistory() {
   const { token, user } = useAuth();
   const { toast } = useNotification();
@@ -55,6 +171,7 @@ export default function OrderHistory() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [qrModal, setQrModal] = useState<{ token: string; expiresAt?: string; orderId: string } | null>(null);
 
   const navigate = useNavigate();
 
@@ -136,6 +253,16 @@ export default function OrderHistory() {
   };
 
   return (
+    <>
+    {/* QR Fullscreen Modal */}
+    {qrModal && (
+      <QRFullscreenModal
+        token={qrModal.token}
+        expiresAt={qrModal.expiresAt}
+        orderId={qrModal.orderId}
+        onClose={() => setQrModal(null)}
+      />
+    )}
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col w-full max-w-full overflow-x-hidden">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shrink-0 w-full max-w-full">
@@ -350,18 +477,30 @@ export default function OrderHistory() {
                     )}
 
                     {(order.status === 'Siap Diambil' || order.status === 'Siap di ambil' || order.status === 'Siap Di Ambil') && order.pickupToken && (
-                      <div className="mt-6 flex flex-col items-center bg-white p-6 rounded-2xl border-2 border-dashed border-teal-200">
-                        <div className="flex items-center gap-2 mb-4">
-                          <ScanLine className="w-5 h-5 text-teal-600" />
-                          <h5 className="font-bold text-teal-900 text-sm uppercase tracking-wide">Gunakan Barcode Ini</h5>
+                      <button
+                        onClick={() => setQrModal({
+                          token: order.pickupToken!,
+                          expiresAt: order.pickupTokenExpiresAt,
+                          orderId: getDisplayOrderId(order.id, order.createdAt)
+                        })}
+                        className="mt-4 w-full group relative overflow-hidden rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-teal-600/30 cursor-pointer"
+                      >
+                        {/* Animated shine */}
+                        <div className="absolute inset-0 -skew-x-12 translate-x-[-100%] group-hover:translate-x-[200%] transition-transform duration-700 bg-white/10 w-1/2" />
+                        <div className="relative flex items-center gap-4 p-4">
+                          {/* Icon barcode */}
+                          <div className="w-14 h-14 bg-white/15 rounded-xl flex items-center justify-center shrink-0 border border-white/20">
+                            <QrCode className="w-7 h-7 text-white" />
+                          </div>
+                          {/* Text */}
+                          <div className="text-left flex-1">
+                            <p className="text-white font-black text-sm tracking-wide">Tampilkan Barcode</p>
+                            <p className="text-teal-100/80 text-[11px] font-medium mt-0.5">Ketuk untuk buka full screen · 1x pakai</p>
+                          </div>
+                          {/* Arrow */}
+                          <Maximize2 className="w-5 h-5 text-white/70 shrink-0" />
                         </div>
-                        <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-100 mb-3">
-                          <QRCodeSVG value={order.pickupToken} size={180} level="H" includeMargin={true} />
-                        </div>
-                        <p className="text-xs text-slate-500 text-center font-medium max-w-[280px]">
-                          Gunakan barcode ini pada saat pengambilan. Untuk keamanan, barcode hanya bisa digunakan 1x dan memiliki batas waktu.
-                        </p>
-                      </div>
+                      </button>
                     )}
                   </div>
                   
@@ -399,5 +538,6 @@ export default function OrderHistory() {
 
       </main>
     </div>
+    </>
   );
 }
