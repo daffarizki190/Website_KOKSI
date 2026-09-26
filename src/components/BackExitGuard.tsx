@@ -8,7 +8,12 @@ export const BackExitGuard: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [showDialog, setShowDialog] = useState(false);
+  const showDialogRef = useRef(false);
   const isInitialized = useRef(false);
+
+  useEffect(() => {
+    showDialogRef.current = showDialog;
+  }, [showDialog]);
 
   useEffect(() => {
     if (PUBLIC_PATHS.includes(location.pathname)) return;
@@ -20,7 +25,6 @@ export const BackExitGuard: React.FC = () => {
     const timer = setTimeout(() => {
       const currentState = window.history.state || {};
       
-      // Jika state belum ada tanda lantai kita, kita buatkan
       if (!currentState._hasFloor && !currentState._appFloor) {
         window.history.replaceState({ ...currentState, _appFloor: true }, "");
         window.history.pushState({ ...currentState, _hasFloor: true }, "");
@@ -32,11 +36,26 @@ export const BackExitGuard: React.FC = () => {
 
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
+      // Hanya eksekusi jika mencapai lantai aplikasi (history root)
       if (e.state && e.state._appFloor) {
         if (!PUBLIC_PATHS.includes(window.location.pathname)) {
-          // Jangan pushState di sini karena Chrome akan memblokirnya jika berulang
-          // tanpa interaksi user. Kita hanya tampilkan dialog.
-          setShowDialog(true);
+          
+          if (showDialogRef.current) {
+            // Jika dialog sedang terbuka dan user tekan back, tutup dialog
+            setShowDialog(false);
+          } else {
+            // Jika dialog tertutup dan user tekan back, buka dialog
+            setShowDialog(true);
+          }
+
+          // Segera kembalikan trap state agar user tidak keluar jika tekan back lagi
+          setTimeout(() => {
+            try {
+              window.history.pushState({ ...e.state, _hasFloor: true }, "");
+            } catch (err) {
+              console.warn("Blocked pushState in popstate", err);
+            }
+          }, 10);
         }
       }
     };
@@ -70,9 +89,7 @@ export const BackExitGuard: React.FC = () => {
       window.close();
     }, 150);
 
-    // Fallback: Jika setelah 400ms masih ada di halaman ini (karena go(-2) gagal
-    // karena tidak ada history sebelumnya, dan close() diblokir browser),
-    // maka kita tampilkan layar "Keluar".
+    // Fallback
     setTimeout(() => {
       if (!document.hidden) {
         setHasExited(true);
@@ -82,9 +99,12 @@ export const BackExitGuard: React.FC = () => {
 
   const handleCancel = () => {
     setShowDialog(false);
-    // Setelah user berinteraksi (klik Batal), kita dorong state baru 
-    // agar back button berikutnya bisa ditangkap lagi.
-    window.history.pushState({ ...window.history.state, _hasFloor: true }, "");
+    // Setelah user berinteraksi (klik Batal), trap state SUDAH dipasang ulang di popstate,
+    // jadi tidak perlu pushState lagi di sini (tapi fallback jika gagal push di popstate):
+    const state = window.history.state || {};
+    if (state._appFloor) {
+      window.history.pushState({ ...state, _hasFloor: true }, "");
+    }
   };
 
   if (hasExited) {
@@ -149,4 +169,3 @@ export const BackExitGuard: React.FC = () => {
     </div>
   );
 };
-

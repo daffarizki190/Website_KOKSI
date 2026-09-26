@@ -36,15 +36,18 @@ interface Order {
 }
 
 // ─── QR Fullscreen Modal ──────────────────────────────────────────────────
-function QRFullscreenModal({ token, expiresAt, orderId, isCompleted, onClose }: {
+function QRFullscreenModal({ token, expiresAt, orderId, orderNumId, isCompleted, onClose, onRefresh }: {
   token: string;
   expiresAt?: string;
   orderId: string;
+  orderNumId?: number;
   isCompleted?: boolean;
   onClose: () => void;
+  onRefresh?: (orderNumId: number) => Promise<void>;
 }) {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [autoCloseLeft, setAutoCloseLeft] = useState(8);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Countdown timer for QR expiry
   useEffect(() => {
@@ -174,9 +177,26 @@ function QRFullscreenModal({ token, expiresAt, orderId, isCompleted, onClose }: 
           'bg-white border-2 border-teal-200'
         }`}>
           {isExpired && (
-            <div className="absolute inset-0 bg-red-500/80 rounded-3xl flex flex-col items-center justify-center gap-2 z-10">
-              <ShieldAlert className="w-12 h-12 text-white" />
-              <p className="text-white font-bold text-sm">Barcode Kadaluarsa</p>
+            <div className="absolute inset-0 bg-red-500/90 rounded-3xl flex flex-col items-center justify-center gap-2 z-10 p-4 text-center">
+              <ShieldAlert className="w-10 h-10 text-white" />
+              <div>
+                <p className="text-white font-bold text-base leading-tight">Barcode Kadaluarsa</p>
+                <p className="text-white/80 text-xs mt-0.5">Sesi 15 menit habis.</p>
+              </div>
+              {onRefresh && orderNumId && (
+                <button
+                  onClick={async () => {
+                    setIsRefreshing(true);
+                    await onRefresh(orderNumId);
+                    setIsRefreshing(false);
+                  }}
+                  disabled={isRefreshing}
+                  className="mt-1 bg-white text-red-600 hover:bg-red-50 px-4 py-2 rounded-xl font-bold text-xs shadow-lg disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  Perbarui Barcode
+                </button>
+              )}
             </div>
           )}
           <QRCodeSVG
@@ -344,8 +364,29 @@ export default function OrderHistory() {
           token={qrModal.token}
           expiresAt={qrModal.expiresAt}
           orderId={qrModal.orderId}
+          orderNumId={qrModal.orderNumId}
           isCompleted={isCompleted}
           onClose={() => setQrModal(null)}
+          onRefresh={async (numId) => {
+            try {
+              const res = await fetch(`/api/orders/${numId}/refresh-qr`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token || localStorage.getItem('token')}` }
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Gagal refresh barcode');
+              
+              // Update modal state
+              setQrModal(prev => prev ? { ...prev, token: data.token, expiresAt: data.expiresAt } : null);
+              
+              // Update local orders list (so the background UI updates too)
+              setOrders(prev => prev.map(o => o.id === numId ? { ...o, pickupToken: data.token, pickupTokenExpiresAt: data.expiresAt } : o));
+              
+              toast({ title: "Berhasil", message: "Barcode telah diperbarui.", type: "success" });
+            } catch (err: any) {
+              toast({ title: "Gagal", message: err.message, type: "error" });
+            }
+          }}
         />
       );
     })()}

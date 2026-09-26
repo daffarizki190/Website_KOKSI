@@ -292,7 +292,7 @@ ${data.ip ? `📍 *Client IP:* \`${data.ip}\`\n` : ''}
 
   const adminChatIds = getAdminChatIds();
   for (const cid of adminChatIds) {
-    sendTelegramMessage(cid, alertMsg).catch(() => {});
+    // sendTelegramMessage(cid, alertMsg).catch(() => {});
   }
 }
 
@@ -2256,6 +2256,52 @@ app.get('/api/admin/stats', requireAuth, requireAdmin, async (req: AuthRequest, 
   }
 });
 
+// Endpoint untuk refresh QR Code (user request)
+app.post('/api/orders/:id/refresh-qr', requireAuth, async (req: AuthRequest, res) => {
+  const orderId = Number(req.params.id);
+  const userId = Number(req.user?.id);
+
+  try {
+    await ensureDatabaseSchema();
+    
+    // Cek apakah order milik user ini (atau admin)
+    const order = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    
+    if (order.length === 0) {
+      return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
+    }
+
+    const ord = order[0];
+    if (ord.userId !== userId && req.user?.role !== 'admin' && req.user?.role !== 'it') {
+      return res.status(403).json({ error: 'Tidak berhak mengakses pesanan ini' });
+    }
+
+    if (ord.status !== 'Siap Diambil' && ord.status !== 'Siap di ambil' && ord.status !== 'Siap Di Ambil') {
+      return res.status(400).json({ error: 'QR Code hanya untuk status Siap Diambil' });
+    }
+
+    const pickupToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    const updated = await db.update(orders)
+      .set({ pickupToken, pickupTokenExpiresAt: expiresAt })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    // Mirror in-memory
+    const memOrder = demoOrdersStore.find(o => o.id === orderId);
+    if (memOrder) {
+      (memOrder as any).pickupToken = pickupToken;
+      (memOrder as any).pickupTokenExpiresAt = expiresAt;
+    }
+
+    res.json({ message: 'Barcode berhasil diperbarui', token: pickupToken, expiresAt });
+  } catch (error) {
+    console.error('Failed to refresh QR code:', error);
+    res.status(500).json({ error: 'Gagal memperbarui barcode' });
+  }
+});
+
 app.put('/api/orders/:id/status', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
   const { status, keterangan } = req.body;
   const orderId = Number(req.params.id);
@@ -2305,7 +2351,7 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB`;
 
       const adminChatIds = getAdminChatIds();
       for (const cid of adminChatIds) {
-        sendTelegramMessage(cid, tgStatusMsg).catch(() => {});
+        // sendTelegramMessage(cid, tgStatusMsg).catch(() => {});
       }
     } catch (e) {}
     */
@@ -2449,7 +2495,7 @@ app.put('/api/orders/:id/cancel', requireAuth, async (req: AuthRequest, res) => 
 Waktu: ${new Date().toLocaleString('id-ID')} WIB`;
         const adminChatIds = getAdminChatIds();
         for (const cid of adminChatIds) {
-          sendTelegramMessage(cid, tgMsg).catch(() => {});
+          // sendTelegramMessage(cid, tgMsg).catch(() => {});
         }
       } catch (e) {}
       */
@@ -2476,7 +2522,7 @@ Waktu: ${new Date().toLocaleString('id-ID')} WIB`;
 ⚡ *Aksi:* Buka Admin Portal atau ketik \`/batal ${orderId} ${alasan.toString().trim()}\` untuk menyetujui.`;
       const adminChatIds = getAdminChatIds();
       for (const cid of adminChatIds) {
-        sendTelegramMessage(cid, tgMsg).catch(() => {});
+        // sendTelegramMessage(cid, tgMsg).catch(() => {});
       }
     } catch (e) {}
     */
