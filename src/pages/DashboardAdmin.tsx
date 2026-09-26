@@ -2642,7 +2642,7 @@ export const DashboardAdmin = () => {
                             </div>
                           </div>
                           <div className="hidden sm:block bg-white px-2 py-1 rounded border border-slate-100 shadow-sm">
-                            <Barcode value={order.id.toString()} width={1} height={25} fontSize={10} displayValue={true} margin={0} background="transparent" />
+                            <Barcode value={order.id.toString()} width={1} height={25} fontSize={10} displayValue={false} margin={0} background="transparent" />
                           </div>
                         </div>
 
@@ -2888,7 +2888,7 @@ export const DashboardAdmin = () => {
                               <div className="flex"><span className="w-16">No. HP</span><span className="mr-2">:</span> <span>{order.user?.no_hp || '-'}</span></div>
                             </div>
                             <div className="text-right">
-                              <Barcode value={order.id.toString()} width={1.5} height={40} fontSize={12} displayValue={true} margin={0} />
+                              <Barcode value={order.id.toString()} width={1.5} height={40} fontSize={12} displayValue={false} margin={0} />
                             </div>
                           </div>
                           <div className="border-b-2 border-dashed border-black my-4"></div>
