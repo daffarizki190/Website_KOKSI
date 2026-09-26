@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import XLSX from 'xlsx-js-style';
 import { format } from 'date-fns';
+import { getDisplayOrderId } from '../utils/format';
 import { id as idLocale } from 'date-fns/locale';
 import { SalesTrendChart } from '../components/SalesTrendChart';
 import { CATEGORY_STRUCTURES } from '../data/categories';
@@ -286,7 +287,7 @@ export const DashboardAdmin = () => {
   const [cancellationConfirmModal, setCancellationConfirmModal] = useState<{
     orderId: number;
     type: 'approve' | 'reject';
-    orderNumber: number;
+    orderNumber: string;
   } | null>(null);
   const [cancellationNoteInput, setCancellationNoteInput] = useState('');
   const [isProcessingCancellation, setIsProcessingCancellation] = useState(false);
@@ -579,7 +580,8 @@ export const DashboardAdmin = () => {
       if (res.ok) {
         fetchOrders(true);
         setSelectedOrderForStatus(null);
-        toast.success(`Status pesanan #${orderId} berhasil diubah ke "${status}"!`);
+        const tgtOrder = orders.find(o => o.id === orderId);
+        toast.success(`Status pesanan ${tgtOrder ? getDisplayOrderId(tgtOrder.id, tgtOrder.createdAt) : orderId} berhasil diubah ke "${status}"!`);
       } else {
         const data = await res.json().catch(() => ({}));
         toast.error(`Gagal memperbarui status: ${data.error || 'Terjadi kesalahan'}`);
@@ -703,6 +705,7 @@ export const DashboardAdmin = () => {
       const query = orderSearch.toLowerCase().trim();
       const matchQuery = !query ||
         order.id.toString().includes(query) ||
+        getDisplayOrderId(order.id, order.createdAt).toLowerCase().includes(query) ||
         (order.user?.nama || '').toLowerCase().includes(query) ||
         (order.user?.no_hp || '').toLowerCase().includes(query) ||
         (order.user?.departemen || '').toLowerCase().includes(query) ||
@@ -766,7 +769,7 @@ export const DashboardAdmin = () => {
   const handleDeleteSingleOrder = async (orderId: number) => {
     const confirmed = await confirmModal({
       title: 'Hapus Transaksi Pesanan',
-      message: `Apakah Anda yakin ingin menghapus transaksi Pesanan #${orderId}? Seluruh data pesanan dan rincian item ini akan dihapus permanen.`,
+      message: `Apakah Anda yakin ingin menghapus transaksi Pesanan ${getDisplayOrderId(orderId)}? Seluruh data pesanan dan rincian item ini akan dihapus permanen.`,
       type: 'danger',
       confirmText: 'Ya, Hapus Pesanan',
       cancelText: 'Batal'
@@ -786,7 +789,7 @@ export const DashboardAdmin = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal menghapus pesanan');
 
-      toast.success(data.message || `Pesanan #${orderId} berhasil dihapus.`);
+      toast.success(data.message || `Pesanan ${getDisplayOrderId(orderId)} berhasil dihapus.`);
       await fetchOrders();
     } catch (err: any) {
       toast.error(err.message || 'Terjadi kesalahan saat menghapus pesanan.');
@@ -2559,7 +2562,7 @@ export const DashboardAdmin = () => {
                     <div className="bg-slate-50 border-b border-slate-100 p-4 sm:px-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                       <div className="flex flex-wrap items-center gap-4">
                         <div>
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">ID Order #{order.id}</span>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">ID Pesanan {getDisplayOrderId(order.id, order.createdAt)}</span>
                           <p className="text-xs font-semibold text-slate-800">
                             {format(new Date(order.createdAt), 'dd MMMM yyyy, HH:mm', { locale: idLocale })}
                           </p>
@@ -2581,7 +2584,7 @@ export const DashboardAdmin = () => {
 
                         {order.user?.no_hp && (
                           <a
-                            href={`https://wa.me/62${order.user.no_hp.replace(/^0/, '')}?text=${encodeURIComponent(`Halo Sdr/i ${order.user.nama}, mengenai pesanan #${order.id} BelanjaIn Saza...`)}`}
+                            href={`https://wa.me/62${order.user.no_hp.replace(/^0/, '')}?text=${encodeURIComponent(`Halo Sdr/i ${order.user.nama}, mengenai pesanan ${getDisplayOrderId(order.id, order.createdAt)} BelanjaIn Saza...`)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg border border-emerald-200 text-xs font-bold transition-colors"
@@ -2607,14 +2610,14 @@ export const DashboardAdmin = () => {
                         <button
                           onClick={() => handlePrintReceipt(order.id)}
                           className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-colors border border-transparent hover:border-teal-200 cursor-pointer shrink-0 no-print"
-                          title={`Cetak Struk Pesanan #${order.id}`}
+                          title={`Cetak Struk Pesanan ${getDisplayOrderId(order.id, order.createdAt)}`}
                         >
                           <Printer className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteSingleOrder(order.id)}
                           className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-200 cursor-pointer shrink-0 no-print"
-                          title={`Hapus Transaksi Pesanan #${order.id}`}
+                          title={`Hapus Transaksi Pesanan ${getDisplayOrderId(order.id, order.createdAt)}`}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -2658,7 +2661,7 @@ export const DashboardAdmin = () => {
                                   setCancellationConfirmModal({
                                     orderId: order.id,
                                     type: 'approve',
-                                    orderNumber: order.id
+                                    orderNumber: getDisplayOrderId(order.id, order.createdAt)
                                   });
                                 }}
                                 className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-extrabold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
@@ -2674,7 +2677,7 @@ export const DashboardAdmin = () => {
                                   setCancellationConfirmModal({
                                     orderId: order.id,
                                     type: 'reject',
-                                    orderNumber: order.id
+                                    orderNumber: getDisplayOrderId(order.id, order.createdAt)
                                   });
                                 }}
                                 className="flex-1 sm:flex-none px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-extrabold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
@@ -2811,7 +2814,7 @@ export const DashboardAdmin = () => {
                             <div className="border-b-2 border-dashed border-black my-4"></div>
                           </div>
                           <div className="mb-4 text-xs leading-tight space-y-1">
-                            <div className="flex"><span className="w-16">No Order</span><span className="mr-2">:</span> <span className="font-bold">#{order.id}</span></div>
+                            <div className="flex"><span className="w-16">No Order</span><span className="mr-2">:</span> <span className="font-bold">{getDisplayOrderId(order.id, order.createdAt)}</span></div>
                             <div className="flex"><span className="w-16">Tanggal</span><span className="mr-2">:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
                             <div className="flex"><span className="w-16">Pemesan</span><span className="mr-2">:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
                             <div className="flex"><span className="w-16">Dept</span><span className="mr-2">:</span> <span>{order.user?.departemen || '-'}</span></div>
@@ -3402,7 +3405,7 @@ export const DashboardAdmin = () => {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100">
             <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
               <div>
-                <h3 className="font-bold text-sm">Update Status Pesanan #{selectedOrderForStatus.id}</h3>
+                <h3 className="font-bold text-sm">Update Status Pesanan {getDisplayOrderId(selectedOrderForStatus.id, selectedOrderForStatus.createdAt)}</h3>
                 <p className="text-[10px] text-teal-400 font-medium">{selectedOrderForStatus.user?.nama} ({selectedOrderForStatus.user?.pt})</p>
               </div>
               <button
@@ -4346,8 +4349,8 @@ export const DashboardAdmin = () => {
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900">
                     {cancellationConfirmModal.type === 'approve'
-                      ? `Setujui Pembatalan #${cancellationConfirmModal.orderNumber}`
-                      : `Tolak Pembatalan #${cancellationConfirmModal.orderNumber}`}
+                      ? `Setujui Pembatalan ${cancellationConfirmModal.orderNumber}`
+                      : `Tolak Pembatalan ${cancellationConfirmModal.orderNumber}`}
                   </h3>
                   <p className="text-[11px] text-slate-500 font-medium">
                     {cancellationConfirmModal.type === 'approve'
