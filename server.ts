@@ -2268,7 +2268,7 @@ app.put('/api/orders/:id/status', requireAuth, requireAdmin, async (req: AuthReq
     // --- ADDED FOR BARCODE PICKUP FEATURE ---
     if (status === 'Siap Diambil' || status === 'Siap di ambil' || status === 'Siap Di Ambil') {
       const pickupToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
       updateData.pickupToken = pickupToken;
       updateData.pickupTokenExpiresAt = expiresAt;
     } else if (status === 'Selesai') {
