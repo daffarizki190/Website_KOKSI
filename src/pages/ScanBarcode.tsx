@@ -16,6 +16,11 @@ export const ScanBarcodeAdmin = () => {
   const [scannerMode, setScannerMode] = useState<'pickup' | 'Menyiapkan' | 'Siap Diambil' | 'Selesai'>('pickup');
   const html5QrRef = useRef<Html5Qrcode | null>(null);
   const isScanningRef = useRef(false);
+  const scannerModeRef = useRef(scannerMode);
+
+  useEffect(() => {
+    scannerModeRef.current = scannerMode;
+  }, [scannerMode]);
 
   useEffect(() => {
     if (user?.role !== 'admin') {
@@ -49,8 +54,9 @@ export const ScanBarcodeAdmin = () => {
 
             try {
               const authToken = token || localStorage.getItem('token');
+              const currentMode = scannerModeRef.current;
               
-              if (scannerMode === 'pickup') {
+              if (currentMode === 'pickup') {
                 const res = await fetch('/api/orders/pickup', {
                   method: 'POST',
                   headers: {
@@ -75,7 +81,7 @@ export const ScanBarcodeAdmin = () => {
                   setScanResult({ type: 'error', message: 'Barcode bukan Nomor Order yang valid!' });
                   toast.error('Barcode bukan Nomor Order!');
                 } else {
-                  const targetStatus = scannerMode === 'Menyiapkan' ? 'Sedang Disiapkan' : scannerMode;
+                  const targetStatus = currentMode === 'Menyiapkan' ? 'Sedang Disiapkan' : currentMode;
                   const res = await fetch(`/api/orders/${orderId}/status`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
