@@ -158,7 +158,7 @@ export const DashboardAdmin = () => {
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('Semua');
   const [orderPtFilter, setOrderPtFilter] = useState('Semua');
-  const [orderPeriodFilter, setOrderPeriodFilter] = useState(format(new Date(), "RRRR-'W'II"));
+  const [orderPeriodFilter, setOrderPeriodFilter] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const [printingOrderId, setPrintingOrderId] = useState<number | null>(null);
@@ -748,9 +748,11 @@ export const DashboardAdmin = () => {
       const matchPeriod = (() => {
         if (!orderPeriodFilter) return true;
         try {
+          const selectedDate = new Date(orderPeriodFilter);
+          const selectedWeek = format(selectedDate, "RRRR-'W'II");
           const d = new Date(order.createdAt);
           const orderWeek = format(d, "RRRR-'W'II");
-          return orderWeek === orderPeriodFilter;
+          return orderWeek === selectedWeek;
         } catch (e) {
           return true;
         }
@@ -776,7 +778,16 @@ export const DashboardAdmin = () => {
 
     const totalNominal = filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
     const filterParts: string[] = [];
-    if (orderPeriodFilter) filterParts.push(`Periode: Minggu ${orderPeriodFilter}`);
+    if (orderPeriodFilter) {
+      try {
+        const d = new Date(orderPeriodFilter);
+        const start = format(startOfWeek(d, { weekStartsOn: 1 }), 'dd MMM yyyy', { locale: idLocale });
+        const end = format(endOfWeek(d, { weekStartsOn: 1 }), 'dd MMM yyyy', { locale: idLocale });
+        filterParts.push(`Periode: ${start} - ${end}`);
+      } catch (e) {
+        filterParts.push(`Periode: ${orderPeriodFilter}`);
+      }
+    }
     if (orderStatusFilter !== 'Semua') filterParts.push(`Status: "${orderStatusFilter}"`);
     if (orderPtFilter !== 'Semua') filterParts.push(`PT: "${orderPtFilter}"`);
     if (orderSearch.trim()) filterParts.push(`Pencarian: "${orderSearch.trim()}"`);
@@ -2462,7 +2473,7 @@ export const DashboardAdmin = () => {
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl shadow-sm relative group" title="Pilih Minggu Transaksi">
                   <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                   <input
-                    type="week"
+                    type="date"
                     value={orderPeriodFilter}
                     onChange={(e) => setOrderPeriodFilter(e.target.value)}
                     className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer w-32"
@@ -2582,7 +2593,18 @@ export const DashboardAdmin = () => {
                       <div className="flex items-center justify-center gap-2 flex-wrap mb-6">
                         {orderPeriodFilter && (
                           <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-lg border border-slate-200">
-                            Minggu: <span className="text-teal-700">{orderPeriodFilter}</span>
+                            Minggu: <span className="text-teal-700">
+                              {(() => {
+                                try {
+                                  const d = new Date(orderPeriodFilter);
+                                  const start = format(startOfWeek(d, { weekStartsOn: 1 }), 'dd MMM', { locale: idLocale });
+                                  const end = format(endOfWeek(d, { weekStartsOn: 1 }), 'dd MMM yyyy', { locale: idLocale });
+                                  return `${start} - ${end}`;
+                                } catch(e) {
+                                  return orderPeriodFilter;
+                                }
+                              })()}
+                            </span>
                           </span>
                         )}
                         {orderStatusFilter !== 'Semua' && (
@@ -2604,7 +2626,7 @@ export const DashboardAdmin = () => {
 
                       <button
                         onClick={() => {
-                          setOrderPeriodFilter(format(new Date(), "RRRR-'W'II"));
+                          setOrderPeriodFilter(format(new Date(), 'yyyy-MM-dd'));
                           setOrderStatusFilter('Semua');
                           setOrderPtFilter('Semua');
                           setOrderSearch('');

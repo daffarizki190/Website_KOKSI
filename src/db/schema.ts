@@ -152,3 +152,9 @@ export const chatsRelations = relations(chats, ({ one }) => ({
     relationName: 'receiver',
   }),
 }));
+
+export const settings = pgTable('settings', {
+  setting_key: text('setting_key').primaryKey(),
+  setting_value: text('setting_value').notNull(),
+  updated_at: timestamp('updated_at').defaultNow(),
+});

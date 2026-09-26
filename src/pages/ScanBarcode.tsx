@@ -39,8 +39,7 @@ export const ScanBarcodeAdmin = () => {
         await qr.start(
           { facingMode: 'environment' }, // kamera belakang
           {
-            fps: 10,
-            qrbox: { width: 260, height: 260 },
+            fps: 15,
             aspectRatio: 1.0,
           },
           async (decodedText) => {
@@ -86,10 +85,16 @@ export const ScanBarcodeAdmin = () => {
                   toast.error('Barcode bukan Nomor Order!');
                 } else {
                   const targetStatus = currentMode === 'Menyiapkan' ? 'Menyiapkan Pesanan' : currentMode;
+                  
+                  let keterangan = 'Pesanan telah diubah statusnya';
+                  if (targetStatus === 'Menyiapkan Pesanan') keterangan = 'Admin sedang menyiapkan barang';
+                  if (targetStatus === 'Pengiriman') keterangan = 'Pesanan dalam pengiriman';
+                  if (targetStatus === 'Siap Diambil') keterangan = 'Pesanan siap diambil';
+
                   const res = await fetch(`/api/orders/${orderId}/status`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-                    body: JSON.stringify({ status: targetStatus })
+                    body: JSON.stringify({ status: targetStatus, keterangan })
                   });
                   if (res.ok) {
                     setScanResult({ type: 'success', message: `Status pesanan #${orderId} diubah menjadi ${targetStatus}`, orderId });

@@ -14,6 +14,7 @@ interface OrderItem {
   productId: number;
   quantity: number;
   price: number;
+  catatan?: string;
   product: {
     id?: number;
     nama_barang: string;
@@ -649,6 +650,11 @@ export default function OrderHistory() {
                               <p className="text-xs text-slate-500 mt-1">
                                 {item.quantity} x Rp {item.price.toLocaleString('id-ID')}
                               </p>
+                              {item.catatan && (
+                                <p className="text-[10px] text-orange-500 font-medium italic mt-0.5">
+                                  Catatan: {item.catatan}
+                                </p>
+                              )}
                             </div>
                           </div>
                           <p className="font-bold text-slate-700 text-sm">
