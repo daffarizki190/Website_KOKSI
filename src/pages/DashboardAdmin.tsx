@@ -2705,53 +2705,64 @@ export const DashboardAdmin = () => {
                             </button>
                           </div>
                         ) : (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <button
-                              onClick={() => handleUpdateOrderStatus(order.id, 'Proses', 'Pesanan telah diterima dan sedang diproses')}
-                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-                            >
-                              &rarr; Proses
-                            </button>
-                            <button
-                              onClick={() => handleUpdateOrderStatus(order.id, 'Menyiapkan Pesanan', 'Admin sedang menyiapkan barang pesanan Anda')}
-                              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-                            >
-                              &rarr; Menyiapkan
-                            </button>
-                            <button
-                              onClick={() => handleUpdateOrderStatus(order.id, 'Pengiriman', 'Pesanan sedang dalam proses pengiriman')}
-                              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-                            >
-                              &rarr; Pengiriman
-                            </button>
-                            <button
-                              onClick={() => handleUpdateOrderStatus(order.id, 'Siap Diambil', 'Pesanan sudah siap diambil di lokasi Koperasi / PT. Siemens Indonesia')}
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-                            >
-                              &rarr; Siap Diambil
-                            </button>
-                            <button
-                              onClick={() => handleUpdateOrderStatus(order.id, 'Selesai', 'Pesanan telah selesai diserahkan ke karyawan')}
-                              className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-                            >
-                              &rarr; Selesai
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedOrderForStatus(order);
-                                setNewStatusValue('Dibatalkan');
-                                setNewKeteranganValue('Dibatalkan oleh Admin.');
-                              }}
-                              className="px-2.5 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                            >
-                              Batalkan
-                            </button>
-                            <button
-                              onClick={() => openStatusModal(order)}
-                              className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition-colors"
-                            >
-                              Edit Custom + Catatan
-                            </button>
+                          <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 w-full">
+                            {/* Interactive Visual Stepper */}
+                            <div className="flex items-center space-x-1.5 sm:space-x-2 w-full overflow-x-auto pb-1 scrollbar-hide">
+                              {['Proses', 'Menyiapkan Pesanan', 'Pengiriman', 'Siap Diambil', 'Selesai'].map((stage, idx) => {
+                                const currentIdx = ['Proses', 'Menyiapkan Pesanan', 'Pengiriman', 'Siap Diambil', 'Selesai'].indexOf(order.status);
+                                const isActive = order.status === stage;
+                                const isPast = currentIdx >= idx;
+                                
+                                return (
+                                  <button
+                                    key={stage}
+                                    onClick={() => handleUpdateOrderStatus(
+                                      order.id, 
+                                      stage, 
+                                      stage === 'Proses' ? 'Pesanan sedang diproses' :
+                                      stage === 'Menyiapkan Pesanan' ? 'Admin sedang menyiapkan barang' :
+                                      stage === 'Pengiriman' ? 'Pesanan dalam pengiriman' :
+                                      stage === 'Siap Diambil' ? 'Pesanan siap diambil' :
+                                      'Pesanan telah selesai diserahkan'
+                                    )}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-bold transition-all shadow-sm border whitespace-nowrap ${
+                                      isActive 
+                                        ? 'bg-teal-600 text-white border-teal-700 ring-2 ring-teal-200 shadow-teal-500/20' 
+                                        : isPast 
+                                          ? 'bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100'
+                                          : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-500'
+                                    }`}
+                                  >
+                                    {isPast && !isActive ? (
+                                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                    ) : (
+                                      <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isActive ? 'bg-white' : 'bg-slate-300'}`} />
+                                    )}
+                                    {stage}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            
+                            <div className="flex items-center gap-2 shrink-0 w-full xl:w-auto">
+                              <button
+                                onClick={() => openStatusModal(order)}
+                                className="flex-1 xl:flex-none px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition-colors border border-slate-200 shadow-sm flex items-center justify-center gap-1.5"
+                              >
+                                <Edit3 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                Catatan / Custom
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedOrderForStatus(order);
+                                  setNewStatusValue('Dibatalkan');
+                                  setNewKeteranganValue('Dibatalkan oleh Admin.');
+                                }}
+                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-bold transition-colors border border-rose-200 shadow-sm"
+                              >
+                                Batalkan
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
