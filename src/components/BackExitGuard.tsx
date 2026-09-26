@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { LogOut, X, AlertTriangle } from "lucide-react";
 
@@ -74,7 +74,13 @@ export const BackExitGuard: React.FC = () => {
 
   const handleExit = () => {
     setShowDialog(false);
-    navigate("/login", { replace: true });
+    // Go back two steps in history to skip the 'null' and 'floor' states we pushed
+    window.history.go(-2);
+    
+    // As a fallback for some PWA/mobile environments
+    setTimeout(() => {
+      window.close();
+    }, 300);
   };
 
   const handleCancel = () => {
