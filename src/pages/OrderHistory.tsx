@@ -349,7 +349,7 @@ export default function OrderHistory() {
                       </div>
                     )}
 
-                    {order.status === 'Siap di ambil' && order.pickupToken && (
+                    {(order.status === 'Siap Diambil' || order.status === 'Siap di ambil' || order.status === 'Siap Di Ambil') && order.pickupToken && (
                       <div className="mt-6 flex flex-col items-center bg-white p-6 rounded-2xl border-2 border-dashed border-teal-200">
                         <div className="flex items-center gap-2 mb-4">
                           <ScanLine className="w-5 h-5 text-teal-600" />
