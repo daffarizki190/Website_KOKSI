@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { eq, gt } from 'drizzle-orm';
 import { db } from './src/db/index';
 import { orders } from './src/db/schema';
