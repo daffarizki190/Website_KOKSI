@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { LogOut, X, AlertTriangle } from "lucide-react";
 
@@ -8,31 +8,36 @@ export const BackExitGuard: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [showDialog, setShowDialog] = useState(false);
+  const isInitialized = useRef(false);
 
   useEffect(() => {
-    // Only install the root floor once per session (tab)
-    const hasInitialized = sessionStorage.getItem("appRootInitialized");
+    if (PUBLIC_PATHS.includes(location.pathname)) return;
+    if (isInitialized.current) return;
 
-    if (!hasInitialized) {
-      // Install the floor
+    isInitialized.current = true;
+
+    // Beri waktu agar React Router atau browser selesai setup history bawaannya
+    const timer = setTimeout(() => {
       const currentState = window.history.state || {};
-      window.history.replaceState({ ...currentState, isAppRoot: true }, "");
-      window.history.pushState({ ...currentState, isAppPath: true }, "");
-      sessionStorage.setItem("appRootInitialized", "true");
-    }
+      
+      // Jika state belum ada tanda lantai kita, kita buatkan
+      if (!currentState._hasFloor && !currentState._appFloor) {
+        window.history.replaceState({ ...currentState, _appFloor: true }, "");
+        window.history.pushState({ ...currentState, _hasFloor: true }, "");
+      }
+    }, 500);
 
+    return () => clearTimeout(timer);
+  }, [location.pathname]);
+
+  useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
-      // If the user navigated back to the root floor
-      if (e.state && e.state.isAppRoot) {
-        // Prevent leaving by pushing a state forward immediately
-        window.history.pushState({ isAppPath: true }, "");
+      if (e.state && e.state._appFloor) {
+        // Kita hit lantai. Segera dorong state baru agar tidak benar-benar keluar
+        window.history.pushState({ ...e.state, _hasFloor: true }, "");
         
-        // Only show dialog if we are NOT on a public path (like login)
         if (!PUBLIC_PATHS.includes(window.location.pathname)) {
           setShowDialog(true);
-        } else {
-          // If on login page, just let them exit normally without dialog
-          window.history.go(-2);
         }
       }
     };
@@ -53,13 +58,23 @@ export const BackExitGuard: React.FC = () => {
 
   const handleExit = () => {
     setShowDialog(false);
-    // Go back two steps: one for the state we pushed in handlePopState, one to exit the app
+    
+    // Coba mundur 2 langkah (melewati null state dan floor state)
     window.history.go(-2);
     
-    // Fallback for PWA
+    // Coba paksa tutup tab (berguna untuk beberapa kondisi PWA)
     setTimeout(() => {
       window.close();
-    }, 300);
+    }, 150);
+
+    // Fallback: Jika setelah 400ms masih ada di halaman ini (karena go(-2) gagal
+    // karena tidak ada history sebelumnya, dan close() diblokir browser),
+    // maka kita lempar ke halaman login agar terasa seperti "keluar".
+    setTimeout(() => {
+      if (!document.hidden && !PUBLIC_PATHS.includes(window.location.pathname)) {
+        navigate("/login", { replace: true });
+      }
+    }, 400);
   };
 
   const handleCancel = () => {
