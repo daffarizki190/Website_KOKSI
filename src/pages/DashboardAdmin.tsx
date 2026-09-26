@@ -107,6 +107,50 @@ export const DashboardAdmin = () => {
   // Orders state
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [scannerMode, setScannerMode] = useState<'detail' | 'proses' | 'siap' | 'selesai'>('detail');
+  
+  useBarcodeScanner({
+    onScan: (barcode) => {
+      const orderId = parseInt(barcode, 10);
+      if (isNaN(orderId)) return;
+      
+      const order = orders.find(o => o.id === orderId);
+      if (!order) {
+        toast.error(`Pesanan ID ${barcode} tidak ditemukan!`, "Scanner Barcode");
+        return;
+      }
+
+      if (scannerMode === 'detail') {
+        setSelectedOrderForStatus(order);
+        setNewStatusValue(order.status || 'Menunggu Konfirmasi');
+        setNewKeteranganValue(order.keterangan || '');
+      } else {
+        let targetStatus = '';
+        if (scannerMode === 'proses') targetStatus = 'Sedang Disiapkan';
+        if (scannerMode === 'siap') targetStatus = 'Siap Diambil';
+        if (scannerMode === 'selesai') targetStatus = 'Selesai';
+        
+        handleUpdateStatusScanner(order.id, targetStatus);
+      }
+    }
+  });
+
+  const handleUpdateStatusScanner = async (orderId: number, status: string) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status })
+      });
+      if (!res.ok) throw new Error('Gagal update status via scanner');
+      
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+      toast.success(`Pesanan ${orderId} -> ${status}`, "Scanner Auto-Update");
+    } catch (err: any) {
+      toast.error(err.message, "Scanner Error");
+    }
+  };
+
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('Semua');
   const [orderPtFilter, setOrderPtFilter] = useState('Semua');
@@ -2453,6 +2497,21 @@ export const DashboardAdmin = () => {
                   ))}
                 </select>
 
+                <div className="flex items-center space-x-2 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl shadow-sm w-full md:w-auto mt-2 md:mt-0">
+                  <ScanLine className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span className="text-xs font-bold text-indigo-900 shrink-0">Scanner:</span>
+                  <select
+                    value={scannerMode}
+                    onChange={(e: any) => setScannerMode(e.target.value)}
+                    className="flex-1 md:flex-none bg-white border border-indigo-200 text-indigo-800 text-[11px] font-bold rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    <option value="detail">Mode: Lihat Detail</option>
+                    <option value="proses">Ubah ➔ Menyiapkan</option>
+                    <option value="siap">Ubah ➔ Siap Diambil</option>
+                    <option value="selesai">Ubah ➔ Selesai</option>
+                  </select>
+                </div>
+
                 <div className="relative flex-1 md:w-48">
                   <input
                     type="text"
@@ -2815,12 +2874,17 @@ export const DashboardAdmin = () => {
                             <p className="text-xs">PT. Siemens Indonesia</p>
                             <div className="border-b-2 border-dashed border-black my-4"></div>
                           </div>
-                          <div className="mb-4 text-xs leading-tight space-y-1">
-                            <div className="flex"><span className="w-16">No Order</span><span className="mr-2">:</span> <span className="font-bold">{getDisplayOrderId(order.id, order.createdAt)}</span></div>
-                            <div className="flex"><span className="w-16">Tanggal</span><span className="mr-2">:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
-                            <div className="flex"><span className="w-16">Pemesan</span><span className="mr-2">:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
-                            <div className="flex"><span className="w-16">Dept</span><span className="mr-2">:</span> <span>{order.user?.departemen || '-'}</span></div>
-                            <div className="flex"><span className="w-16">No. HP</span><span className="mr-2">:</span> <span>{order.user?.no_hp || '-'}</span></div>
+                          <div className="mb-4 text-xs leading-tight flex justify-between items-start">
+                            <div className="space-y-1">
+                              <div className="flex"><span className="w-16">No Order</span><span className="mr-2">:</span> <span className="font-bold">{getDisplayOrderId(order.id, order.createdAt)}</span></div>
+                              <div className="flex"><span className="w-16">Tanggal</span><span className="mr-2">:</span> <span>{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale })}</span></div>
+                              <div className="flex"><span className="w-16">Pemesan</span><span className="mr-2">:</span> <span className="font-bold">{order.user?.nama || '-'}</span></div>
+                              <div className="flex"><span className="w-16">Dept</span><span className="mr-2">:</span> <span>{order.user?.departemen || '-'}</span></div>
+                              <div className="flex"><span className="w-16">No. HP</span><span className="mr-2">:</span> <span>{order.user?.no_hp || '-'}</span></div>
+                            </div>
+                            <div className="text-right">
+                              <Barcode value={order.id.toString()} width={1.5} height={40} fontSize={12} displayValue={true} margin={0} />
+                            </div>
                           </div>
                           <div className="border-b-2 border-dashed border-black my-4"></div>
                           <div className="mb-4">
