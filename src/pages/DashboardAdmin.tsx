@@ -18,6 +18,8 @@ import { id as idLocale } from 'date-fns/locale';
 import { SalesTrendChart } from '../components/SalesTrendChart';
 import { CATEGORY_STRUCTURES } from '../data/categories';
 import { smartCategorize } from '../data/smartCategorizer';
+import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
+import Barcode from 'react-barcode';
 
 interface Product {
   id: number;
