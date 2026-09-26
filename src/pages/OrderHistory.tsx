@@ -97,62 +97,45 @@ function QRFullscreenModal({ token, expiresAt, orderId, isCompleted, onClose }: 
         ))}
 
         <div className="relative flex flex-col items-center gap-6 px-8 max-w-sm w-full text-center">
-          {/* Big check icon */}
-          <div className="relative">
-            <div className="w-24 h-24 bg-teal-500/20 rounded-full flex items-center justify-center border-2 border-teal-500/40">
-              <div className="w-16 h-16 bg-teal-500 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Title */}
-          <div className="text-center">
-            <p className="text-teal-400 text-xs font-bold uppercase tracking-widest mb-1.5">Pesanan Selesai</p>
-            <h2 className="text-white font-extrabold text-2xl leading-tight mb-1.5">
+          {/* Title Section */}
+          <div className="text-center w-full pb-6 border-b border-white/10">
+            <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-[0.3em] mb-3">
+              Status Pesanan Selesai
+            </p>
+            <h2 className="text-white font-black text-4xl tracking-tight mb-2">
               Terima Kasih
             </h2>
-            <p className="text-teal-100/90 font-medium text-sm">
-              Pesanan Anda Berhasil Diambil
+            <p className="text-emerald-100/80 font-medium text-sm">
+              Pesanan Anda telah berhasil diambil
             </p>
           </div>
 
-          {/* Card info */}
-          <div className="w-full bg-slate-900/40 border border-white/10 rounded-xl p-5 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-slate-800 rounded-lg flex items-center justify-center">
-                <Package className="w-4 h-4 text-slate-300" />
-              </div>
-              <div className="text-left">
-                <p className="text-slate-400 text-[10px] uppercase tracking-wider font-bold">ID Pesanan</p>
-                <p className="text-white font-medium text-sm">{orderId}</p>
-              </div>
+          {/* Details Section */}
+          <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
+              <p className="text-white/40 text-[10px] uppercase tracking-widest font-bold">ID Pesanan</p>
+              <p className="text-white font-semibold text-base tracking-wide">{orderId}</p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-slate-800 rounded-lg flex items-center justify-center">
-                <ShieldCheck className="w-4 h-4 text-slate-300" />
-              </div>
-              <div className="text-left">
-                <p className="text-slate-400 text-[10px] uppercase tracking-wider font-bold">Waktu Pengambilan</p>
-                <p className="text-white font-medium text-sm">{format(new Date(), 'dd MMM yyyy, HH:mm', { locale: id })}</p>
-              </div>
+            
+            <div className="w-full h-px bg-white/5"></div>
+            
+            <div className="flex flex-col gap-1">
+              <p className="text-white/40 text-[10px] uppercase tracking-widest font-bold">Waktu Pengambilan</p>
+              <p className="text-white font-semibold text-base tracking-wide">{format(new Date(), 'dd MMM yyyy, HH:mm', { locale: id })}</p>
             </div>
           </div>
 
-          {/* Message */}
-          <p className="text-slate-400 text-xs leading-relaxed max-w-[280px]">
+          {/* Footer Message */}
+          <p className="text-white/60 text-xs font-medium leading-relaxed max-w-[260px] text-center mt-2">
             Semoga produk dari KOKSI bermanfaat untuk Anda.
           </p>
 
           {/* Auto close countdown */}
           <button
             onClick={onClose}
-            className="w-full py-3 bg-white/15 hover:bg-white/25 text-white font-bold rounded-2xl transition-colors border border-white/20 text-sm flex items-center justify-center gap-2"
+            className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/20 text-sm mt-2"
           >
-            <X className="w-4 h-4" />
-            Tutup otomatis dalam {autoCloseLeft} detik
+            Tutup ({autoCloseLeft} detik)
           </button>
         </div>
       </div>
