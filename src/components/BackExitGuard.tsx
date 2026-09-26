@@ -1,67 +1,46 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { LogOut, X, AlertTriangle } from "lucide-react";
 
-// Halaman publik yang tidak perlu dijaga
 const PUBLIC_PATHS = ["/login", "/register"];
 
 export const BackExitGuard: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [showDialog, setShowDialog] = useState(false);
-  const lastProtectedPath = useRef("/dashboard");
-  const isInitialized = useRef(false);
 
-  // Simpan path protected terakhir yang dikunjungi
   useEffect(() => {
-    if (!PUBLIC_PATHS.includes(location.pathname)) {
-      lastProtectedPath.current = location.pathname;
-    }
-  }, [location.pathname]);
+    // Only install the root floor once per session (tab)
+    const hasInitialized = sessionStorage.getItem("appRootInitialized");
 
-  // Pasang "lantai" di bawah history saat ini agar bisa mendeteksi keluar app
-  // replaceState → jadikan entry saat ini sebagai lantai
-  // pushState null → push entry baru di atasnya (ini yang React Router pakai untuk navigasi)
-  // Hasilnya: [... , /dashboard(LANTAI), /dashboard(current)]
-  // Saat user back dari halaman manapun dan sampai ke (LANTAI), baru dialog muncul
-  const installFloor = useCallback(() => {
-    const url = window.location.pathname + window.location.search;
-    window.history.replaceState({ _appFloor: true }, "", url);
-    window.history.pushState(null, "", url);
+    if (!hasInitialized) {
+      // Install the floor
+      const currentState = window.history.state || {};
+      window.history.replaceState({ ...currentState, isAppRoot: true }, "");
+      window.history.pushState({ ...currentState, isAppPath: true }, "");
+      sessionStorage.setItem("appRootInitialized", "true");
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      // If the user navigated back to the root floor
+      if (e.state && e.state.isAppRoot) {
+        // Prevent leaving by pushing a state forward immediately
+        window.history.pushState({ isAppPath: true }, "");
+        
+        // Only show dialog if we are NOT on a public path (like login)
+        if (!PUBLIC_PATHS.includes(window.location.pathname)) {
+          setShowDialog(true);
+        } else {
+          // If on login page, just let them exit normally without dialog
+          window.history.go(-2);
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  // Inisialisasi sekali saja saat pertama masuk halaman protected
-  useEffect(() => {
-    if (isInitialized.current) return;
-    if (PUBLIC_PATHS.includes(location.pathname)) return;
-
-    isInitialized.current = true;
-
-    // Tunggu React Router selesai setup history-nya sendiri dulu
-    const setupTimer = setTimeout(() => {
-      installFloor();
-
-      const handlePopState = (e: PopStateEvent) => {
-        if (e.state?._appFloor === true) {
-          // User menekan back dan sampai ke "lantai" → akan keluar dari app
-          // Kembalikan ke halaman protected terakhir
-          navigate(lastProtectedPath.current, { replace: true });
-          // Pasang ulang lantai setelah navigate selesai
-          setTimeout(() => installFloor(), 0);
-          // Tampilkan dialog konfirmasi
-          setShowDialog(true);
-        }
-        // Jika bukan lantai kita = React Router sedang handle navigasi internal biasa
-        // Biarkan saja (tidak perlu intercept)
-      };
-
-      window.addEventListener("popstate", handlePopState);
-    }, 100);
-
-    return () => clearTimeout(setupTimer);
-  }, [location.pathname, navigate, installFloor]);
-
-  // Tangkap tutup tab / refresh browser
   useEffect(() => {
     if (PUBLIC_PATHS.includes(location.pathname)) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -74,10 +53,10 @@ export const BackExitGuard: React.FC = () => {
 
   const handleExit = () => {
     setShowDialog(false);
-    // Go back two steps in history to skip the 'null' and 'floor' states we pushed
+    // Go back two steps: one for the state we pushed in handlePopState, one to exit the app
     window.history.go(-2);
     
-    // As a fallback for some PWA/mobile environments
+    // Fallback for PWA
     setTimeout(() => {
       window.close();
     }, 300);
@@ -95,7 +74,7 @@ export const BackExitGuard: React.FC = () => {
       style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
     >
       <div
-        className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden"
+        className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -137,3 +116,4 @@ export const BackExitGuard: React.FC = () => {
     </div>
   );
 };
+
