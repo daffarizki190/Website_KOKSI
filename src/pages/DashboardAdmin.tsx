@@ -12,7 +12,7 @@ import {
   User as UserIcon, Edit3, Save, TrendingUp, BarChart2, Bell, Printer, UserPlus
 } from 'lucide-react';
 import XLSX from 'xlsx-js-style';
-import { format } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { getDisplayOrderId } from '../utils/format';
 import { id as idLocale } from 'date-fns/locale';
 import { SalesTrendChart } from '../components/SalesTrendChart';
@@ -154,7 +154,7 @@ export const DashboardAdmin = () => {
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('Semua');
   const [orderPtFilter, setOrderPtFilter] = useState('Semua');
-  const [orderDateFilter, setOrderDateFilter] = useState('');
+  const [orderPeriodFilter, setOrderPeriodFilter] = useState('Minggu Ini');
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const [printingOrderId, setPrintingOrderId] = useState<number | null>(null);
@@ -741,9 +741,21 @@ export const DashboardAdmin = () => {
     return orders.filter(order => {
       const matchStatus = orderStatusFilter === 'Semua' || (order.status || 'Menunggu Konfirmasi').toLowerCase() === orderStatusFilter.toLowerCase();
       const matchPt = orderPtFilter === 'Semua' || (order.user?.pt || '').toLowerCase() === orderPtFilter.toLowerCase();
-      const matchDate = !orderDateFilter || (() => {
+      const matchPeriod = (() => {
+        if (orderPeriodFilter === 'Semua') return true;
         try {
-          return format(new Date(order.createdAt), 'yyyy-MM-dd') === orderDateFilter;
+          const d = new Date(order.createdAt);
+          const now = new Date();
+          if (orderPeriodFilter === 'Minggu Ini') {
+            const start = startOfWeek(now, { weekStartsOn: 1 }); // Monday
+            const end = endOfWeek(now, { weekStartsOn: 1 });
+            return d >= start && d <= end;
+          } else if (orderPeriodFilter === 'Bulan Ini') {
+            const start = startOfMonth(now);
+            const end = endOfMonth(now);
+            return d >= start && d <= end;
+          }
+          return true;
         } catch (e) {
           return true;
         }
@@ -757,9 +769,9 @@ export const DashboardAdmin = () => {
         (order.user?.departemen || '').toLowerCase().includes(query) ||
         order.items.some(it => (it.product?.nama_barang || '').toLowerCase().includes(query));
 
-      return matchStatus && matchPt && matchDate && matchQuery;
+      return matchStatus && matchPt && matchPeriod && matchQuery;
     });
-  }, [orders, orderStatusFilter, orderPtFilter, orderDateFilter, orderSearch]);
+  }, [orders, orderStatusFilter, orderPtFilter, orderPeriodFilter, orderSearch]);
 
   const handleDeleteFilteredOrders = async () => {
     if (filteredOrders.length === 0) {
@@ -769,7 +781,7 @@ export const DashboardAdmin = () => {
 
     const totalNominal = filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
     const filterParts: string[] = [];
-    if (orderDateFilter) filterParts.push(`Tanggal: "${orderDateFilter.split('-').reverse().join('/')}"`);
+    if (orderPeriodFilter !== 'Semua') filterParts.push(`Periode: "${orderPeriodFilter}"`);
     if (orderStatusFilter !== 'Semua') filterParts.push(`Status: "${orderStatusFilter}"`);
     if (orderPtFilter !== 'Semua') filterParts.push(`PT: "${orderPtFilter}"`);
     if (orderSearch.trim()) filterParts.push(`Pencarian: "${orderSearch.trim()}"`);
@@ -2451,24 +2463,18 @@ export const DashboardAdmin = () => {
                   </button>
                 )}
 
-                {/* Filter Tanggal */}
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl shadow-sm" title="Filter berdasarkan tanggal transaksi">
+                {/* Filter Tanggal/Periode */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl shadow-sm" title="Filter berdasarkan periode transaksi">
                   <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                  <input
-                    type="date"
-                    value={orderDateFilter}
-                    onChange={(e) => setOrderDateFilter(e.target.value)}
+                  <select
+                    value={orderPeriodFilter}
+                    onChange={(e) => setOrderPeriodFilter(e.target.value)}
                     className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
-                  />
-                  {orderDateFilter && (
-                    <button
-                      onClick={() => setOrderDateFilter('')}
-                      className="text-slate-400 hover:text-rose-600 p-0.5 transition-colors cursor-pointer"
-                      title="Hapus filter tanggal"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
+                  >
+                    <option value="Minggu Ini">Minggu Ini</option>
+                    <option value="Bulan Ini">Bulan Ini</option>
+                    <option value="Semua">Semua Waktu</option>
+                  </select>
                 </div>
 
                 <select
@@ -2573,9 +2579,9 @@ export const DashboardAdmin = () => {
 
                       {/* Filter Badges Display */}
                       <div className="flex items-center justify-center gap-2 flex-wrap mb-6">
-                        {orderDateFilter && (
+                        {orderPeriodFilter !== 'Semua' && (
                           <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-lg border border-slate-200">
-                            Tanggal: <span className="text-teal-700">{orderDateFilter.split('-').reverse().join('/')}</span>
+                            Periode: <span className="text-teal-700">{orderPeriodFilter}</span>
                           </span>
                         )}
                         {orderStatusFilter !== 'Semua' && (
@@ -2597,7 +2603,7 @@ export const DashboardAdmin = () => {
 
                       <button
                         onClick={() => {
-                          setOrderDateFilter('');
+                          setOrderPeriodFilter('Semua');
                           setOrderStatusFilter('Semua');
                           setOrderPtFilter('Semua');
                           setOrderSearch('');
