@@ -13,7 +13,7 @@ export const ScanBarcodeAdmin = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [camError, setCamError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(true);
-  const [scannerMode, setScannerMode] = useState<'pickup' | 'Menyiapkan' | 'Siap Diambil' | 'Diantar'>('pickup');
+  const [scannerMode, setScannerMode] = useState<'pickup' | 'Menyiapkan' | 'Diantar' | 'Siap Diambil'>('pickup');
   const html5QrRef = useRef<Html5Qrcode | null>(null);
   const isScanningRef = useRef(false);
   const scannerModeRef = useRef(scannerMode);
@@ -174,8 +174,8 @@ export const ScanBarcodeAdmin = () => {
           >
             <option value="pickup">Mode: Verifikasi Pengambilan (QR)</option>
             <option value="Menyiapkan">Ubah Status ➔ Menyiapkan</option>
-            <option value="Siap Diambil">Ubah Status ➔ Siap Diambil</option>
             <option value="Diantar">Ubah Status ➔ Diantar</option>
+            <option value="Siap Diambil">Ubah Status ➔ Siap Diambil</option>
           </select>
         </div>
 
