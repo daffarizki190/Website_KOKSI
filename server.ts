@@ -12,6 +12,9 @@ import { db, withDbRetry } from './src/db/index';
 import { users, products, orders, orderItems, cartItems, activityLogs, pushSubscriptions, chats } from './src/db/schema';
 import { eq, asc, desc, and, sql } from 'drizzle-orm';
 import webpush from 'web-push';
+import helmet from 'helmet';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_koperasi';
 if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'supersecretjwtkey_koperasi')) {
@@ -106,37 +109,26 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 // Security Hardening: Rate Limiter Memory Store for API Protection with Auto-Eviction
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 1200; // Accommodates concurrent test requests while guarding against infinite loops
+// --- MIDDLEWARE KEAMANAN: HELMET & CORS ---
+app.use(helmet({
+  contentSecurityPolicy: false, // Nonaktifkan CSP bawaan karena ini SPA react
+  crossOriginEmbedderPolicy: false
+}));
 
-// Auto-cleanup interval to prevent memory exhaustion DoS attacks
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, record] of rateLimitStore.entries()) {
-    if (now > record.resetTime) {
-      rateLimitStore.delete(ip);
-    }
-  }
-}, 60 * 1000);
+app.use(cors({
+  origin: '*', // Bisa dibatasi ke url frontend spesifik di produksi, contoh: ['https://belanjainsaza.com']
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
-const apiRateLimiter = (req: Request, res: Response, next: NextFunction) => {
-  const clientIp = (req.headers['x-forwarded-for'] as string) || req.ip || '127.0.0.1';
-  const now = Date.now();
-  const record = rateLimitStore.get(clientIp);
-
-  if (!record || now > record.resetTime) {
-    rateLimitStore.set(clientIp, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
-    return next();
-  }
-
-  record.count++;
-  if (record.count > MAX_REQUESTS_PER_WINDOW) {
-    res.status(429).json({ error: 'Terlalu banyak permintaan (Rate limit exceeded). Mohon tunggu beberapa saat.' });
-    return;
-  }
-  next();
-};
+// --- MIDDLEWARE KEAMANAN: EXPRESS RATE LIMITER ---
+const apiRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 menit
+  max: 1200, // Maksimal 1200 request per menit per IP
+  standardHeaders: true, // Kembalikan info rate limit di headers `RateLimit-*`
+  legacyHeaders: false, // Nonaktifkan header `X-RateLimit-*` lama
+  message: { error: 'Terlalu banyak permintaan (Rate limit exceeded). Mohon tunggu beberapa saat.' }
+});
 
 app.use('/api/', apiRateLimiter);
 app.use(express.json({ limit: '2mb' }));
