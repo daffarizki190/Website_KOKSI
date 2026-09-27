@@ -3217,7 +3217,16 @@ export const DashboardAdmin = () => {
                       .map((p) => (
                         <tr key={p.id} className="hover:bg-teal-50/30 transition-colors">
                           <td className="px-6 py-4">
-                            <p className="font-semibold text-slate-800">{p.nama_barang}</p>
+                            <div className="flex items-center gap-3">
+                              {p.imageUrl ? (
+                                <img src={p.imageUrl} alt={p.nama_barang} className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0" />
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                                  <Package className="w-5 h-5 text-slate-400" />
+                                </div>
+                              )}
+                              <p className="font-semibold text-slate-800">{p.nama_barang}</p>
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <span className="inline-block px-2.5 py-1 bg-teal-50 text-teal-800 border border-teal-200 rounded-lg text-xs font-bold">
@@ -3229,7 +3238,7 @@ export const DashboardAdmin = () => {
                               {p.sub_kategori || '-'}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm font-bold text-teal-700 text-right">
+                          <td className="px-6 py-4 text-sm font-bold text-teal-700 text-right whitespace-nowrap">
                             {p.harga > 0 ? `Rp ${p.harga.toLocaleString('id-ID')}` : <span className="text-slate-400">-</span>}
                           </td>
 
