@@ -755,6 +755,18 @@ export const DashboardUser = () => {
                         </span>
                       </div>
 
+                      {/* Product Image */}
+                      {product.imageUrl && (
+                        <div className="w-full h-32 mb-3 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex items-center justify-center">
+                          <img 
+                            src={product.imageUrl} 
+                            alt={product.nama_barang} 
+                            className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+                            loading="lazy"
+                          />
+                        </div>
+                      )}
+
                       {/* Middle: Product Name */}
                       <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug line-clamp-2 mb-3">
                         {product.nama_barang}
@@ -885,8 +897,13 @@ export const DashboardUser = () => {
                 ) : (
                   cart.map(item => (
                     <div key={item.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                      <div className="flex justify-between items-start mb-2">
-                        <p className="text-sm font-medium text-slate-800">{item.nama_barang}</p>
+                      <div className="flex justify-between items-start mb-2 gap-3">
+                        <div className="flex items-start gap-3 flex-1">
+                          {item.imageUrl && (
+                            <img src={item.imageUrl} alt={item.nama_barang} className="w-12 h-12 rounded object-cover border border-slate-200" />
+                          )}
+                          <p className="text-sm font-medium text-slate-800">{item.nama_barang}</p>
+                        </div>
                         <button onClick={() => updateCartQty(item.id, -item.quantity)} className="text-slate-300 hover:text-red-500 ml-2">
                           <X className="w-4 h-4" />
                         </button>

@@ -26,5 +26,9 @@ Berikut adalah ringkasan seluruh perbaikan dan fitur baru yang telah ditambahkan
 ## 5. Terminologi Status
 - Menggunakan standar kata **"Pengiriman"** untuk proses kirim, dan membersihkan status usang seperti "Selesai" dari visibilitas tracking utama sesuai kesepakatan aturan sebelumnya.
 
+## 6. Manajemen Gambar Produk
+- **Upload Gambar**: Fitur upload gambar telah aktif sepenuhnya di halaman Admin (menangani _file upload_ dengan `multer`). Admin kini dapat memilih gambar saat menambah atau mengedit produk.
+- **Tampilan User**: Daftar produk dan keranjang belanja di halaman User sekarang sudah terhubung dengan _database_ untuk menampilkan gambar produk asli, tidak lagi menggunakan ikon bawaan.
+
 ---
 *Diperbarui pada: September 2026*

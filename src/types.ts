@@ -5,6 +5,7 @@ export interface Product {
   sub_kategori?: string | null;
   harga: number;
   stok: number;
+  imageUrl?: string | null;
   createdAt?: string;
 }
 
