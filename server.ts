@@ -891,6 +891,7 @@ app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
       departemen: users.departemen,
       no_hp: users.no_hp,
       role: users.role,
+      is_blocked: users.is_blocked,
       createdAt: users.createdAt
     }).from(users));
     res.json(allUsers);
@@ -1117,6 +1118,47 @@ app.put('/api/users/:id/role', requireAuth, async (req: AuthRequest, res) => {
   } catch (error: any) {
     console.error('Update user role error:', error);
     res.status(500).json({ error: error?.message || 'Gagal mengubah role pengguna' });
+  }
+});
+
+// Block/Unblock User endpoint (Admin / IT ONLY)
+app.put('/api/users/:id/block', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const isAdminOrIT = req.user?.role === 'admin' || req.user?.role === 'it';
+    if (!isAdminOrIT) {
+      res.status(403).json({ error: 'Akses ditolak: Hanya Admin atau IT yang dapat memblokir pengguna.' });
+      return;
+    }
+
+    const targetUserId = Number(req.params.id);
+    const isBlocked = req.body.is_blocked === true || req.body.is_blocked === 'true';
+
+    const updatedUsers = await withDbRetry(() => db.update(users)
+      .set({ is_blocked: isBlocked })
+      .where(eq(users.id, targetUserId))
+      .returning());
+
+    if (updatedUsers.length === 0) {
+      res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+      return;
+    }
+
+    const u = updatedUsers[0];
+    res.json({
+      message: `Pengguna "${u.nama}" berhasil di${isBlocked ? 'blokir' : 'buka blokir'}.`,
+      user: {
+        id: u.id,
+        nama: u.nama,
+        pt: u.pt,
+        departemen: u.departemen,
+        no_hp: u.no_hp,
+        role: u.role,
+        is_blocked: u.is_blocked
+      }
+    });
+  } catch (error: any) {
+    console.error('Update user block error:', error);
+    res.status(500).json({ error: error?.message || 'Gagal mengubah status blokir pengguna' });
   }
 });
 
@@ -1834,6 +1876,18 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
       const result = await db.execute(sql`SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'`);
       if (result.rows.length > 0) {
         isDemoMode = result.rows[0].setting_value === 'true' || isDemoMode;
+      }
+    }
+  } catch (e) {}
+
+  // Cek apakah akun user diblokir
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (isDbConfigured && userId) {
+      const u = await withDbRetry(() => db.select({ is_blocked: users.is_blocked }).from(users).where(eq(users.id, userId)));
+      if (u[0]?.is_blocked) {
+        res.status(403).json({ error: 'Maaf, pesanan tidak dapat diproses karena akun Anda sedang ditangguhkan. Produk pilihan Anda telah tersimpan di keranjang. Silakan bayar tagihan Anda sebelumnya atau hubungi Admin.' });
+        return;
       }
     }
   } catch (e) {}

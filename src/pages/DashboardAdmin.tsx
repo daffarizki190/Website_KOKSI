@@ -9,13 +9,14 @@ import {
   Phone, MessageSquare, Search, Filter, AlertCircle, AlertTriangle, Check, X,
   QrCode, ScanLine, Camera, CameraOff, Inbox, FilterX, PackageSearch,
   Calendar, FileSpreadsheet, Building2, Key, Lock, Eye, EyeOff, Server,
-  User as UserIcon, Edit3, Save, TrendingUp, BarChart2, Bell, Printer, UserPlus
+  User as UserIcon, Edit3, Save, TrendingUp, BarChart2, Bell, Printer, UserPlus, ShieldAlert
 } from 'lucide-react';
 import XLSX from 'xlsx-js-style';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { getDisplayOrderId } from '../utils/format';
 import { id as idLocale } from 'date-fns/locale';
 import { SalesTrendChart } from '../components/SalesTrendChart';
+import { AdminChatPanel } from '../components/AdminChatPanel';
 import { CATEGORY_STRUCTURES } from '../data/categories';
 import { smartCategorize } from '../data/smartCategorizer';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
@@ -97,12 +98,11 @@ export const DashboardAdmin = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [activeTab, setActiveTab] = useState<'orders' | 'analytics' | 'products' | 'users'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'analytics' | 'products' | 'users' | 'blocked_users' | 'chats'>('orders');
 
   // Users state
   const [users, setUsers] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState('');
-  const [ptFilter, setPtFilter] = useState('Semua');
 
   // Orders state
   const [orders, setOrders] = useState<Order[]>([]);
@@ -157,7 +157,6 @@ export const DashboardAdmin = () => {
 
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('Semua');
-  const [orderPtFilter, setOrderPtFilter] = useState('Semua');
   const [orderPeriodFilter, setOrderPeriodFilter] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
@@ -219,7 +218,6 @@ export const DashboardAdmin = () => {
   const [exportMonth, setExportMonth] = useState<number>(new Date().getMonth() + 1);
   const [exportYear, setExportYear] = useState<number>(new Date().getFullYear());
   const [exportRabu, setExportRabu] = useState<string>('Semua');
-  const [exportPtFilter, setExportPtFilter] = useState<string>('Semua');
   const [exportStatusFilter, setExportStatusFilter] = useState<string>('Semua');
 
   // Helper functions for Wednesday export
@@ -744,7 +742,6 @@ export const DashboardAdmin = () => {
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
       const matchStatus = orderStatusFilter === 'Semua' || (order.status || 'Menunggu Konfirmasi').toLowerCase() === orderStatusFilter.toLowerCase();
-      const matchPt = orderPtFilter === 'Semua' || (order.user?.pt || '').toLowerCase() === orderPtFilter.toLowerCase();
       const matchPeriod = (() => {
         if (!orderPeriodFilter) return true;
         try {
@@ -765,10 +762,9 @@ export const DashboardAdmin = () => {
         (order.user?.no_hp || '').toLowerCase().includes(query) ||
         (order.user?.departemen || '').toLowerCase().includes(query) ||
         order.items.some(it => (it.product?.nama_barang || '').toLowerCase().includes(query));
-
-      return matchStatus && matchPt && matchPeriod && matchQuery;
+      return matchStatus && matchPeriod && matchQuery;
     });
-  }, [orders, orderStatusFilter, orderPtFilter, orderPeriodFilter, orderSearch]);
+  }, [orders, orderStatusFilter, orderPeriodFilter, orderSearch]);
 
   const handleDeleteFilteredOrders = async () => {
     if (filteredOrders.length === 0) {
@@ -789,7 +785,6 @@ export const DashboardAdmin = () => {
       }
     }
     if (orderStatusFilter !== 'Semua') filterParts.push(`Status: "${orderStatusFilter}"`);
-    if (orderPtFilter !== 'Semua') filterParts.push(`PT: "${orderPtFilter}"`);
     if (orderSearch.trim()) filterParts.push(`Pencarian: "${orderSearch.trim()}"`);
     const filterDesc = filterParts.length > 0 ? filterParts.join(' | ') : 'Semua Pesanan';
 
@@ -1177,6 +1172,32 @@ export const DashboardAdmin = () => {
       toast.error(err.message || 'Gagal memperbarui role');
     } finally {
       setUpdatingRoleId(null);
+    }
+  };
+
+  const [updatingBlockId, setUpdatingBlockId] = useState<number | null>(null);
+
+  const handleBlockToggle = async (userId: number, currentStatus: boolean) => {
+    setUpdatingBlockId(userId);
+    try {
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch(`/api/users/${userId}/block`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ is_blocked: !currentStatus })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal mengubah status block');
+
+      toast.success(data.message || `Status block berhasil diubah.`);
+      fetchUsers();
+    } catch (err: any) {
+      toast.error(err.message || 'Terjadi kesalahan jaringan');
+    } finally {
+      setUpdatingBlockId(null);
     }
   };
 
@@ -1760,7 +1781,6 @@ export const DashboardAdmin = () => {
 
       const monthToUse = targetMonth ?? exportMonth;
       const yearToUse = targetYear ?? exportYear;
-      const ptToUse = targetPt ?? exportPtFilter;
       const statusToUse = targetStatus ?? exportStatusFilter;
       const rabuToUse = exportRabu;
 
@@ -1770,10 +1790,9 @@ export const DashboardAdmin = () => {
         const matchMonth = monthToUse === 0 || (orderDate.getMonth() + 1) === monthToUse;
         const matchYear = yearToUse === 0 || orderDate.getFullYear() === yearToUse;
         const matchRabu = isDateInWednesdayPeriod(orderDate, rabuToUse);
-        const matchPt = ptToUse === 'Semua' || (order.user?.pt || '').toLowerCase() === ptToUse.toLowerCase();
         const matchStatus = statusToUse === 'Semua' || (order.status || 'Menunggu Konfirmasi').toLowerCase() === statusToUse.toLowerCase();
 
-        return matchMonth && matchYear && matchRabu && matchPt && matchStatus;
+        return matchMonth && matchYear && matchRabu && matchStatus;
       });
 
       if (filteredOrders.length === 0) {
@@ -1797,27 +1816,34 @@ export const DashboardAdmin = () => {
       let totalRevenue = 0;
 
       filteredOrders.forEach(ord => {
+        let orderSubtotal = 0;
         ord.items?.forEach(it => {
           totalItemsCount += (it.quantity || 0);
-          totalRevenue += ((it.quantity || 0) * (it.price || 0));
+          orderSubtotal += ((it.quantity || 0) * (it.price || 0));
         });
+        totalRevenue += orderSubtotal;
+        
+        // Add handling fee if total_amount is larger than items subtotal
+        if (ord.total_amount > orderSubtotal) {
+          totalRevenue += (ord.total_amount - orderSubtotal);
+        }
       });
 
       // Construct AOA Matrix without blank gap rows
-      const r0 = ['BELANJAIN SAZA - PT. SIEMENS INDONESIA', '', '', '', '', '', '', '', '', '', ''];
-      const r1 = ['LAPORAN REKAPITULASI DATA TRANSAKSI PENJUALAN', '', '', '', '', '', '', '', '', '', ''];
-      const r2 = [`Periode: ${periodTitle}   |   Dicetak: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale: idLocale })} WIB`, '', '', '', '', '', '', '', '', '', ''];
+      const r0 = ['BELANJAIN SAZA - PT. SIEMENS INDONESIA', '', '', '', '', '', '', '', '', '', '', ''];
+      const r1 = ['LAPORAN REKAPITULASI DATA TRANSAKSI PENJUALAN', '', '', '', '', '', '', '', '', '', '', ''];
+      const r2 = [`Periode: ${periodTitle}   |   Dicetak: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale: idLocale })} WIB`, '', '', '', '', '', '', '', '', '', '', ''];
 
       const r3 = [
         'TOTAL TRANSAKSI', '', '',
         'TOTAL ITEM TERJUAL', '', '',
-        'TOTAL OMZET PENJUALAN', '', '', '', ''
+        'TOTAL OMZET PENJUALAN', '', '', '', '', ''
       ];
 
       const r4 = [
         `${filteredOrders.length} Transaksi`, '', '',
         `${totalItemsCount.toLocaleString('id-ID')} Pcs`, '', '',
-        totalRevenue, '', '', '', ''
+        totalRevenue, '', '', '', '', ''
       ];
 
       const r5 = [
@@ -1830,6 +1856,7 @@ export const DashboardAdmin = () => {
         'QTY',
         'HARGA SATUAN (RP)',
         'TOTAL HARGA (RP)',
+        'BIAYA PENANGANAN (RP)',
         'TOTAL PEMBAYARAN (RP)',
         'STATUS PESANAN'
       ];
@@ -1839,6 +1866,7 @@ export const DashboardAdmin = () => {
       let orderCounter = 1;
       let grandTotalQty = 0;
       let grandTotalSubtotal = 0;
+      let grandTotalHandlingFee = 0;
 
       const orderMerges: { s: { r: number, c: number }, e: { r: number, c: number } }[] = [];
       const userGroupRanges: { start: number; end: number; groupIdx: number; statusText: string }[] = [];
@@ -1895,10 +1923,13 @@ export const DashboardAdmin = () => {
 
         let userTotal = 0;
         userGroup.orders.forEach(order => {
+          let orderSub = 0;
           const items = (order.items && order.items.length > 0) ? order.items : [];
           items.forEach(item => {
-            userTotal += (item.quantity || 0) * (item.price || 0);
+            orderSub += (item.quantity || 0) * (item.price || 0);
           });
+          const orderHandlingFee = order.total_amount > orderSub ? order.total_amount - orderSub : 0;
+          userTotal += orderSub + orderHandlingFee;
         });
 
         userGroup.orders.forEach(order => {
@@ -1918,6 +1949,12 @@ export const DashboardAdmin = () => {
             { id: 0, productId: 0, quantity: 0, price: 0, product: { nama_barang: 'Tidak ada barang' } }
           ];
 
+          let orderSubtotal = 0;
+          items.forEach(it => {
+            orderSubtotal += (it.quantity || 0) * (it.price || 0);
+          });
+          const orderHandlingFee = order.total_amount > orderSubtotal ? order.total_amount - orderSubtotal : 0;
+
           items.forEach((item, itemIdx) => {
             const qty = item.quantity || 0;
             const price = item.price || 0;
@@ -1927,6 +1964,10 @@ export const DashboardAdmin = () => {
 
             const isFirstRowOfUser = (aoa.length === userStartRow);
             const isFirstRowOfOrder = (itemIdx === 0);
+            
+            if (isFirstRowOfOrder) {
+              grandTotalHandlingFee += orderHandlingFee;
+            }
 
             aoa.push([
               isFirstRowOfUser ? orderCounter : '',
@@ -1938,6 +1979,7 @@ export const DashboardAdmin = () => {
               qty,
               price,
               subtotal,
+              isFirstRowOfOrder ? orderHandlingFee : '',
               isFirstRowOfUser ? userTotal : '',
               isFirstRowOfOrder ? orderStatus : ''
             ]);
@@ -1945,10 +1987,11 @@ export const DashboardAdmin = () => {
 
           const orderEndRow = aoa.length - 1;
 
-          // Merge order-level columns (Tanggal pesanan, Status pesanan) jika order checkout memiliki > 1 item
+          // Merge order-level columns (Tanggal pesanan, Biaya Penanganan, Status pesanan) jika order checkout memiliki > 1 item
           if (orderEndRow > orderStartRow) {
             orderMerges.push({ s: { r: orderStartRow, c: 4 }, e: { r: orderEndRow, c: 4 } });
-            orderMerges.push({ s: { r: orderStartRow, c: 10 }, e: { r: orderEndRow, c: 10 } });
+            orderMerges.push({ s: { r: orderStartRow, c: 9 }, e: { r: orderEndRow, c: 9 } });
+            orderMerges.push({ s: { r: orderStartRow, c: 11 }, e: { r: orderEndRow, c: 11 } });
           }
         });
 
@@ -1960,7 +2003,7 @@ export const DashboardAdmin = () => {
           for (let c = 0; c <= 3; c++) {
             orderMerges.push({ s: { r: userStartRow, c }, e: { r: userEndRow, c } });
           }
-          orderMerges.push({ s: { r: userStartRow, c: 9 }, e: { r: userEndRow, c: 9 } });
+          orderMerges.push({ s: { r: userStartRow, c: 10 }, e: { r: userEndRow, c: 10 } });
         }
 
         orderCounter++;
@@ -1972,7 +2015,8 @@ export const DashboardAdmin = () => {
         grandTotalQty,
         '',
         grandTotalSubtotal,
-        grandTotalSubtotal,
+        grandTotalHandlingFee,
+        grandTotalSubtotal + grandTotalHandlingFee,
         ''
       ]);
 
@@ -1980,15 +2024,15 @@ export const DashboardAdmin = () => {
 
       // Merges
       ws['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 10 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 11 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 11 } },
         { s: { r: 3, c: 0 }, e: { r: 3, c: 2 } },
         { s: { r: 4, c: 0 }, e: { r: 4, c: 2 } },
         { s: { r: 3, c: 3 }, e: { r: 3, c: 5 } },
         { s: { r: 4, c: 3 }, e: { r: 4, c: 5 } },
-        { s: { r: 3, c: 6 }, e: { r: 3, c: 10 } },
-        { s: { r: 4, c: 6 }, e: { r: 4, c: 10 } },
+        { s: { r: 3, c: 6 }, e: { r: 3, c: 11 } },
+        { s: { r: 4, c: 6 }, e: { r: 4, c: 11 } },
         { s: { r: footerRowIdx, c: 0 }, e: { r: footerRowIdx, c: 5 } },
         ...orderMerges
       ];
@@ -2004,6 +2048,7 @@ export const DashboardAdmin = () => {
         { wch: 8 },   // QTY
         { wch: 18 },  // HARGA SATUAN (RP)
         { wch: 18 },  // TOTAL HARGA (RP)
+        { wch: 20 },  // BIAYA PENANGANAN (RP)
         { wch: 22 },  // TOTAL PEMBAYARAN (RP)
         { wch: 22 }   // STATUS PESANAN
       ];
@@ -2026,7 +2071,7 @@ export const DashboardAdmin = () => {
 
       // Styling Cells
       // Row 0
-      for (let c = 0; c <= 10; c++) {
+      for (let c = 0; c <= 11; c++) {
         const addr = XLSX.utils.encode_cell({ r: 0, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
         ws[addr].s = {
@@ -2037,7 +2082,7 @@ export const DashboardAdmin = () => {
       }
 
       // Row 1
-      for (let c = 0; c <= 10; c++) {
+      for (let c = 0; c <= 11; c++) {
         const addr = XLSX.utils.encode_cell({ r: 1, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
         ws[addr].s = {
@@ -2048,7 +2093,7 @@ export const DashboardAdmin = () => {
       }
 
       // Row 2
-      for (let c = 0; c <= 10; c++) {
+      for (let c = 0; c <= 11; c++) {
         const addr = XLSX.utils.encode_cell({ r: 2, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
         ws[addr].s = {
@@ -2059,7 +2104,7 @@ export const DashboardAdmin = () => {
       }
 
       // KPI Boxes (Rows 3 & 4)
-      for (let c = 0; c <= 10; c++) {
+      for (let c = 0; c <= 11; c++) {
         const lAddr = XLSX.utils.encode_cell({ r: 3, c });
         const vAddr = XLSX.utils.encode_cell({ r: 4, c });
 
@@ -2087,7 +2132,7 @@ export const DashboardAdmin = () => {
       }
 
       // Table Headers (Row 5)
-      for (let c = 0; c <= 10; c++) {
+      for (let c = 0; c <= 11; c++) {
         const addr = XLSX.utils.encode_cell({ r: 5, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
         ws[addr].s = {
@@ -2114,7 +2159,7 @@ export const DashboardAdmin = () => {
         const rowBg = isEvenUser ? 'FFFFFF' : 'F8FAFC';
         const isUserLastRow = userGroup ? r === userGroup.end : false;
 
-        for (let c = 0; c <= 10; c++) {
+        for (let c = 0; c <= 11; c++) {
           const addr = XLSX.utils.encode_cell({ r, c });
           if (!ws[addr]) ws[addr] = { v: '', t: 's' };
           const cell = ws[addr];
@@ -2147,7 +2192,7 @@ export const DashboardAdmin = () => {
             cell.s.fill = { fgColor: { rgb: 'D1FAE5' } }; // emerald-100
           }
 
-          if (c === 7 || c === 8 || c === 9) {
+          if (c >= 7 && c <= 10) {
             if (typeof cell.v === 'number') {
               cell.z = '"Rp "#,##0';
             }
@@ -2181,7 +2226,7 @@ export const DashboardAdmin = () => {
 
       // Footer Row
       ws['!rows'][footerRowIdx] = { hpt: 26 };
-      for (let c = 0; c <= 10; c++) {
+      for (let c = 0; c <= 11; c++) {
         const addr = XLSX.utils.encode_cell({ r: footerRowIdx, c });
         if (!ws[addr]) ws[addr] = { v: '', t: 's' };
 
@@ -2198,7 +2243,7 @@ export const DashboardAdmin = () => {
           }
         };
 
-        if ((c === 8 || c === 9) && typeof curCell.v === 'number') {
+        if (c >= 8 && c <= 10 && typeof curCell.v === 'number') {
           curCell.z = '"Rp "#,##0';
         }
         if (c === 6 && typeof curCell.v === 'number') {
@@ -2282,66 +2327,11 @@ export const DashboardAdmin = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 w-full max-w-full flex-1 flex flex-col min-w-0 overflow-x-hidden">
-        {/* Navigation Tabs (Mobile 2-Column Grid / Desktop Horizontal Tabs) */}
-        {/* Mobile View (< sm): Fits 100% on screen, Zero Swiping Needed */}
-        <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-slate-200/60 rounded-2xl mb-4 sm:hidden">
+        {/* Navigation Tabs (Responsive for Mobile and Desktop) */}
+        <div className="flex flex-row space-x-2 sm:space-x-4 border-b border-slate-200 mb-4 sm:mb-6 shrink-0 overflow-x-auto max-w-full w-full pb-1 scrollbar-none">
           <button
             onClick={() => setActiveTab('orders')}
-            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${activeTab === 'orders'
-              ? 'bg-teal-600 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100'
-              }`}
-          >
-            <div className="flex items-center gap-1.5 truncate">
-              <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">Transaksi</span>
-            </div>
-            {pendingOrdersCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 text-[9px] bg-amber-400 text-slate-950 rounded-full font-black">
-                {pendingOrdersCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer truncate ${activeTab === 'analytics'
-              ? 'bg-teal-600 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100'
-              }`}
-          >
-            <TrendingUp className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'analytics' ? 'text-white' : 'text-teal-600'}`} />
-            <span className="truncate">Grafik Penjualan</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('products')}
-            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer truncate ${activeTab === 'products'
-              ? 'bg-teal-600 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100'
-              }`}
-          >
-            <Package className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Data Produk</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer truncate ${activeTab === 'users'
-              ? 'bg-teal-600 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100'
-              }`}
-          >
-            <FileText className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Pengguna ({users.length})</span>
-          </button>
-        </div>
-
-        {/* Desktop View (>= sm): Standard Horizontal Tabs */}
-        <div className="hidden sm:flex space-x-2 border-b border-slate-200 mb-6 shrink-0 overflow-x-auto max-w-full w-full pb-1">
-          <button
-            onClick={() => setActiveTab('orders')}
-            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'orders'
+            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'orders'
               ? 'border-teal-600 text-teal-600'
               : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
@@ -2357,7 +2347,7 @@ export const DashboardAdmin = () => {
 
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'analytics'
+            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'analytics'
               ? 'border-teal-600 text-teal-600'
               : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
@@ -2368,7 +2358,7 @@ export const DashboardAdmin = () => {
 
           <button
             onClick={() => setActiveTab('products')}
-            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'products'
+            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'products'
               ? 'border-teal-600 text-teal-600'
               : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
@@ -2379,18 +2369,40 @@ export const DashboardAdmin = () => {
 
           <button
             onClick={() => setActiveTab('users')}
-            className={`py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'users'
+            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'users'
               ? 'border-teal-600 text-teal-600'
               : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
           >
             <FileText className="w-4 h-4" />
-            <span>Daftar Pengguna ({users.length})</span>
+            <span>Daftar Pengguna ({users.filter(u => !u.is_blocked).length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('blocked_users')}
+            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'blocked_users'
+              ? 'border-red-600 text-red-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+          >
+            <ShieldAlert className="w-4 h-4" />
+            <span>Anggota Diblokir ({users.filter(u => u.is_blocked).length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('chats')}
+            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'chats'
+              ? 'border-teal-600 text-teal-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>Pesan Anggota</span>
           </button>
 
           <button
             onClick={handleOpenProfileModal}
-            className="py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 border-transparent text-slate-600 hover:text-teal-600 transition-colors whitespace-nowrap bg-teal-50/60 rounded-t-lg"
+            className="shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 border-transparent text-slate-600 hover:text-teal-600 transition-colors whitespace-nowrap bg-teal-50/60 rounded-t-lg"
           >
             <UserIcon className="w-4 h-4 text-teal-600" />
             <span>Edit Profil Saya</span>
@@ -2504,31 +2516,6 @@ export const DashboardAdmin = () => {
                   <option value="Dibatalkan">Dibatalkan</option>
                 </select>
 
-                <select
-                  value={orderPtFilter}
-                  onChange={(e) => setOrderPtFilter(e.target.value)}
-                  className="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-sm"
-                >
-                  <option value="Semua">Semua PT</option>
-                  {Array.from(new Set(orders.map(o => o.user?.pt).filter(Boolean))).map((ptName: any) => (
-                    <option key={ptName} value={ptName}>{ptName}</option>
-                  ))}
-                </select>
-
-                <div className="flex items-center space-x-2 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl shadow-sm w-full md:w-auto mt-2 md:mt-0">
-                  <ScanLine className="w-4 h-4 text-indigo-600 shrink-0" />
-                  <span className="text-xs font-bold text-indigo-900 shrink-0">Scanner:</span>
-                  <select
-                    value={scannerMode}
-                    onChange={(e: any) => setScannerMode(e.target.value)}
-                    className="flex-1 md:flex-none bg-white border border-indigo-200 text-indigo-800 text-[11px] font-bold rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                  >
-                    <option value="detail">Mode: Lihat Detail</option>
-                    <option value="proses">Ubah ➔ Menyiapkan</option>
-                    <option value="pengiriman">Ubah ➔ Pengiriman</option>
-                    <option value="siap">Ubah ➔ Siap Diambil</option>
-                  </select>
-                </div>
 
                 <div className="relative flex-1 md:w-48">
                   <input
@@ -2612,11 +2599,6 @@ export const DashboardAdmin = () => {
                             Status: <span className="text-teal-700">{orderStatusFilter}</span>
                           </span>
                         )}
-                        {orderPtFilter !== 'Semua' && (
-                          <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-lg border border-slate-200">
-                            PT: <span className="text-teal-700">{orderPtFilter}</span>
-                          </span>
-                        )}
                         {orderSearch.trim() !== '' && (
                           <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-lg border border-slate-200">
                             Cari: <span className="text-teal-700">"{orderSearch}"</span>
@@ -2628,7 +2610,6 @@ export const DashboardAdmin = () => {
                         onClick={() => {
                           setOrderPeriodFilter(format(new Date(), 'yyyy-MM-dd'));
                           setOrderStatusFilter('Semua');
-                          setOrderPtFilter('Semua');
                           setOrderSearch('');
                         }}
                         className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-teal-600/20 flex items-center gap-2 cursor-pointer"
@@ -2649,27 +2630,34 @@ export const DashboardAdmin = () => {
                       }`}
                   >
                     {/* Order Header Info */}
-                    <div className="bg-slate-50 border-b border-slate-100 p-4 sm:px-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                      <div className="flex flex-wrap items-center gap-4">
-                        <div>
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">ID Pesanan {getDisplayOrderId(order.id, order.createdAt)}</span>
-                          <p className="text-xs font-semibold text-slate-800">
-                            {format(new Date(order.createdAt), 'dd MMMM yyyy, HH:mm', { locale: idLocale })}
-                          </p>
+                    <div className="bg-slate-50 border-b border-slate-100 p-3 sm:p-4 lg:px-6 flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                        <div className="flex items-center justify-between sm:block">
+                          <div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">ID Pesanan {getDisplayOrderId(order.id, order.createdAt)}</span>
+                            <p className="text-xs font-semibold text-slate-800">
+                              {format(new Date(order.createdAt), 'dd MMMM yyyy, HH:mm', { locale: idLocale })}
+                            </p>
+                          </div>
+                          {/* Barcode on Mobile (Right aligned next to ID) */}
+                          <div className="block sm:hidden bg-white px-2 py-1 rounded border border-slate-100 shadow-sm ml-2 shrink-0">
+                            <Barcode value={`KOKSI-${order.id}`} width={1.2} height={25} fontSize={0} displayValue={false} text=" " margin={0} background="transparent" />
+                          </div>
                         </div>
 
                         <div className="hidden sm:block w-px h-8 bg-slate-200"></div>
 
                         <div className="flex items-center gap-4">
-                          <div>
+                          <div className="flex-1">
                             <p className="text-xs font-extrabold text-slate-900">{order.user?.nama || 'Pengguna Dihapus'}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <span className="px-2 py-0.5 bg-teal-50 text-teal-800 font-bold text-[10px] rounded-md border border-teal-200">
                                 {order.user?.pt || 'PT. Siemens Indonesia'}
                               </span>
                               <span className="text-[10px] text-slate-500 font-medium">{order.user?.departemen || '-'}</span>
                             </div>
                           </div>
+                          {/* Barcode on Desktop */}
                           <div className="hidden sm:block bg-white px-2 py-1 rounded border border-slate-100 shadow-sm">
                             <Barcode value={`KOKSI-${order.id}`} width={1.8} height={40} fontSize={0} displayValue={false} text=" " margin={10} background="transparent" />
                           </div>
@@ -2682,40 +2670,42 @@ export const DashboardAdmin = () => {
                             href={`https://wa.me/62${order.user.no_hp.replace(/^0/, '')}?text=${encodeURIComponent(`Halo Sdr/i ${order.user.nama}, mengenai pesanan ${getDisplayOrderId(order.id, order.createdAt)} BelanjaIn Saza...`)}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg border border-emerald-200 text-xs font-bold transition-colors"
+                            className="inline-flex items-center px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg border border-emerald-200 text-xs font-bold transition-colors w-fit"
                           >
-                            <Phone className="w-3 h-3 mr-1" />
+                            <Phone className="w-3 h-3 mr-1 shrink-0" />
                             {order.user.no_hp}
                           </a>
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between lg:justify-end gap-3 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200">
-                        <div className="text-right">
+                      <div className="flex items-center justify-between gap-3 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200">
+                        <div className="text-left lg:text-right">
                           <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Transaksi</span>
-                          <span className="text-base font-extrabold text-teal-700">
+                          <span className="text-sm sm:text-base font-extrabold text-teal-700">
                             Rp {(order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0) + 2000).toLocaleString('id-ID')}
                           </span>
                         </div>
 
-                        <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border whitespace-nowrap shrink-0 ${getStatusBadgeStyle(order.status)}`}>
-                          {order.status || 'Menunggu Konfirmasi'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2.5 py-1 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wider border whitespace-nowrap shrink-0 ${getStatusBadgeStyle(order.status)}`}>
+                            {order.status || 'Menunggu Konfirmasi'}
+                          </span>
 
-                        <button
-                          onClick={() => handlePrintReceipt(order.id)}
-                          className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-colors border border-transparent hover:border-teal-200 cursor-pointer shrink-0 no-print"
-                          title={`Cetak Struk Pesanan ${getDisplayOrderId(order.id, order.createdAt)}`}
-                        >
-                          <Printer className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteSingleOrder(order.id)}
-                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-200 cursor-pointer shrink-0 no-print"
-                          title={`Hapus Transaksi Pesanan ${getDisplayOrderId(order.id, order.createdAt)}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          <button
+                            onClick={() => handlePrintReceipt(order.id)}
+                            className="p-1.5 sm:p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-colors border border-transparent hover:border-teal-200 cursor-pointer shrink-0 no-print"
+                            title={`Cetak Struk Pesanan ${getDisplayOrderId(order.id, order.createdAt)}`}
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSingleOrder(order.id)}
+                            className="p-1.5 sm:p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-200 cursor-pointer shrink-0 no-print"
+                            title={`Hapus Transaksi Pesanan ${getDisplayOrderId(order.id, order.createdAt)}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -3266,22 +3256,14 @@ export const DashboardAdmin = () => {
           </>
         )}
 
-        {/* TAB 3: DAFTAR PENGGUNA */}
-        {activeTab === 'users' && (
+        {/* TAB 3: DAFTAR PENGGUNA & DIBLOKIR */}
+        {(activeTab === 'users' || activeTab === 'blocked_users') && (
           <div className="flex flex-col flex-1 overflow-hidden space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
-              <h2 className="text-xl font-bold text-slate-900">Daftar Karyawan / Pengguna</h2>
+              <h2 className="text-xl font-bold text-slate-900">
+                {activeTab === 'users' ? 'Daftar Karyawan / Pengguna' : 'Anggota Diblokir'}
+              </h2>
               <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto">
-                <select
-                  value={ptFilter}
-                  onChange={(e) => setPtFilter(e.target.value)}
-                  className="px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-sm"
-                >
-                  <option value="Semua">Semua Perusahaan (PT)</option>
-                  {Array.from(new Set(users.map(u => u.pt).filter(Boolean))).map((ptName: any) => (
-                    <option key={ptName} value={ptName}>{ptName}</option>
-                  ))}
-                </select>
                 <input
                   type="text"
                   placeholder="Cari Nama / No HP / Dept..."
@@ -3289,13 +3271,15 @@ export const DashboardAdmin = () => {
                   onChange={(e) => setUserSearch(e.target.value)}
                   className="px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-sm w-full sm:w-56"
                 />
-                <button
-                  onClick={() => setIsAddUserModalOpen(true)}
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 shadow-sm w-full sm:w-auto"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>Tambah Karyawan</span>
-                </button>
+                {activeTab === 'users' && (
+                  <button
+                    onClick={() => setIsAddUserModalOpen(true)}
+                    className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 shadow-sm w-full sm:w-auto"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Tambah Karyawan</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -3304,14 +3288,14 @@ export const DashboardAdmin = () => {
               <div className="block md:hidden divide-y divide-slate-100 overflow-y-auto flex-1">
                 {users
                   .filter(u => {
-                    const matchPt = ptFilter === 'Semua' || (u.pt || '').toLowerCase() === ptFilter.toLowerCase();
                     const query = userSearch.toLowerCase();
                     const matchSearch = !query ||
                       (u.nama || '').toLowerCase().includes(query) ||
                       (u.no_hp || '').toLowerCase().includes(query) ||
                       (u.pt || '').toLowerCase().includes(query) ||
                       (u.departemen || '').toLowerCase().includes(query);
-                    return matchPt && matchSearch;
+                    const matchBlock = activeTab === 'blocked_users' ? u.is_blocked : !u.is_blocked;
+                    return matchSearch && matchBlock;
                   })
                   .map((u) => (
                     <div key={u.id} className="p-3.5 space-y-2.5 hover:bg-slate-50 transition-colors">
@@ -3365,7 +3349,7 @@ export const DashboardAdmin = () => {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap mt-2">
                           <button
                             onClick={() => openEditUserModal(u)}
                             className="px-2.5 py-1 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
@@ -3381,6 +3365,16 @@ export const DashboardAdmin = () => {
                             <span>Reset PW</span>
                           </button>
                           <button
+                            onClick={() => handleBlockToggle(u.id, u.is_blocked || false)}
+                            disabled={updatingBlockId === u.id}
+                            className={`px-2.5 py-1 border rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 ${u.is_blocked 
+                                ? 'text-green-700 bg-green-50 hover:bg-green-100 border-green-200' 
+                                : 'text-orange-700 bg-orange-50 hover:bg-orange-100 border-orange-200'}`}
+                          >
+                            <Lock className={`w-3 h-3 ${u.is_blocked ? 'text-green-600' : 'text-orange-600'}`} />
+                            <span>{updatingBlockId === u.id ? '...' : (u.is_blocked ? 'Unblock' : 'Block')}</span>
+                          </button>
+                          <button
                             onClick={() => openDeleteUserModal(u)}
                             className="px-2.5 py-1 text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
                           >
@@ -3391,7 +3385,7 @@ export const DashboardAdmin = () => {
                       </div>
                     </div>
                   ))}
-                {users.length === 0 && (
+                {users.filter(u => activeTab === 'blocked_users' ? u.is_blocked : !u.is_blocked).length === 0 && (
                   <div className="p-8 text-center text-slate-500 text-xs">Belum ada pengguna.</div>
                 )}
               </div>
@@ -3410,14 +3404,14 @@ export const DashboardAdmin = () => {
                   <tbody className="bg-white divide-y divide-slate-100">
                     {users
                       .filter(u => {
-                        const matchPt = ptFilter === 'Semua' || (u.pt || '').toLowerCase() === ptFilter.toLowerCase();
                         const query = userSearch.toLowerCase();
                         const matchSearch = !query ||
                           (u.nama || '').toLowerCase().includes(query) ||
                           (u.no_hp || '').toLowerCase().includes(query) ||
                           (u.pt || '').toLowerCase().includes(query) ||
                           (u.departemen || '').toLowerCase().includes(query);
-                        return matchPt && matchSearch;
+                        const matchBlock = activeTab === 'blocked_users' ? u.is_blocked : !u.is_blocked;
+                        return matchSearch && matchBlock;
                       })
                       .map((u) => (
                         <tr key={u.id} className="hover:bg-slate-50 transition-colors">
@@ -3480,6 +3474,18 @@ export const DashboardAdmin = () => {
                                 <Key className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                                 <span>Reset Password</span>
                               </button>
+                              
+                              <button
+                                onClick={() => handleBlockToggle(u.id, u.is_blocked || false)}
+                                disabled={updatingBlockId === u.id}
+                                title={u.is_blocked ? "Buka Blokir Pengguna" : "Blokir Pengguna"}
+                                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all border flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 ${u.is_blocked 
+                                    ? 'bg-green-50 hover:bg-green-100 text-green-700 border-green-200' 
+                                    : 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200'}`}
+                              >
+                                <Lock className={`w-3.5 h-3.5 shrink-0 ${u.is_blocked ? 'text-green-600' : 'text-orange-600'}`} />
+                                <span>{updatingBlockId === u.id ? '...' : (u.is_blocked ? 'Unblock' : 'Block')}</span>
+                              </button>
 
                               <button
                                 onClick={() => openDeleteUserModal(u)}
@@ -3493,7 +3499,7 @@ export const DashboardAdmin = () => {
                           </td>
                         </tr>
                       ))}
-                    {users.length === 0 && (
+                    {users.filter(u => activeTab === 'blocked_users' ? u.is_blocked : !u.is_blocked).length === 0 && (
                       <tr>
                         <td colSpan={4} className="px-6 py-8 text-center text-slate-500">Belum ada pengguna.</td>
                       </tr>
@@ -3502,6 +3508,13 @@ export const DashboardAdmin = () => {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB 4: CHATS */}
+        {activeTab === 'chats' && (
+          <div className="flex flex-col flex-1 overflow-hidden space-y-4">
+            <AdminChatPanel />
           </div>
         )}
 
@@ -3707,7 +3720,7 @@ export const DashboardAdmin = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Harga (Rp)</label>
                   <input
@@ -3716,17 +3729,6 @@ export const DashboardAdmin = () => {
                     min="0"
                     value={formData.harga}
                     onChange={(e) => setFormData({ ...formData, harga: parseInt(e.target.value) || 0 })}
-                    className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Stok</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={formData.stok}
-                    onChange={(e) => setFormData({ ...formData, stok: parseInt(e.target.value) || 0 })}
                     className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
                   />
                 </div>
@@ -4003,25 +4005,8 @@ export const DashboardAdmin = () => {
                 )}
               </div>
 
-              {/* Filter PT & Status */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                    <Building2 className="w-3.5 h-3.5 text-teal-600" />
-                    <span>Perusahaan (PT)</span>
-                  </label>
-                  <select
-                    value={exportPtFilter}
-                    onChange={(e) => setExportPtFilter(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="Semua">Semua Perusahaan / PT</option>
-                    {Array.from(new Set(orders.map(o => o.user?.pt).filter(Boolean))).map((ptName: any) => (
-                      <option key={ptName} value={ptName}>{ptName}</option>
-                    ))}
-                  </select>
-                </div>
-
+              {/* Filter Status */}
+              <div className="grid grid-cols-1 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
                     Status Pesanan
@@ -4049,9 +4034,8 @@ export const DashboardAdmin = () => {
                   const matchM = exportMonth === 0 || (d.getMonth() + 1) === exportMonth;
                   const matchY = exportYear === 0 || d.getFullYear() === exportYear;
                   const matchRabu = isDateInWednesdayPeriod(d, exportRabu);
-                  const matchPt = exportPtFilter === 'Semua' || (o.user?.pt || '').toLowerCase() === exportPtFilter.toLowerCase();
                   const matchSt = exportStatusFilter === 'Semua' || (o.status || 'Menunggu Konfirmasi').toLowerCase() === exportStatusFilter.toLowerCase();
-                  return matchM && matchY && matchRabu && matchPt && matchSt;
+                  return matchM && matchY && matchRabu && matchSt;
                 }).length;
 
                 return (

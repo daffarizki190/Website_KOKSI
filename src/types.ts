@@ -21,6 +21,7 @@ export interface User {
   departemen: string;
   no_hp: string;
   role: 'user' | 'admin' | 'it';
+  is_blocked?: boolean;
   createdAt?: string;
 }
 

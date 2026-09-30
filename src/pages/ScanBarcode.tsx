@@ -144,13 +144,17 @@ export const ScanBarcodeAdmin = () => {
     return () => {
       isScanningRef.current = true; // prevent new scans
       if (html5QrRef.current) {
-        html5QrRef.current.stop().catch(() => {}).finally(() => {
-          try {
-            html5QrRef.current?.clear();
-          } catch (e) {
-            // ignore
+        try {
+          if (html5QrRef.current.getState && html5QrRef.current.getState() !== 1) { // 1 = UNKNOWN/NOT_STARTED
+            html5QrRef.current.stop().catch(() => {}).finally(() => {
+              try { html5QrRef.current?.clear(); } catch (e) {}
+            });
+          } else {
+            try { html5QrRef.current?.clear(); } catch (e) {}
           }
-        });
+        } catch (err) {
+          try { html5QrRef.current?.clear(); } catch (e) {}
+        }
       }
     };
   }, [user, navigate, token]);

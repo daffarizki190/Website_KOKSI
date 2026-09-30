@@ -54,6 +54,7 @@ var users = pgTable("users", {
   lockedUntil: timestamp("locked_until"),
   lastLoginIp: text("last_login_ip"),
   lastLoginAt: timestamp("last_login_at"),
+  is_blocked: boolean("is_blocked").default(false),
   createdAt: timestamp("created_at").defaultNow()
 });
 var products = pgTable("products", {
@@ -695,7 +696,8 @@ app.post("/api/auth/login", async (req, res) => {
             pt: user.pt,
             departemen: user.departemen,
             no_hp: user.no_hp,
-            mustChangePassword: isDemoPresetPass ? false : user.mustChangePassword
+            mustChangePassword: isDemoPresetPass ? false : user.mustChangePassword,
+            is_blocked: user.is_blocked
           }
         });
         return;
@@ -768,7 +770,8 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
           pt: u.pt,
           departemen: u.departemen,
           no_hp: u.no_hp,
-          mustChangePassword: isDemoUser ? false : u.mustChangePassword
+          mustChangePassword: isDemoUser ? false : u.mustChangePassword,
+          is_blocked: u.is_blocked
         }
       });
       return;
@@ -781,7 +784,8 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
         no_hp: req.user?.no_hp,
         pt: "PT. Siemens Indonesia",
         departemen: "-",
-        mustChangePassword: false
+        mustChangePassword: false,
+        is_blocked: false
       }
     });
   } catch (err) {
@@ -998,6 +1002,7 @@ app.get("/api/users", requireAuth, requireAdmin, async (req, res) => {
       departemen: users.departemen,
       no_hp: users.no_hp,
       role: users.role,
+      is_blocked: users.is_blocked,
       createdAt: users.createdAt
     }).from(users));
     res.json(allUsers);
@@ -1177,6 +1182,43 @@ app.put("/api/users/:id/role", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Update user role error:", error);
     res.status(500).json({ error: error?.message || "Gagal mengubah role pengguna" });
+  }
+});
+
+app.put("/api/users/:id/block", requireAuth, async (req, res) => {
+  try {
+    const isAdminOrIT = req.user?.role === "admin" || req.user?.role === "it";
+    if (!isAdminOrIT) {
+      res.status(403).json({ error: "Akses ditolak: Hanya Admin atau IT yang dapat mengubah status block." });
+      return;
+    }
+    const targetUserId = Number(req.params.id);
+    const { is_blocked } = req.body;
+    
+    if (typeof is_blocked !== "boolean") {
+      res.status(400).json({ error: "Status block tidak valid!" });
+      return;
+    }
+    
+    const updatedUsers = await withDbRetry(() => db.update(users).set({ is_blocked }).where(eq(users.id, targetUserId)).returning());
+    if (updatedUsers.length === 0) {
+      res.status(404).json({ error: "Pengguna tidak ditemukan" });
+      return;
+    }
+    
+    const u = updatedUsers[0];
+    const statusText = is_blocked ? "diblokir" : "diaktifkan kembali";
+    res.json({
+      message: `Status pengguna "${u.nama}" berhasil ${statusText}.`,
+      user: {
+        id: u.id,
+        nama: u.nama,
+        is_blocked: u.is_blocked
+      }
+    });
+  } catch (error) {
+    console.error("Update user block status error:", error);
+    res.status(500).json({ error: error?.message || "Gagal mengubah status block pengguna" });
   }
 });
 app.delete("/api/users/:id", requireAuth, async (req, res) => {

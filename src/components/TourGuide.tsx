@@ -68,6 +68,11 @@ export const TourGuide: React.FC = () => {
       target: '.tour-history',
       content: 'Pantau status pesanan Anda dan tunjukkan ID Pesanan ke petugas koperasi saat mengambil barang.',
       title: 'Riwayat Pesanan',
+    },
+    {
+      target: '.tour-chat',
+      content: 'Punya pertanyaan tentang stok atau pesanan? Klik tombol ini untuk chat langsung dengan Admin Koperasi.',
+      title: 'Chat Admin',
     }
   ];
 

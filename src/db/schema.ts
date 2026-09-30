@@ -11,6 +11,7 @@ export const users = pgTable('users', {
   password: text('password').notNull(),
   
   // Fitur Keamanan
+  is_blocked: boolean('is_blocked').default(false),
   mustChangePassword: boolean('must_change_password').default(true),
   failedLoginAttempts: integer('failed_login_attempts').default(0),
   lockedUntil: timestamp('locked_until'),
