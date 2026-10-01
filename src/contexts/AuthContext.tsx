@@ -8,6 +8,7 @@ interface User {
   departemen: string;
   no_hp: string;
   mustChangePassword?: boolean;
+  is_blocked?: boolean;
 }
 
 interface AuthContextType {
