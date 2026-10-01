@@ -34,6 +34,7 @@ __export(schema_exports, {
   productsRelations: () => productsRelations,
   pushSubscriptions: () => pushSubscriptions,
   pushSubscriptionsRelations: () => pushSubscriptionsRelations,
+  settings: () => settings,
   users: () => users,
   usersRelations: () => usersRelations
 });
@@ -49,12 +50,12 @@ var users = pgTable("users", {
   // 'user' | 'admin' | 'it'
   password: text("password").notNull(),
   // Fitur Keamanan
+  is_blocked: boolean("is_blocked").default(false),
   mustChangePassword: boolean("must_change_password").default(true),
   failedLoginAttempts: integer("failed_login_attempts").default(0),
   lockedUntil: timestamp("locked_until"),
   lastLoginIp: text("last_login_ip"),
   lastLoginAt: timestamp("last_login_at"),
-  is_blocked: boolean("is_blocked").default(false),
   createdAt: timestamp("created_at").defaultNow()
 });
 var products = pgTable("products", {
@@ -177,6 +178,11 @@ var chatsRelations = relations(chats, ({ one }) => ({
     relationName: "receiver"
   })
 }));
+var settings = pgTable("settings", {
+  setting_key: text("setting_key").primaryKey(),
+  setting_value: text("setting_value").notNull(),
+  updated_at: timestamp("updated_at").defaultNow()
+});
 
 // src/db/index.ts
 var createPool = () => {
@@ -276,6 +282,9 @@ async function withDbRetry(operation, maxRetries = 2) {
 // server.ts
 import { eq, asc, desc, and, sql } from "drizzle-orm";
 import webpush from "web-push";
+import helmet from "helmet";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
 dotenv.config();
 var JWT_SECRET = process.env.JWT_SECRET || "supersecretjwtkey_koperasi";
 if (process.env.NODE_ENV === "production" && (!process.env.JWT_SECRET || process.env.JWT_SECRET === "supersecretjwtkey_koperasi")) {
@@ -352,32 +361,28 @@ app.use((req, res, next) => {
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   next();
 });
-var rateLimitStore = /* @__PURE__ */ new Map();
-var RATE_LIMIT_WINDOW_MS = 60 * 1e3;
-var MAX_REQUESTS_PER_WINDOW = 1200;
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, record] of rateLimitStore.entries()) {
-    if (now > record.resetTime) {
-      rateLimitStore.delete(ip);
-    }
-  }
-}, 60 * 1e3);
-var apiRateLimiter = (req, res, next) => {
-  const clientIp = req.headers["x-forwarded-for"] || req.ip || "127.0.0.1";
-  const now = Date.now();
-  const record = rateLimitStore.get(clientIp);
-  if (!record || now > record.resetTime) {
-    rateLimitStore.set(clientIp, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
-    return next();
-  }
-  record.count++;
-  if (record.count > MAX_REQUESTS_PER_WINDOW) {
-    res.status(429).json({ error: "Terlalu banyak permintaan (Rate limit exceeded). Mohon tunggu beberapa saat." });
-    return;
-  }
-  next();
-};
+app.use(helmet({
+  contentSecurityPolicy: false,
+  // Nonaktifkan CSP bawaan karena ini SPA react
+  crossOriginEmbedderPolicy: false
+}));
+app.use(cors({
+  origin: "*",
+  // Bisa dibatasi ke url frontend spesifik di produksi, contoh: ['https://belanjainsaza.com']
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+var apiRateLimiter = rateLimit({
+  windowMs: 60 * 1e3,
+  // 1 menit
+  max: 1200,
+  // Maksimal 1200 request per menit per IP
+  standardHeaders: true,
+  // Kembalikan info rate limit di headers `RateLimit-*`
+  legacyHeaders: false,
+  // Nonaktifkan header `X-RateLimit-*` lama
+  message: { error: "Terlalu banyak permintaan (Rate limit exceeded). Mohon tunggu beberapa saat." }
+});
 app.use("/api/", apiRateLimiter);
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -498,8 +503,6 @@ ${data.ip ? `\u{1F4CD} *Client IP:* \`${data.ip}\`
 \u26A1 *Tindakan:* Sistem tetap berjalan. Ketik \`/health\` atau \`/testapi\` di bot untuk mengecek diagnosa server.`;
   const adminChatIds = getAdminChatIds();
   for (const cid of adminChatIds) {
-    sendTelegramMessage(cid, alertMsg).catch(() => {
-    });
   }
 }
 process.on("uncaughtException", (err) => {
@@ -696,8 +699,7 @@ app.post("/api/auth/login", async (req, res) => {
             pt: user.pt,
             departemen: user.departemen,
             no_hp: user.no_hp,
-            mustChangePassword: isDemoPresetPass ? false : user.mustChangePassword,
-            is_blocked: user.is_blocked
+            mustChangePassword: isDemoPresetPass ? false : user.mustChangePassword
           }
         });
         return;
@@ -770,8 +772,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
           pt: u.pt,
           departemen: u.departemen,
           no_hp: u.no_hp,
-          mustChangePassword: isDemoUser ? false : u.mustChangePassword,
-          is_blocked: u.is_blocked
+          mustChangePassword: isDemoUser ? false : u.mustChangePassword
         }
       });
       return;
@@ -784,8 +785,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
         no_hp: req.user?.no_hp,
         pt: "PT. Siemens Indonesia",
         departemen: "-",
-        mustChangePassword: false,
-        is_blocked: false
+        mustChangePassword: false
       }
     });
   } catch (err) {
@@ -1184,41 +1184,36 @@ app.put("/api/users/:id/role", requireAuth, async (req, res) => {
     res.status(500).json({ error: error?.message || "Gagal mengubah role pengguna" });
   }
 });
-
 app.put("/api/users/:id/block", requireAuth, async (req, res) => {
   try {
     const isAdminOrIT = req.user?.role === "admin" || req.user?.role === "it";
     if (!isAdminOrIT) {
-      res.status(403).json({ error: "Akses ditolak: Hanya Admin atau IT yang dapat mengubah status block." });
+      res.status(403).json({ error: "Akses ditolak: Hanya Admin atau IT yang dapat memblokir pengguna." });
       return;
     }
     const targetUserId = Number(req.params.id);
-    const { is_blocked } = req.body;
-    
-    if (typeof is_blocked !== "boolean") {
-      res.status(400).json({ error: "Status block tidak valid!" });
-      return;
-    }
-    
-    const updatedUsers = await withDbRetry(() => db.update(users).set({ is_blocked }).where(eq(users.id, targetUserId)).returning());
+    const isBlocked = req.body.is_blocked === true || req.body.is_blocked === "true";
+    const updatedUsers = await withDbRetry(() => db.update(users).set({ is_blocked: isBlocked }).where(eq(users.id, targetUserId)).returning());
     if (updatedUsers.length === 0) {
       res.status(404).json({ error: "Pengguna tidak ditemukan" });
       return;
     }
-    
     const u = updatedUsers[0];
-    const statusText = is_blocked ? "diblokir" : "diaktifkan kembali";
     res.json({
-      message: `Status pengguna "${u.nama}" berhasil ${statusText}.`,
+      message: `Pengguna "${u.nama}" berhasil di${isBlocked ? "blokir" : "buka blokir"}.`,
       user: {
         id: u.id,
         nama: u.nama,
+        pt: u.pt,
+        departemen: u.departemen,
+        no_hp: u.no_hp,
+        role: u.role,
         is_blocked: u.is_blocked
       }
     });
   } catch (error) {
-    console.error("Update user block status error:", error);
-    res.status(500).json({ error: error?.message || "Gagal mengubah status block pengguna" });
+    console.error("Update user block error:", error);
+    res.status(500).json({ error: error?.message || "Gagal mengubah status blokir pengguna" });
   }
 });
 app.delete("/api/users/:id", requireAuth, async (req, res) => {
@@ -1313,10 +1308,6 @@ app.get("/api/products", requireAuth, async (req, res) => {
       return;
     }
     const productList = await withDbRetry(() => db.select().from(products));
-    if (productList.length === 0) {
-      res.json(inMemoryProducts);
-      return;
-    }
     res.json(productList);
   } catch (error) {
     console.error("Database query error during products fetch:", error);
@@ -1811,6 +1802,17 @@ app.post("/api/orders", requireAuth, async (req, res) => {
     }
   } catch (e) {
   }
+  try {
+    const isDbConfigured2 = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (isDbConfigured2 && userId) {
+      const u = await withDbRetry(() => db.select({ is_blocked: users.is_blocked }).from(users).where(eq(users.id, userId)));
+      if (u[0]?.is_blocked) {
+        res.status(403).json({ error: "Maaf, pesanan tidak dapat diproses karena akun Anda sedang ditangguhkan. Produk pilihan Anda telah tersimpan di keranjang. Silakan bayar tagihan Anda sebelumnya atau hubungi Admin." });
+        return;
+      }
+    }
+  } catch (e) {
+  }
   if (!isDemoMode && dayOfWeek !== 1 && dayOfWeek !== 2) {
     res.status(403).json({ error: "Produk pilihan Anda telah tersimpan di keranjang. Silakan melanjutkan proses checkout pada hari operasional kami, yaitu Senin dan Selasa. Terima kasih." });
     return;
@@ -2143,6 +2145,36 @@ app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res) => {
   } catch (error) {
     console.error("Admin stats error:", error);
     res.status(500).json({ error: "Gagal mengambil statistik admin." });
+  }
+});
+app.post("/api/orders/:id/refresh-qr", requireAuth, async (req, res) => {
+  const orderId = Number(req.params.id);
+  const userId = Number(req.user?.id);
+  try {
+    await ensureDatabaseSchema();
+    const order = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    if (order.length === 0) {
+      return res.status(404).json({ error: "Pesanan tidak ditemukan" });
+    }
+    const ord = order[0];
+    if (ord.userId !== userId && req.user?.role !== "admin" && req.user?.role !== "it") {
+      return res.status(403).json({ error: "Tidak berhak mengakses pesanan ini" });
+    }
+    if (ord.status !== "Siap Diambil" && ord.status !== "Siap di ambil" && ord.status !== "Siap Di Ambil") {
+      return res.status(400).json({ error: "QR Code hanya untuk status Siap Diambil" });
+    }
+    const pickupToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1e3);
+    const updated = await db.update(orders).set({ pickupToken, pickupTokenExpiresAt: expiresAt }).where(eq(orders.id, orderId)).returning();
+    const memOrder = demoOrdersStore.find((o) => o.id === orderId);
+    if (memOrder) {
+      memOrder.pickupToken = pickupToken;
+      memOrder.pickupTokenExpiresAt = expiresAt;
+    }
+    res.json({ message: "Barcode berhasil diperbarui", token: pickupToken, expiresAt });
+  } catch (error) {
+    console.error("Failed to refresh QR code:", error);
+    res.status(500).json({ error: "Gagal memperbarui barcode" });
   }
 });
 app.put("/api/orders/:id/status", requireAuth, requireAdmin, async (req, res) => {

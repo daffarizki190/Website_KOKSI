@@ -1274,10 +1274,7 @@ app.get('/api/products', requireAuth, async (req, res) => {
       return;
     }
     const productList = await withDbRetry(() => db.select().from(products));
-    if (productList.length === 0) {
-      res.json(inMemoryProducts);
-      return;
-    }
+
     res.json(productList);
   } catch (error) {
     console.error('Database query error during products fetch:', error);
