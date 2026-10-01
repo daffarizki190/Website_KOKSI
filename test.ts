@@ -1,1 +1,1 @@
-import { smartCategorize } from './src/data/smartCategorizer'; console.log(smartCategorize('YOU C1000 Lemon Water 500 ml'));
+﻿import { smartCategorize } from './src/data/smartCategorizer'; console.log(smartCategorize('Vaseline Healthy Bright UV Extra Brightening Lotion 200 ml')); console.log(smartCategorize('Nivea Extra Bright 10 Super Vitamins & Skin Foods Serum 180 ml'));

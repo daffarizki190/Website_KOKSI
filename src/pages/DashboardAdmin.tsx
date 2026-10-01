@@ -1635,21 +1635,23 @@ export const DashboardAdmin = () => {
 
             // --- Push the product ---
 
-            // smartCategorize is used ONLY as a fallback:
-            //   - If Excel already provided a known category/sub-category (KOKSI format), trust it.
-            //   - If currentCat is still the default first category AND currentSubCat is empty,
-            //     it means the Excel gave us no category signal → let AI categorize instead.
+            // smartCategorize is now prioritized:
+            //   - Even if Excel provides a category, we let smartCategorize try to categorize based on the product name.
+            //   - If smartCategorize finds a match, we use it (because it's usually more accurate than manual Excel errors).
+            //   - If smartCategorize fails, we fall back to the Excel category.
             const excelHasKnownCat = CATEGORY_STRUCTURES.some(c => c.name === currentCat &&
               c.name !== CATEGORY_STRUCTURES[0].name) || // non-default parent cat was set
               CATEGORY_STRUCTURES.some(c => c.subCategories.some(s => s === currentSubCat)); // known sub-cat
 
-            const smartCat = (!excelHasKnownCat) ? smartCategorize(productName) : null;
+            const smartCat = smartCategorize(productName);
             let finalCat = currentCat;
             let finalSubCat = currentSubCat;
 
             if (smartCat) {
               finalCat = smartCat.kategori;
               finalSubCat = smartCat.sub_kategori;
+            } else if (!excelHasKnownCat) {
+              // If smartCat failed and we don't even have a known excel cat, it stays as currentCat/currentSubCat
             }
 
             formattedProducts.push({
