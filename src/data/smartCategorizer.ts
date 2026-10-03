@@ -98,6 +98,7 @@ const KEYWORD_RULES: KeywordRule[] = [
       'santan', 'kelapa', 'bumbu', 'rempah', 'merica', 'lada',
       'penyedap', 'kaldu', 'vetsin', 'msg',
       'margarin', 'mentega', 'butter', 'selai', 'jam',
+      'ikan lele', 'ikan lele super', 'bmw', 'citra bandung', 'cap panda', 'ramos', 'setra',
       'telur', 'tahu', 'tempe', 'oncom',
       'madu', 'meses', 'coklat bubuk', 'susu kental',
       '5 kg', '10 kg', '20 kg', '25 kg' // kemasan besar = ciri khas sembako
