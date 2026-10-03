@@ -8,7 +8,7 @@ import {
   ShoppingBag, RefreshCw, CheckCircle, Clock, Package,
   Phone, MessageSquare, Search, Filter, AlertCircle, AlertTriangle, Check, X,
   QrCode, ScanLine, Camera, CameraOff, Inbox, FilterX, PackageSearch,
-  Calendar, FileSpreadsheet, Building2, Key, Lock, Eye, EyeOff, Server,
+  Calendar, FileSpreadsheet, Building2, Key, Lock, Eye, EyeOff, Server, CheckSquare,
   User as UserIcon, Edit3, Save, TrendingUp, BarChart2, Bell, Printer, UserPlus, ShieldAlert
 } from 'lucide-react';
 import XLSX from 'xlsx-js-style';
@@ -104,6 +104,12 @@ export const DashboardAdmin = () => {
   // Users state
   const [users, setUsers] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState('');
+  
+  // Category Learnings & Import Preview State
+  const [categoryLearnings, setCategoryLearnings] = useState<{keyword: string, kategori: string, sub_kategori: string}[]>([]);
+  const [importPreviewData, setImportPreviewData] = useState<{nama_barang: string, kategori: string, sub_kategori: string, harga: number, stok: number, isModified?: boolean}[]>([]);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [isSubmittingPreview, setIsSubmittingPreview] = useState(false);
 
   // Orders state
   const [orders, setOrders] = useState<Order[]>([]);
@@ -534,6 +540,7 @@ export const DashboardAdmin = () => {
       fetchProducts();
       fetchUsers();
       fetchOrders();
+      fetchCategoryLearnings();
 
       // Real-time polling every 4 seconds for new incoming orders
       const interval = setInterval(() => {
@@ -557,6 +564,24 @@ export const DashboardAdmin = () => {
       }
     } catch (error) {
       console.error('Failed to fetch users');
+    }
+  };
+
+  const fetchCategoryLearnings = async () => {
+    try {
+      const authToken = token || localStorage.getItem('token');
+      if (!authToken) return;
+      const res = await fetch('/api/categories/learnings', {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setCategoryLearnings(data);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch category learnings');
     }
   };
 
@@ -1738,11 +1763,15 @@ export const DashboardAdmin = () => {
               c.name !== CATEGORY_STRUCTURES[0].name) || // non-default parent cat was set
               CATEGORY_STRUCTURES.some(c => c.subCategories.some(s => s === currentSubCat)); // known sub-cat
 
+            const learnedCat = categoryLearnings.find(l => productName.toLowerCase().includes(l.keyword.toLowerCase()));
             const smartCat = smartCategorize(productName);
             let finalCat = currentCat;
             let finalSubCat = currentSubCat;
 
-            if (smartCat) {
+            if (learnedCat) {
+              finalCat = learnedCat.kategori;
+              finalSubCat = learnedCat.sub_kategori;
+            } else if (smartCat) {
               finalCat = smartCat.kategori;
               finalSubCat = smartCat.sub_kategori;
             } else if (!excelHasKnownCat) {
@@ -1782,8 +1811,12 @@ export const DashboardAdmin = () => {
                   let finalCat = catMatch || cleanKat || 'Lainnya';
                   let finalSubCat = cleanSub;
 
+                  const learnedCat = categoryLearnings.find(l => cleanNama.toLowerCase().includes(l.keyword.toLowerCase()));
                   const smartCat = smartCategorize(cleanNama);
-                  if (smartCat) {
+                  if (learnedCat) {
+                    finalCat = learnedCat.kategori;
+                    finalSubCat = learnedCat.sub_kategori;
+                  } else if (smartCat) {
                     finalCat = smartCat.kategori;
                     finalSubCat = smartCat.sub_kategori;
                   }
@@ -1817,34 +1850,11 @@ export const DashboardAdmin = () => {
           return;
         }
 
-        const res = await fetch('/api/products/batch', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ products: formattedProducts })
-        });
-
-        const resData = await res.json().catch(() => ({}));
-        if (res.ok) {
-          fetchProducts();
-          // Tampilkan modal notifikasi detail hasil import
-          const result: ImportResult = {
-            inserted: resData.inserted || [],
-            updated: resData.updated || [],
-            rejected: [...frontendRejected, ...(resData.rejected || [])],
-            insertedCount: resData.insertedCount || 0,
-            updatedCount: resData.updatedCount || 0,
-            rejectedCount: (resData.rejectedCount || 0) + frontendRejected.length,
-          };
-          setImportResult(result);
-          // Default tab: tunjukkan rejected jika ada, kalau tidak ke inserted
-          setImportResultTab(result.rejectedCount > 0 ? 'rejected' : result.insertedCount > 0 ? 'inserted' : 'updated');
-          setIsImportModalOpen(false);
-        } else {
-          toast.error(`Gagal import produk: ${resData.error || 'Terjadi kesalahan pada server'}`);
-        }
+        // --- NEW: Tampilkan Preview Modal alih-alih langsung simpan ---
+        setImportPreviewData(formattedProducts.map(p => ({ ...p, isModified: false })));
+        setIsPreviewModalOpen(true);
+        setIsImportModalOpen(false);
+        
       } catch (err: any) {
         console.error(err);
         toast.error(`Kesalahan: ${err.message || 'Terjadi kesalahan saat memproses data'}`);
@@ -1853,6 +1863,64 @@ export const DashboardAdmin = () => {
       }
     };
     reader.readAsArrayBuffer(file);
+  };
+
+  const handleSubmitPreview = async () => {
+    setIsSubmittingPreview(true);
+    try {
+      const authToken = token || localStorage.getItem('token');
+      
+      // 1. Simpan ke database kategori yang dimodifikasi oleh admin (learning)
+      const modifiedItems = importPreviewData.filter(p => p.isModified);
+      for (const item of modifiedItems) {
+        await fetch('/api/categories/learnings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+          body: JSON.stringify({
+            keyword: item.nama_barang,
+            kategori: item.kategori,
+            sub_kategori: item.sub_kategori || ''
+          })
+        });
+      }
+
+      // 2. Submit semua produk ke endpoint batch
+      const productsToSubmit = importPreviewData.map(({ isModified, ...rest }) => rest);
+      const res = await fetch('/api/products/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ products: productsToSubmit })
+      });
+
+      const resData = await res.json().catch(() => ({}));
+      if (res.ok) {
+        fetchProducts();
+        if (modifiedItems.length > 0) {
+          fetchCategoryLearnings(); // refresh learning data
+          toast.success(`Berhasil menyimpan data & sistem mempelajari ${modifiedItems.length} kategori baru.`);
+        }
+        
+        // Show result modal
+        const result: ImportResult = {
+          inserted: resData.inserted || [],
+          updated: resData.updated || [],
+          rejected: resData.rejected || [],
+          insertedCount: resData.insertedCount || 0,
+          updatedCount: resData.updatedCount || 0,
+          rejectedCount: resData.rejectedCount || 0,
+        };
+        setImportResult(result);
+        setImportResultTab(result.rejectedCount > 0 ? 'rejected' : result.insertedCount > 0 ? 'inserted' : 'updated');
+        setIsPreviewModalOpen(false);
+      } else {
+        toast.error(`Gagal import produk: ${resData.error || 'Terjadi kesalahan pada server'}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(`Kesalahan jaringan: ${err.message}`);
+    } finally {
+      setIsSubmittingPreview(false);
+    }
   };
 
   const MONTH_NAMES = [
@@ -4932,6 +5000,120 @@ export const DashboardAdmin = () => {
               >
                 <Save className="w-4 h-4" />
                 <span>{isSavingUser ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ===================== MODAL PREVIEW IMPORT ===================== */}
+      {isPreviewModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-5xl shadow-2xl border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center">
+                  <CheckSquare className="w-6 h-6 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-900">Preview Data Produk</h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Periksa kembali kategori & sub-kategori sebelum disimpan. Sistem akan merekam pilihan Anda untuk ke depannya.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsPreviewModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content Table */}
+            <div className="flex-1 overflow-auto bg-slate-50 p-6">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-left text-sm text-slate-600">
+                  <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-semibold text-xs uppercase">
+                    <tr>
+                      <th className="px-4 py-3">Nama Produk</th>
+                      <th className="px-4 py-3">Kategori</th>
+                      <th className="px-4 py-3">Sub Kategori</th>
+                      <th className="px-4 py-3">Harga</th>
+                      <th className="px-4 py-3">Stok</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {importPreviewData.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium text-slate-800">{item.nama_barang}</td>
+                        <td className="px-4 py-3">
+                          <select
+                            value={item.kategori}
+                            onChange={(e) => {
+                              const newCat = e.target.value;
+                              const newSub = CATEGORY_STRUCTURES.find(c => c.name === newCat)?.subCategories[0] || '';
+                              setImportPreviewData(prev => prev.map((p, i) => i === idx ? { ...p, kategori: newCat, sub_kategori: newSub, isModified: true } : p));
+                            }}
+                            className="w-full text-xs rounded-lg border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                          >
+                            {CATEGORY_STRUCTURES.map(c => (
+                              <option key={c.name} value={c.name}>{c.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-3">
+                          <select
+                            value={item.sub_kategori}
+                            onChange={(e) => {
+                              setImportPreviewData(prev => prev.map((p, i) => i === idx ? { ...p, sub_kategori: e.target.value, isModified: true } : p));
+                            }}
+                            className="w-full text-xs rounded-lg border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                          >
+                            <option value="">Pilih Sub Kategori</option>
+                            {(CATEGORY_STRUCTURES.find(c => c.name === item.kategori)?.subCategories || []).map(sc => (
+                              <option key={sc} value={sc}>{sc}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-3">Rp {item.harga.toLocaleString('id-ID')}</td>
+                        <td className="px-4 py-3">{item.stok}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {importPreviewData.length === 0 && (
+                  <div className="text-center py-8 text-slate-500">Tidak ada produk untuk diimport.</div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+              <button
+                onClick={() => setIsPreviewModalOpen(false)}
+                className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-colors"
+                disabled={isSubmittingPreview}
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleSubmitPreview}
+                disabled={isSubmittingPreview || importPreviewData.length === 0}
+                className="px-5 py-2.5 rounded-xl bg-teal-600 text-white font-bold text-sm hover:bg-teal-700 transition-colors shadow-lg shadow-teal-600/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmittingPreview ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Menyimpan...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>Simpan ke Database</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
