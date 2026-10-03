@@ -10,7 +10,7 @@ import * as jwt from 'jsonwebtoken';
 import multer from 'multer';
 import fs from 'fs';
 import { db, withDbRetry } from './src/db/index';
-import { users, products, orders, orderItems, cartItems, activityLogs, pushSubscriptions, chats } from './src/db/schema';
+import { users, products, orders, orderItems, cartItems, activityLogs, pushSubscriptions, chats, categoryLearnings } from './src/db/schema';
 import { eq, asc, desc, and, sql } from 'drizzle-orm';
 import webpush from 'web-push';
 import helmet from 'helmet';
@@ -2889,6 +2889,40 @@ const ALLOWED_IMPORT_CATEGORIES = [
   'Makanan & Minuman Siap Saji (F&B)',
   'Perawatan Diri & Kesehatan (Personal Care)'
 ];
+
+// --- API CATEGORY LEARNINGS ---
+app.get('/api/categories/learnings', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const data = await withDbRetry(() => db.select().from(categoryLearnings));
+    res.json(data);
+  } catch (error) {
+    console.error('Gagal mengambil category learnings:', error);
+    res.status(500).json({ error: 'Gagal mengambil data' });
+  }
+});
+
+app.post('/api/categories/learnings', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { keyword, kategori, sub_kategori } = req.body;
+    if (!keyword || !kategori || !sub_kategori) {
+      res.status(400).json({ error: 'Keyword, kategori, dan sub_kategori harus diisi' });
+      return;
+    }
+
+    await withDbRetry(() => db.insert(categoryLearnings)
+      .values({ keyword, kategori, sub_kategori })
+      .onConflictDoUpdate({
+        target: categoryLearnings.keyword,
+        set: { kategori, sub_kategori, createdAt: new Date() }
+      })
+    );
+
+    res.json({ message: 'Success' });
+  } catch (error) {
+    console.error('Gagal menyimpan category learning:', error);
+    res.status(500).json({ error: 'Gagal menyimpan data' });
+  }
+});
 
 app.post('/api/products/batch', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
   try {

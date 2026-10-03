@@ -159,3 +159,11 @@ export const settings = pgTable('settings', {
   setting_value: text('setting_value').notNull(),
   updated_at: timestamp('updated_at').defaultNow(),
 });
+
+export const categoryLearnings = pgTable('category_learnings', {
+  id: serial('id').primaryKey(),
+  keyword: text('keyword').notNull().unique(), // exact product name or keyword
+  kategori: text('kategori').notNull(),
+  sub_kategori: text('sub_kategori').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
