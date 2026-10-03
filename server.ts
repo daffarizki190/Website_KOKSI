@@ -4244,7 +4244,38 @@ app.all(['/api/telegram/webhook', '/telegram/webhook', '/api/telegram/webhook/',
   }
 });
 
-// Polling daemon removed for Vercel Serverless compatibility
+// Fallback Polling daemon for Local Development
+let lastUpdateId = 0;
+async function startTelegramPolling() {
+  const token = getCleanTelegramToken();
+  if (!token) return;
+  console.log('🤖 Telegram Long Polling started (Local Mode)...');
+  
+  // Hapus webhook yang mungkin menyangkut dari Vercel
+  await fetch(`https://api.telegram.org/bot${token}/deleteWebhook`);
+
+  while (true) {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${lastUpdateId + 1}&timeout=30`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && data.result.length > 0) {
+          for (const update of data.result) {
+            lastUpdateId = update.update_id;
+            if (update.callback_query) {
+              await handleTelegramCallbackQuery(update.callback_query);
+            } else if (update.message || update.edited_message || update.channel_post) {
+              await handleTelegramIncomingMessage(update.message || update.edited_message || update.channel_post);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Telegram Polling error:', err);
+      await new Promise(res => setTimeout(res, 5000));
+    }
+  }
+}
 
 // --- SEED DEFAULT ACCOUNTS ---
 async function seedDefaultUsers() {
@@ -4450,6 +4481,7 @@ async function startServer() {
 
 if (!process.env.VERCEL) {
   startServer();
+  startTelegramPolling();
 }
 
 export { app, seedDefaultUsers };
