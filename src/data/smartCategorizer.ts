@@ -187,7 +187,8 @@ const KEYWORD_RULES: KeywordRule[] = [
     ],
     brands: [
       'vaseline', 'nivea', 'marina', 'citra', 'shinzui', 'scarlett',
-      'rexona', 'axe', 'old spice', 'dove deo',
+      'rexona', 'axe', 'old spice', 'dove deo', 'posh', 'casablanca', 
+      'bellagio', 'evangeline', 'pucelle', 'vitalis', 'fres & natural',
       'gatsby', 'brylcreem', 'viking',
       'garnier', 'wardah', 'emina', 'somethinc', 'skintific',
       'innisfree', 'laneige', 'whitelab', 'avoskin',
