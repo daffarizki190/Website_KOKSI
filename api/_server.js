@@ -6,6 +6,7 @@ var __export = (target, all) => {
 
 // server.ts
 import * as dotenv from "dotenv";
+import * as XLSX from "xlsx";
 import express from "express";
 import * as path from "path";
 import * as bcrypt from "bcryptjs";
@@ -3190,10 +3191,10 @@ function getMainMenuKeyboard() {
 function getOperasionalKeyboard() {
   return {
     inline_keyboard: [
-      [{ text: "\u{1F4E6} 5 Pesanan Aktif", callback_data: "cmd_pesanan" }],
-      [{ text: "\u26A0\uFE0F Cek Stok Kritis", callback_data: "cmd_stok" }],
-      [{ text: "\u2705 Selesaikan Pesanan", callback_data: "cmd_selesai_prompt" }],
-      [{ text: "\u274C Batalkan Pesanan", callback_data: "cmd_batal_prompt" }],
+      [{ text: "\u{1F4E6} 5 Pesanan Aktif", callback_data: "cmd_pesanan" }, { text: "\u26A0\uFE0F Cek Stok Kritis", callback_data: "cmd_stok" }],
+      [{ text: "\u{1F4B0} Laporan Omzet Harian", callback_data: "cmd_omzet" }, { text: "\u{1F4E5} Tarik Laporan Excel", callback_data: "cmd_export" }],
+      [{ text: "\u{1F50D} Cari Barang", callback_data: "cmd_cari_prompt" }],
+      [{ text: "\u2705 Selesaikan Pesanan", callback_data: "cmd_selesai_prompt" }, { text: "\u274C Batalkan Pesanan", callback_data: "cmd_batal_prompt" }],
       [{ text: "\u{1F519} Kembali", callback_data: "menu_utama" }]
     ]
   };
@@ -3319,6 +3320,72 @@ Silakan ketik perintah secara manual:
 \`/batal [id_pesanan] [alasan]\`
 
 Contoh: \`/batal 1024 Stok kosong\``);
+        break;
+      }
+      case "cmd_omzet": {
+        if (!isAuthorized) {
+          await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+          break;
+        }
+        const today = /* @__PURE__ */ new Date();
+        today.setHours(0, 0, 0, 0);
+        const todaysOrders = await db.select().from(orders).where(sql`${orders.createdAt} >= ${today.toISOString()} AND ${orders.status} = 'Selesai'`);
+        const totalOmzet = todaysOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+        await sendTelegramMessage(chatId, `\u{1F4B0} *Laporan Omzet Hari Ini*
+
+Tanggal: ${today.toLocaleDateString("id-ID")}
+Total Pesanan Selesai: ${todaysOrders.length}
+*Total Omzet: Rp ${totalOmzet.toLocaleString("id-ID")}*`);
+        break;
+      }
+      case "cmd_export": {
+        if (!isAuthorized) {
+          await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+          break;
+        }
+        await sendTelegramMessage(chatId, "\u23F3 Sedang menyiapkan Laporan Excel bulanan...");
+        try {
+          const allOrders = await db.select({
+            id: orders.id,
+            total_amount: orders.total_amount,
+            status: orders.status,
+            createdAt: orders.createdAt,
+            userName: users.nama,
+            userPt: users.pt,
+            userDept: users.departemen
+          }).from(orders).leftJoin(users, eq(orders.userId, users.id)).orderBy(desc(orders.id));
+          const wsData = allOrders.map((o) => ({
+            "Order ID": o.id,
+            "Tanggal": new Date(o.createdAt).toLocaleString("id-ID"),
+            "Karyawan": o.userName || "-",
+            "PT": o.userPt || "-",
+            "Departemen": o.userDept || "-",
+            "Total (Rp)": o.total_amount || 0,
+            "Status": o.status
+          }));
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.json_to_sheet(wsData);
+          XLSX.utils.book_append_sheet(wb, ws, "Data Pesanan");
+          const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+          const formData = new FormData();
+          formData.append("chat_id", String(chatId));
+          formData.append("document", new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "Laporan_Pesanan_KOKSI.xlsx");
+          const token2 = getCleanTelegramToken();
+          const url = `https://api.telegram.org/bot${token2}/sendDocument`;
+          await fetch(url, { method: "POST", body: formData });
+        } catch (err) {
+          console.error(err);
+          await sendTelegramMessage(chatId, "\u274C Gagal membuat laporan Excel.");
+        }
+        break;
+      }
+      case "cmd_cari_prompt": {
+        await sendTelegramMessage(chatId, `\u{1F50D} *Cari Barang*
+
+Silakan ketik perintah berikut:
+\`/cari [nama_barang]\`
+
+Contoh: \`/cari indomie\``);
         break;
       }
       // --- PERINTAH DIAGNOSTIK (panggil controller yang sudah ada) ---
@@ -3542,23 +3609,56 @@ Status Akses: ${authStatus}
 
 \u{1F4A1} *Ketik /start untuk membuka Menu Interaktif!*
 
-\u26A1 *Perintah Diagnostik & Pemantauan:*
-\u2022 \`/status\` atau \`/health\` - Cek kesehatan server, uptime, & memori
-\u2022 \`/testapi\` - Jalankan 6 poin pengujian API sistem
-\u2022 \`/report\` - Buat Laporan Eksekutif Kesehatan IT
-\u2022 \`/db\` - Cek status koneksi & total data PostgreSQL
-
-\u{1F4E6} *Katalog & Operasional Pesanan:*
-\u2022 \`/stok\` - Cek produk dengan stok menipis (< 5 pcs)
-\u2022 \`/pesanan\` - Cek daftar pesanan aktif terbaru
-\u2022 \`/selesai [id]\` - Ubah status pesanan menjadi Selesai
-\u2022 \`/batal [id] [alasan]\` - Batalkan pesanan & pulihkan stok
-
-\u{1F9F9} *Pemeliharaan:*
-\u2022 \`/clearexceptions\` - Bersihkan counter log error server
+\u26A1 *Perintah Tambahan:*
+\u2022 \`/cari [nama_barang]\` - Cepat cari info dan stok barang
+\u2022 \`/omzet\` - Laporan Omzet harian (Admin)
+\u2022 \`/export\` - Tarik laporan transaksi dalam bentuk Excel (Admin)
 
 _Jika ID Anda belum terdaftar sebagai admin, silakan simpan Chat ID di atas pada \`TELEGRAM_ADMIN_CHAT_ID\`._`;
     await sendTelegramMessage(chatId, helpMsg);
+    return;
+  }
+  if (command === "cari") {
+    const query = args.join(" ");
+    if (!query) {
+      await sendTelegramMessage(chatId, `\u274C Silakan masukkan nama barang yang dicari.
+Contoh: \`/cari indomie\``);
+      return;
+    }
+    const results = await db.select().from(products).where(sql`nama_barang ILIKE ${"%" + query + "%"}`).limit(10);
+    if (results.length === 0) {
+      await sendTelegramMessage(chatId, `\u{1F50D} Tidak ditemukan barang dengan nama *${query}*.`);
+    } else {
+      const list = results.map((p) => `\u2022 *${p.nama_barang}*
+  Rp ${p.harga.toLocaleString("id-ID")} | Stok: ${p.stok}`).join("\n\n");
+      await sendTelegramMessage(chatId, `\u{1F50D} *Hasil Pencarian:*
+
+${list}`);
+    }
+    return;
+  }
+  if (command === "omzet") {
+    if (!isAuthorized) {
+      await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+      return;
+    }
+    const today = /* @__PURE__ */ new Date();
+    today.setHours(0, 0, 0, 0);
+    const todaysOrders = await db.select().from(orders).where(sql`${orders.createdAt} >= ${today.toISOString()} AND ${orders.status} = 'Selesai'`);
+    const totalOmzet = todaysOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+    await sendTelegramMessage(chatId, `\u{1F4B0} *Laporan Omzet Hari Ini*
+
+Tanggal: ${today.toLocaleDateString("id-ID")}
+Total Pesanan Selesai: ${todaysOrders.length}
+*Total Omzet: Rp ${totalOmzet.toLocaleString("id-ID")}*`);
+    return;
+  }
+  if (command === "export") {
+    if (!isAuthorized) {
+      await sendTelegramMessage(chatId, "\u{1F6AB} Akses ditolak.");
+      return;
+    }
+    await handleTelegramCallbackQuery({ message: { message_id: 0 }, id: "manual", data: "cmd_export", from: { id: chatId, first_name: senderName } });
     return;
   }
   if (!isAuthorized) {

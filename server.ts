@@ -1,5 +1,6 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
+import * as XLSX from 'xlsx';
 
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
@@ -3646,10 +3647,10 @@ function getMainMenuKeyboard() {
 function getOperasionalKeyboard() {
   return {
     inline_keyboard: [
-      [{ text: '📦 5 Pesanan Aktif', callback_data: 'cmd_pesanan' }],
-      [{ text: '⚠️ Cek Stok Kritis', callback_data: 'cmd_stok' }],
-      [{ text: '✅ Selesaikan Pesanan', callback_data: 'cmd_selesai_prompt' }],
-      [{ text: '❌ Batalkan Pesanan', callback_data: 'cmd_batal_prompt' }],
+      [{ text: '📦 5 Pesanan Aktif', callback_data: 'cmd_pesanan' }, { text: '⚠️ Cek Stok Kritis', callback_data: 'cmd_stok' }],
+      [{ text: '💰 Laporan Omzet Harian', callback_data: 'cmd_omzet' }, { text: '📥 Tarik Laporan Excel', callback_data: 'cmd_export' }],
+      [{ text: '🔍 Cari Barang', callback_data: 'cmd_cari_prompt' }],
+      [{ text: '✅ Selesaikan Pesanan', callback_data: 'cmd_selesai_prompt' }, { text: '❌ Batalkan Pesanan', callback_data: 'cmd_batal_prompt' }],
       [{ text: '🔙 Kembali', callback_data: 'menu_utama' }]
     ]
   };
@@ -3764,6 +3765,65 @@ async function handleTelegramCallbackQuery(callbackQuery: any) {
       case 'cmd_batal_prompt': {
         if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
         await sendTelegramMessage(chatId, `❌ *Batalkan Pesanan*\n\nSilakan ketik perintah secara manual:\n\`/batal [id_pesanan] [alasan]\`\n\nContoh: \`/batal 1024 Stok kosong\``);
+        break;
+      }
+      case 'cmd_omzet': {
+        if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todaysOrders = await db.select().from(orders).where(sql`${orders.createdAt} >= ${today.toISOString()} AND ${orders.status} = 'Selesai'`);
+        const totalOmzet = todaysOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+        await sendTelegramMessage(chatId, `💰 *Laporan Omzet Hari Ini*\n\nTanggal: ${today.toLocaleDateString('id-ID')}\nTotal Pesanan Selesai: ${todaysOrders.length}\n*Total Omzet: Rp ${totalOmzet.toLocaleString('id-ID')}*`);
+        break;
+      }
+      case 'cmd_export': {
+        if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); break; }
+        await sendTelegramMessage(chatId, '⏳ Sedang menyiapkan Laporan Excel bulanan...');
+        
+        try {
+          const allOrders = await db.select({
+            id: orders.id,
+            total_amount: orders.total_amount,
+            status: orders.status,
+            createdAt: orders.createdAt,
+            userName: users.nama,
+            userPt: users.pt,
+            userDept: users.departemen
+          })
+          .from(orders)
+          .leftJoin(users, eq(orders.userId, users.id))
+          .orderBy(desc(orders.id));
+          
+          const wsData = allOrders.map(o => ({
+            'Order ID': o.id,
+            'Tanggal': new Date(o.createdAt).toLocaleString('id-ID'),
+            'Karyawan': o.userName || '-',
+            'PT': o.userPt || '-',
+            'Departemen': o.userDept || '-',
+            'Total (Rp)': o.total_amount || 0,
+            'Status': o.status
+          }));
+          
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.json_to_sheet(wsData);
+          XLSX.utils.book_append_sheet(wb, ws, 'Data Pesanan');
+          const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+          
+          const formData = new FormData();
+          formData.append('chat_id', String(chatId));
+          formData.append('document', new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'Laporan_Pesanan_KOKSI.xlsx');
+          
+          const token = getCleanTelegramToken();
+          const url = `https://api.telegram.org/bot${token}/sendDocument`;
+          await fetch(url, { method: 'POST', body: formData });
+        } catch (err) {
+          console.error(err);
+          await sendTelegramMessage(chatId, '❌ Gagal membuat laporan Excel.');
+        }
+        break;
+      }
+      case 'cmd_cari_prompt': {
+        await sendTelegramMessage(chatId, `🔍 *Cari Barang*\n\nSilakan ketik perintah berikut:\n\`/cari [nama_barang]\`\n\nContoh: \`/cari indomie\``);
         break;
       }
 
@@ -3959,23 +4019,46 @@ Status Akses: ${authStatus}
 
 💡 *Ketik /start untuk membuka Menu Interaktif!*
 
-⚡ *Perintah Diagnostik & Pemantauan:*
-• \`/status\` atau \`/health\` - Cek kesehatan server, uptime, & memori
-• \`/testapi\` - Jalankan 6 poin pengujian API sistem
-• \`/report\` - Buat Laporan Eksekutif Kesehatan IT
-• \`/db\` - Cek status koneksi & total data PostgreSQL
-
-📦 *Katalog & Operasional Pesanan:*
-• \`/stok\` - Cek produk dengan stok menipis (< 5 pcs)
-• \`/pesanan\` - Cek daftar pesanan aktif terbaru
-• \`/selesai [id]\` - Ubah status pesanan menjadi Selesai
-• \`/batal [id] [alasan]\` - Batalkan pesanan & pulihkan stok
-
-🧹 *Pemeliharaan:*
-• \`/clearexceptions\` - Bersihkan counter log error server
+⚡ *Perintah Tambahan:*
+• \`/cari [nama_barang]\` - Cepat cari info dan stok barang
+• \`/omzet\` - Laporan Omzet harian (Admin)
+• \`/export\` - Tarik laporan transaksi dalam bentuk Excel (Admin)
 
 _Jika ID Anda belum terdaftar sebagai admin, silakan simpan Chat ID di atas pada \`TELEGRAM_ADMIN_CHAT_ID\`._`;
     await sendTelegramMessage(chatId, helpMsg);
+    return;
+  }
+
+  if (command === 'cari') {
+    const query = args.join(' ');
+    if (!query) {
+      await sendTelegramMessage(chatId, `❌ Silakan masukkan nama barang yang dicari.\nContoh: \`/cari indomie\``);
+      return;
+    }
+    const results = await db.select().from(products).where(sql`nama_barang ILIKE ${'%' + query + '%'}`).limit(10);
+    if (results.length === 0) {
+      await sendTelegramMessage(chatId, `🔍 Tidak ditemukan barang dengan nama *${query}*.`);
+    } else {
+      const list = results.map(p => `• *${p.nama_barang}*\n  Rp ${p.harga.toLocaleString('id-ID')} | Stok: ${p.stok}`).join('\n\n');
+      await sendTelegramMessage(chatId, `🔍 *Hasil Pencarian:*\n\n${list}`);
+    }
+    return;
+  }
+
+  if (command === 'omzet') {
+    if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); return; }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todaysOrders = await db.select().from(orders).where(sql`${orders.createdAt} >= ${today.toISOString()} AND ${orders.status} = 'Selesai'`);
+    const totalOmzet = todaysOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+    await sendTelegramMessage(chatId, `💰 *Laporan Omzet Hari Ini*\n\nTanggal: ${today.toLocaleDateString('id-ID')}\nTotal Pesanan Selesai: ${todaysOrders.length}\n*Total Omzet: Rp ${totalOmzet.toLocaleString('id-ID')}*`);
+    return;
+  }
+
+  if (command === 'export') {
+    if (!isAuthorized) { await sendTelegramMessage(chatId, '🚫 Akses ditolak.'); return; }
+    // Memanfaatkan event emit agar tidak duplicate code, tapi karena ini simple, bisa manual atau panggil fungsi
+    await handleTelegramCallbackQuery({ message: { message_id: 0 }, id: 'manual', data: 'cmd_export', from: { id: chatId, first_name: senderName } } as any);
     return;
   }
 
