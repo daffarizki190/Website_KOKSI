@@ -2924,6 +2924,19 @@ app.post('/api/categories/learnings', requireAuth, requireAdmin, async (req: Aut
   }
 });
 
+// --- API HAPUS SEMUA PRODUK (TEMPORARY) ---
+app.delete('/api/products/all', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    await withDbRetry(() => db.delete(cartItems));
+    // Kita biarkan orderItems dulu, jika gagal berarti ada order yang belum selesai
+    await withDbRetry(() => db.delete(products));
+    res.json({ message: 'Semua produk berhasil dihapus' });
+  } catch (error) {
+    console.error('Gagal menghapus semua produk:', error);
+    res.status(500).json({ error: 'Gagal menghapus semua produk (mungkin ada transaksi yang mengikat)' });
+  }
+});
+
 app.post('/api/products/batch', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const newProducts = req.body.products;

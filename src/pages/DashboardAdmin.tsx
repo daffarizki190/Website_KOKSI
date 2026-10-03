@@ -560,6 +560,35 @@ export const DashboardAdmin = () => {
     }
   };
 
+  const handleDeleteAllProducts = async () => {
+    if (!window.confirm("PERINGATAN: Anda yakin ingin menghapus SEMUA PRODUK dari database? Tindakan ini tidak dapat dibatalkan!")) {
+      return;
+    }
+    const pwd = window.prompt("Ketik 'HAPUS SEMUA' untuk konfirmasi:");
+    if (pwd !== 'HAPUS SEMUA') {
+      alert("Konfirmasi gagal. Dibatalkan.");
+      return;
+    }
+
+    try {
+      const authToken = token || localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/products/all`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Gagal menghapus produk');
+      }
+      alert("Semua produk berhasil dihapus!");
+      await fetchProducts(); // Refresh list
+    } catch (error) {
+      console.error(error);
+      alert("Terjadi kesalahan saat menghapus produk");
+    }
+  };
+
   const fetchProducts = async () => {
     try {
       const authToken = token || localStorage.getItem('token');
@@ -3119,6 +3148,15 @@ export const DashboardAdmin = () => {
                 >
                   <Plus className="w-4 h-4 shrink-0" />
                   <span className="text-xs">Tambah</span>
+                </button>
+
+                {/* HAPUS SEMUA PRODUK (TEMP) */}
+                <button
+                  onClick={handleDeleteAllProducts}
+                  title="Hapus Semua Produk"
+                  className="flex items-center space-x-1.5 px-4 py-2 bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm font-bold text-xs tracking-wide rounded-full cursor-pointer"
+                >
+                  <span className="text-xs">Kosongkan Produk</span>
                 </button>
               </div>
             </div>
