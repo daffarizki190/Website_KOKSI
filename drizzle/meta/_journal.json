@@ -15,6 +15,13 @@
       "when": 1790875722455,
       "tag": "0001_smooth_micromacro",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791049292755,
+      "tag": "0002_strange_vivisector",
+      "breakpoints": true
     }
   ]
 }
