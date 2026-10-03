@@ -13,6 +13,13 @@ coverage/
 screenshot-script/
 scripts/
 docs/security_test_results.json
+check*
+test*
+truncate*
+apply_migration*
+create_chats*
+fix_categories*
+out*.json
 
 # Local presentation materials & screenshots
 Presentasi_KOKSI/
