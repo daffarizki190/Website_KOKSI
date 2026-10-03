@@ -572,7 +572,7 @@ export const DashboardAdmin = () => {
 
     try {
       const authToken = token || localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/products/all`, {
+      const response = await fetch('/api/products/all', {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${authToken}`
