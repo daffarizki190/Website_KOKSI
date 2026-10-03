@@ -901,6 +901,80 @@ app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+app.post('/api/users/bulk', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) {
+      res.status(500).json({ error: 'Database belum dikonfigurasi!' });
+      return;
+    }
+
+    const usersData = req.body.users;
+    if (!Array.isArray(usersData) || usersData.length === 0) {
+      res.status(400).json({ error: 'Data pengguna tidak valid atau kosong!' });
+      return;
+    }
+
+    const result = {
+      inserted: [] as any[],
+      rejected: [] as any[],
+      insertedCount: 0,
+      rejectedCount: 0
+    };
+
+    const hashedPassword = await bcryptHash('Saza12345', 10);
+
+    for (const userData of usersData) {
+      const { nama, pt, departemen, no_hp } = userData;
+      if (!nama || !pt || !departemen || !no_hp) {
+        result.rejected.push({ ...userData, alasan: 'Data tidak lengkap' });
+        result.rejectedCount++;
+        continue;
+      }
+
+      // Format no hp agar sesuai (menghilangkan spasi dll jika perlu)
+      let cleanNoHp = no_hp.toString().trim().replace(/[\s-]/g, '');
+      if (cleanNoHp.startsWith('62')) {
+        cleanNoHp = '0' + cleanNoHp.slice(2);
+      }
+
+      const existing = await withDbRetry(() => db.select({ id: users.id }).from(users).where(eq(users.no_hp, cleanNoHp)).limit(1));
+      if (existing.length > 0) {
+        result.rejected.push({ ...userData, alasan: 'Nomor HP sudah terdaftar' });
+        result.rejectedCount++;
+        continue;
+      }
+
+      try {
+        const [newUser] = await withDbRetry(() => db.insert(users).values({
+          nama: nama.toString().trim(),
+          pt: pt.toString().trim(),
+          departemen: departemen.toString().trim(),
+          no_hp: cleanNoHp,
+          password: hashedPassword,
+          role: 'anggota',
+          mustChangePassword: true
+        }).returning({
+          id: users.id,
+          nama: users.nama,
+          no_hp: users.no_hp
+        }));
+
+        result.inserted.push(newUser);
+        result.insertedCount++;
+      } catch (err: any) {
+        result.rejected.push({ ...userData, alasan: err?.message || 'Gagal insert DB' });
+        result.rejectedCount++;
+      }
+    }
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('Failed to bulk insert users:', error);
+    res.status(500).json({ error: 'Gagal melakukan import data massal!' });
+  }
+});
+
 app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);

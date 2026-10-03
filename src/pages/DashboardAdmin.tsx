@@ -97,6 +97,7 @@ export const DashboardAdmin = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputUserRef = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState<'orders' | 'analytics' | 'products' | 'users' | 'blocked_users' | 'chats'>('orders');
 
@@ -280,6 +281,7 @@ export const DashboardAdmin = () => {
 
   // Add User Modal State
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [isImportUserModalOpen, setIsImportUserModalOpen] = useState(false);
   const [addUserName, setAddUserName] = useState('');
   const [addUserPt, setAddUserPt] = useState('PT. Siemens Indonesia');
   const [addUserDepartemen, setAddUserDepartemen] = useState('');
@@ -287,6 +289,66 @@ export const DashboardAdmin = () => {
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [addUserError, setAddUserError] = useState('');
   const [addUserSuccess, setAddUserSuccess] = useState('');
+
+  const handleDownloadUserTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      { nama: "John Doe", pt: "PT. Siemens Indonesia", departemen: "IT", no_hp: "081234567890" },
+      { nama: "Jane Doe", pt: "PT. Siemens Indonesia", departemen: "HR", no_hp: "081298765432" }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Karyawan");
+    XLSX.writeFile(wb, "Template_Import_Karyawan.xlsx");
+  };
+
+  const handleUserFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+      if (!jsonData || jsonData.length === 0) {
+        toast.error("File excel kosong atau tidak valid!");
+        return;
+      }
+
+      const usersToImport = jsonData.map(row => ({
+        nama: row.nama || row.Nama || row.NAMA,
+        pt: row.pt || row.PT || row.Pt || 'PT. Siemens Indonesia',
+        departemen: row.departemen || row.Departemen || row.DEPARTEMEN,
+        no_hp: String(row.no_hp || row['No HP'] || row['No. HP'] || row.NoHP || row.no_hp || '')
+      })).filter(u => u.nama && u.no_hp && u.pt && u.departemen);
+
+      if (usersToImport.length === 0) {
+        toast.error("Tidak ada data valid yang bisa diimport. Pastikan kolom nama, pt, departemen, no_hp terisi.");
+        return;
+      }
+
+      const res = await fetch('/api/users/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ users: usersToImport })
+      });
+      const resData = await res.json();
+      
+      if (res.ok) {
+        setImportResult(resData);
+        setImportResultTab('inserted');
+        fetchUsers();
+      } else {
+        toast.error(resData.error || 'Gagal import pengguna.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Gagal membaca file Excel');
+    } finally {
+      if (fileInputUserRef.current) fileInputUserRef.current.value = '';
+    }
+  };
 
   const handleAddUser = async () => {
     setAddUserError('');
@@ -3278,13 +3340,22 @@ export const DashboardAdmin = () => {
                   className="px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-sm w-full sm:w-56"
                 />
                 {activeTab === 'users' && (
-                  <button
-                    onClick={() => setIsAddUserModalOpen(true)}
-                    className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 shadow-sm w-full sm:w-auto"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span>Tambah Karyawan</span>
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={() => setIsImportUserModalOpen(true)}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 shadow-sm w-full sm:w-auto"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>Import Karyawan</span>
+                    </button>
+                    <button
+                      onClick={() => setIsAddUserModalOpen(true)}
+                      className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center justify-center gap-1.5 shadow-sm w-full sm:w-auto"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>Tambah Karyawan</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -5048,6 +5119,67 @@ export const DashboardAdmin = () => {
           </div>
         </div>
       )}
+      {/* MODAL IMPORT KARYAWAN EXCEL */}
+      {isImportUserModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-11 h-11 rounded-2xl bg-teal-50 border border-teal-100 text-teal-700 flex items-center justify-center font-bold shadow-sm">
+                  <Upload className="w-6 h-6 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Import Karyawan</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Upload file Excel atau unduh contoh template</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsImportUserModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="py-6 space-y-4">
+              <button
+                onClick={handleDownloadUserTemplate}
+                className="w-full py-4 border-2 border-dashed border-teal-200 rounded-2xl bg-teal-50/50 flex flex-col items-center justify-center gap-2 hover:bg-teal-50 hover:border-teal-300 transition-all cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-teal-600 group-hover:scale-110 transition-transform">
+                  <Download className="w-5 h-5" />
+                </div>
+                <div className="text-center">
+                  <span className="block text-sm font-bold text-teal-700">Unduh Template Excel</span>
+                  <span className="block text-xs text-teal-600/70 mt-1">Format .xlsx dengan kolom standar</span>
+                </div>
+              </button>
+              <input
+                type="file"
+                accept=".xlsx, .xls, .csv"
+                className="hidden"
+                ref={fileInputUserRef}
+                onChange={(e) => {
+                  handleUserFileUpload(e);
+                  setIsImportUserModalOpen(false);
+                }}
+              />
+              <button
+                onClick={() => fileInputUserRef.current?.click()}
+                className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50 flex flex-col items-center justify-center gap-2 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-600 group-hover:scale-110 transition-transform">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div className="text-center">
+                  <span className="block text-sm font-bold text-slate-700">Pilih & Upload File Excel</span>
+                  <span className="block text-xs text-slate-500 mt-1">Maksimal file size 2MB</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===================== MODAL TAMBAH KARYAWAN ===================== */}
       {isAddUserModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
