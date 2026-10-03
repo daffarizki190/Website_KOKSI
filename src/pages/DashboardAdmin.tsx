@@ -299,9 +299,13 @@ export const DashboardAdmin = () => {
     
     setIsAddingUser(true);
     try {
+      const authToken = token || localStorage.getItem('token');
       const res = await fetch('/api/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
         body: JSON.stringify({
           nama: addUserName,
           pt: addUserPt,
