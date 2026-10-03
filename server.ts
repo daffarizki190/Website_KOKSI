@@ -1406,6 +1406,19 @@ app.put('/api/products/:id', requireAuth, requireAdmin, async (req: any, res) =>
   }
 });
 
+// --- API HAPUS SEMUA PRODUK (TEMPORARY) ---
+app.delete('/api/products/all', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    await withDbRetry(() => db.delete(cartItems));
+    // Kita biarkan orderItems dulu, jika gagal berarti ada order yang belum selesai
+    await withDbRetry(() => db.delete(products));
+    res.json({ message: 'Semua produk berhasil dihapus' });
+  } catch (error) {
+    console.error('Gagal menghapus semua produk:', error);
+    res.status(500).json({ error: 'Gagal menghapus semua produk (mungkin ada transaksi yang mengikat)' });
+  }
+});
+
 app.delete('/api/products/:id', requireAuth, requireAdmin, async (req: any, res) => {
   try {
     const productId = Number(req.params.id);
@@ -2921,19 +2934,6 @@ app.post('/api/categories/learnings', requireAuth, requireAdmin, async (req: Aut
   } catch (error) {
     console.error('Gagal menyimpan category learning:', error);
     res.status(500).json({ error: 'Gagal menyimpan data' });
-  }
-});
-
-// --- API HAPUS SEMUA PRODUK (TEMPORARY) ---
-app.delete('/api/products/all', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
-  try {
-    await withDbRetry(() => db.delete(cartItems));
-    // Kita biarkan orderItems dulu, jika gagal berarti ada order yang belum selesai
-    await withDbRetry(() => db.delete(products));
-    res.json({ message: 'Semua produk berhasil dihapus' });
-  } catch (error) {
-    console.error('Gagal menghapus semua produk:', error);
-    res.status(500).json({ error: 'Gagal menghapus semua produk (mungkin ada transaksi yang mengikat)' });
   }
 });
 
