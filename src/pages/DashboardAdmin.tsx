@@ -1851,7 +1851,7 @@ export const DashboardAdmin = () => {
         }
 
         // --- NEW: Tampilkan Preview Modal alih-alih langsung simpan ---
-        setImportPreviewData(formattedProducts.map(p => ({ ...p, isModified: false })));
+        setImportPreviewData(formattedProducts.map(p => ({ ...p, sub_kategori: p.sub_kategori || '', isModified: false })));
         setIsPreviewModalOpen(true);
         setIsImportModalOpen(false);
         
