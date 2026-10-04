@@ -1108,23 +1108,15 @@ export const DashboardAdmin = () => {
       let finalImageUrl = formData.imageUrl;
 
       if (imageFile) {
-        const uploadData = new FormData();
-        uploadData.append('image', imageFile);
-        
-        const authToken = token || localStorage.getItem('token');
-        const uploadRes = await fetch('/api/upload', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${authToken}`
-          },
-          body: uploadData
-        });
-        
-        if (uploadRes.ok) {
-          const uploadJson = await uploadRes.json();
-          finalImageUrl = uploadJson.imageUrl;
-        } else {
-          toast.error('Gagal mengupload gambar');
+        try {
+          finalImageUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(imageFile);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = error => reject(error);
+          });
+        } catch (error) {
+          toast.error('Gagal memproses gambar');
           setIsUploading(false);
           return;
         }

@@ -132,8 +132,8 @@ const apiRateLimiter = rateLimit({
 });
 
 app.use('/api/', apiRateLimiter);
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // --- IT MONITORING & LOGGING IN-MEMORY STORE ---
 const serverStartTime = Date.now();
