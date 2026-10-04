@@ -3880,7 +3880,7 @@ export const DashboardAdmin = () => {
                       <Camera className="w-6 h-6 text-slate-400" />
                     </div>
                   )}
-                  <div className="flex-1">
+                  <div className="flex-1 space-y-2">
                     <input
                       type="file"
                       accept="image/*"
@@ -3892,13 +3892,35 @@ export const DashboardAdmin = () => {
                       }}
                       className="hidden"
                     />
-                    <button
-                      type="button"
-                      onClick={() => imageInputRef.current?.click()}
-                      className="px-4 py-2 border border-slate-300 shadow-sm text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50"
-                    >
-                      Pilih Gambar
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => imageInputRef.current?.click()}
+                        className="px-4 py-2 border border-slate-300 shadow-sm text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50"
+                      >
+                        Pilih Gambar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!formData.nama_barang?.trim()}
+                        onClick={() => window.open(
+                          `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(formData.nama_barang + ' produk')}`,
+                          '_blank',
+                          'noopener,noreferrer'
+                        )}
+                        className="px-4 py-2 border border-teal-300 shadow-sm text-sm font-medium rounded-md text-teal-700 bg-teal-50 hover:bg-teal-100 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Search className="w-4 h-4" />
+                        Cari Foto
+                      </button>
+                    </div>
+                    <input
+                      type="url"
+                      placeholder="Atau tempel link gambar (klik kanan gambar → Salin alamat gambar)"
+                      value={imageFile ? '' : (formData.imageUrl || '')}
+                      onChange={(e) => { setImageFile(null); setFormData({ ...formData, imageUrl: e.target.value }); }}
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
                   </div>
                 </div>
               </div>
