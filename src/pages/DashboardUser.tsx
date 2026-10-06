@@ -597,7 +597,7 @@ export const DashboardUser = () => {
             <div className="flex items-center gap-2 sm:gap-3">
               <BelanjainLogo size="sm" showSubtitle={true} />
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-3">
+            <div className="hidden md:flex items-center gap-1.5 sm:gap-3">
               <button 
                 onClick={() => window.dispatchEvent(new Event('openChat'))}
                 className="md:hidden flex items-center gap-1.5 relative px-2.5 py-1.5 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 hover:text-teal-800 rounded-xl transition-colors cursor-pointer shadow-sm font-semibold text-xs"
@@ -638,7 +638,7 @@ export const DashboardUser = () => {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-5 w-full flex-1 flex flex-col overflow-hidden">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-5 pb-20 md:pb-5 w-full flex-1 flex flex-col overflow-hidden">
         
         {/* Search Bar */}
         <div className="flex items-center gap-2 mb-3 shrink-0">
@@ -1505,10 +1505,52 @@ export const DashboardUser = () => {
               </button>
             </motion.div>
           </div>
-        )}
       </AnimatePresence>
 
       <UserChatWidget />
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 px-2 py-2 flex justify-around items-center pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        <button 
+          onClick={() => window.dispatchEvent(new Event('openChat'))}
+          className="flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
+        >
+          <MessagesSquare className="w-6 h-6 mb-1" />
+          <span className="text-[10px] font-medium">Chat Admin</span>
+        </button>
+        <button 
+          onClick={() => navigate('/orders')}
+          className="tour-history flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
+        >
+          <ShoppingBag className="w-6 h-6 mb-1" />
+          <span className="text-[10px] font-medium">Pesanan</span>
+        </button>
+        
+        {/* Floating Action Button style for Cart */}
+        <div className="relative -top-6 w-16 flex justify-center">
+          <button 
+            onClick={() => setIsCartOpen(true)}
+            className="tour-cart flex flex-col items-center justify-center w-14 h-14 bg-teal-600 hover:bg-teal-700 text-white rounded-full shadow-lg shadow-teal-600/30 border-4 border-slate-50 transition-colors"
+          >
+            <ShoppingCart className="w-6 h-6" />
+            {cartItemCount > 0 && (
+              <span className="absolute top-0 right-0 inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 text-[11px] font-extrabold text-white bg-rose-500 rounded-full shadow-sm">
+                {cartItemCount}
+              </span>
+            )}
+          </button>
+        </div>
+        
+        <button 
+          onClick={() => setIsProfileOpen(true)}
+          className="flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
+        >
+          <div className="w-6 h-6 rounded-full bg-teal-100 border border-teal-200 text-teal-700 flex items-center justify-center font-bold text-[10px] mb-1">
+            {user?.nama?.substring(0, 2).toUpperCase() || <UserIcon className="w-4 h-4" />}
+          </div>
+          <span className="text-[10px] font-medium">Profil</span>
+        </button>
+      </nav>
     </div>
   );
 };
