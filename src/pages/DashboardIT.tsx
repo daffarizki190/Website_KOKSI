@@ -718,7 +718,19 @@ ${testsMarkdown}
             </button>
 
             <button
-              onClick={() => { logout(); navigate('/login'); }}
+              onClick={async () => {
+                const ok = await confirmModal({
+                  title: 'Konfirmasi Keluar',
+                  message: 'Apakah Anda yakin ingin keluar dari portal IT?',
+                  type: 'warning',
+                  confirmText: 'Ya, Keluar',
+                  cancelText: 'Batal'
+                });
+                if (ok) {
+                  logout();
+                  navigate('/login');
+                }
+              }}
               className="p-1.5 bg-slate-800/90 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-slate-700/80 hover:border-red-500/30 rounded-xl transition-all cursor-pointer ml-auto md:ml-0"
               title="Keluar / Logout"
             >

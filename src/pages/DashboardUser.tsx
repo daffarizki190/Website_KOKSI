@@ -16,7 +16,7 @@ import { UserChatWidget } from '../components/UserChatWidget';
 
 export const DashboardUser = () => {
   const { user, token, logout } = useAuth();
-  const { toast } = useNotification();
+  const { toast, confirm: confirmModal } = useNotification();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
@@ -479,10 +479,20 @@ export const DashboardUser = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('saza_closed_modal_dismissed');
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    const isConfirmed = await confirmModal({
+      title: 'Konfirmasi Keluar',
+      message: 'Apakah Anda yakin ingin keluar dari akun ini?',
+      type: 'warning',
+      confirmText: 'Ya, Keluar',
+      cancelText: 'Batal'
+    });
+
+    if (isConfirmed) {
+      localStorage.removeItem('saza_closed_modal_dismissed');
+      logout();
+      navigate('/login');
+    }
   };
 
   const filteredProducts = useMemo(() => {

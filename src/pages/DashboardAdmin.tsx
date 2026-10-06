@@ -981,9 +981,19 @@ export const DashboardAdmin = () => {
     setNewKeteranganValue(order.keterangan || '');
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    const isConfirmed = await confirmModal({
+      title: 'Konfirmasi Keluar',
+      message: 'Apakah Anda yakin ingin keluar dari portal admin?',
+      type: 'warning',
+      confirmText: 'Ya, Keluar',
+      cancelText: 'Batal'
+    });
+
+    if (isConfirmed) {
+      logout();
+      navigate('/login');
+    }
   };
 
   const handleSubscribePush = async () => {
