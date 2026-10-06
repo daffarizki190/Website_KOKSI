@@ -94,6 +94,7 @@ export const DashboardAdmin = () => {
   const { toast, confirm: confirmModal } = useNotification();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -103,6 +104,7 @@ export const DashboardAdmin = () => {
 
   // Users state
   const [users, setUsers] = useState<any[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [userSearch, setUserSearch] = useState('');
   
   // Category Learnings & Import Preview State
@@ -564,6 +566,8 @@ export const DashboardAdmin = () => {
       }
     } catch (error) {
       console.error('Failed to fetch users');
+    } finally {
+      setIsLoadingUsers(false);
     }
   };
 
@@ -626,6 +630,8 @@ export const DashboardAdmin = () => {
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsLoadingProducts(false);
     }
   };
 
@@ -3299,7 +3305,12 @@ export const DashboardAdmin = () => {
             <div className="bg-white rounded-2xl border border-slate-200 flex-1 overflow-hidden flex flex-col shadow-xs">
               {/* 1. Mobile Cards View (< md): Pas di layar HP, Tanpa Perlu Geser/Swipe */}
               <div className="block md:hidden divide-y divide-slate-100 overflow-y-auto flex-1">
-                {products
+                {isLoadingProducts ? (
+                  <div className="p-8 flex flex-col items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mb-4"></div>
+                    <p className="text-slate-500 text-sm animate-pulse">Memuat data produk...</p>
+                  </div>
+                ) : products
                   .filter((p) => {
                     const matchCat = productCategoryFilter === 'Semua' || p.kategori === productCategoryFilter;
                     const matchSub = productSubCategoryFilter === 'Semua' || p.sub_kategori === productSubCategoryFilter;
@@ -3370,7 +3381,16 @@ export const DashboardAdmin = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-100">
-                    {products
+                    {isLoadingProducts ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-12 text-center">
+                          <div className="flex flex-col items-center justify-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mb-4"></div>
+                            <p className="text-slate-500 text-sm animate-pulse">Memuat data produk...</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : products
                       .filter((p) => {
                         const matchCat = productCategoryFilter === 'Semua' || p.kategori === productCategoryFilter;
                         const matchSub = productSubCategoryFilter === 'Semua' || p.sub_kategori === productSubCategoryFilter;
@@ -3471,7 +3491,12 @@ export const DashboardAdmin = () => {
             <div className="bg-white rounded-2xl border border-slate-200 flex-1 overflow-hidden flex flex-col shadow-xs">
               {/* 1. Mobile Cards View (< md): Pas di layar HP, Tanpa Perlu Geser/Swipe */}
               <div className="block md:hidden divide-y divide-slate-100 overflow-y-auto flex-1">
-                {users
+                {isLoadingUsers ? (
+                  <div className="p-8 flex flex-col items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mb-4"></div>
+                    <p className="text-slate-500 text-sm animate-pulse">Memuat data pengguna...</p>
+                  </div>
+                ) : users
                   .filter(u => {
                     const query = userSearch.toLowerCase();
                     const matchSearch = !query ||
@@ -3587,7 +3612,16 @@ export const DashboardAdmin = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-100">
-                    {users
+                    {isLoadingUsers ? (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center">
+                          <div className="flex flex-col items-center justify-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mb-4"></div>
+                            <p className="text-slate-500 text-sm animate-pulse">Memuat data pengguna...</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : users
                       .filter(u => {
                         const query = userSearch.toLowerCase();
                         const matchSearch = !query ||
