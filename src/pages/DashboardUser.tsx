@@ -1505,6 +1505,7 @@ export const DashboardUser = () => {
               </button>
             </motion.div>
           </div>
+        )}
       </AnimatePresence>
 
       <UserChatWidget />
