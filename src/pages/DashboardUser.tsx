@@ -1059,7 +1059,7 @@ export const DashboardUser = () => {
                   <div className="space-y-4">
                     <div className="flex items-center gap-4 mb-6">
                       <div className="w-16 h-16 rounded-full bg-teal-100 border-2 border-teal-200 flex items-center justify-center text-teal-700 font-bold text-2xl">
-                        {user.nama.substring(0, 2).toUpperCase()}
+                        {user?.nama?.substring(0, 2)?.toUpperCase() || <UserIcon className="w-8 h-8" />}
                       </div>
                       <div>
                         <p className="font-bold text-slate-900 text-lg">{user.nama}</p>
@@ -1547,7 +1547,7 @@ export const DashboardUser = () => {
           className="flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
         >
           <div className="w-6 h-6 rounded-full bg-teal-100 border border-teal-200 text-teal-700 flex items-center justify-center font-bold text-[10px] mb-1">
-            {user?.nama?.substring(0, 2).toUpperCase() || <UserIcon className="w-4 h-4" />}
+            {user?.nama?.substring(0, 2)?.toUpperCase() || <UserIcon className="w-4 h-4" />}
           </div>
           <span className="text-[10px] font-medium">Profil</span>
         </button>
