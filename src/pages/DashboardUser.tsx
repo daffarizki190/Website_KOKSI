@@ -630,7 +630,7 @@ export const DashboardUser = () => {
                 className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-teal-100 border border-teal-200 text-teal-700 hover:bg-teal-200 transition-colors font-bold text-xs cursor-pointer ml-1"
                 title="Profil Karyawan"
               >
-                {user?.nama?.substring(0, 2).toUpperCase() || <UserIcon className="w-4 h-4" />}
+                {user?.nama?.substring(0, 2)?.toUpperCase() || <UserIcon className="w-4 h-4" />}
               </button>
             </div>
           </div>
