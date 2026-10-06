@@ -21,17 +21,37 @@ export const BackExitGuard: React.FC = () => {
 
     isInitialized.current = true;
 
-    // Beri waktu agar React Router atau browser selesai setup history bawaannya
-    const timer = setTimeout(() => {
+    const applyTrap = () => {
       const currentState = window.history.state || {};
-      
       if (!currentState._hasFloor && !currentState._appFloor) {
-        window.history.replaceState({ ...currentState, _appFloor: true }, "");
-        window.history.pushState({ ...currentState, _hasFloor: true }, "#_");
+        try {
+          window.history.replaceState({ ...currentState, _appFloor: true }, "");
+          window.history.pushState({ ...currentState, _hasFloor: true }, "#_");
+        } catch (e) {
+          console.warn("Failed to apply history trap", e);
+        }
       }
-    }, 500);
+    };
 
-    return () => clearTimeout(timer);
+    // Beri waktu agar React Router atau browser selesai setup history bawaannya
+    const timer = setTimeout(applyTrap, 500);
+
+    // Beberapa browser/PWA (seperti Chrome Custom Tabs) memblokir pushState tanpa interaksi user.
+    // Jadi kita juga pasang trap saat interaksi pertama.
+    const handleInteraction = () => {
+      applyTrap();
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+    };
+
+    window.addEventListener('click', handleInteraction);
+    window.addEventListener('touchstart', handleInteraction);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+    };
   }, [location.pathname]);
 
   useEffect(() => {
