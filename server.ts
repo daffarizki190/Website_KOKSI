@@ -1348,6 +1348,10 @@ app.get('/api/products', requireAuth, async (req, res) => {
       res.json(inMemoryProducts);
       return;
     }
+    
+    // Ensure tables exist before querying (fixes 500 on fresh deploy)
+    await ensureDatabaseSchema();
+    
     const productList = await withDbRetry(() => db.select().from(products));
 
     res.json(productList);
