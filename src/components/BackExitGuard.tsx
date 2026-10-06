@@ -27,7 +27,7 @@ export const BackExitGuard: React.FC = () => {
       
       if (!currentState._hasFloor && !currentState._appFloor) {
         window.history.replaceState({ ...currentState, _appFloor: true }, "");
-        window.history.pushState({ ...currentState, _hasFloor: true }, "");
+        window.history.pushState({ ...currentState, _hasFloor: true }, "#_");
       }
     }, 500);
 
@@ -51,7 +51,7 @@ export const BackExitGuard: React.FC = () => {
           // Segera kembalikan trap state agar user tidak keluar jika tekan back lagi
           setTimeout(() => {
             try {
-              window.history.pushState({ ...e.state, _hasFloor: true }, "");
+              window.history.pushState({ ...e.state, _hasFloor: true }, "#_");
             } catch (err) {
               console.warn("Blocked pushState in popstate", err);
             }
@@ -103,7 +103,7 @@ export const BackExitGuard: React.FC = () => {
     // jadi tidak perlu pushState lagi di sini (tapi fallback jika gagal push di popstate):
     const state = window.history.state || {};
     if (state._appFloor) {
-      window.history.pushState({ ...state, _hasFloor: true }, "");
+      window.history.pushState({ ...state, _hasFloor: true }, "#_");
     }
   };
 
