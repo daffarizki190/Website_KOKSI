@@ -19,6 +19,7 @@ export const DashboardUser = () => {
   const { toast } = useNotification();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState('');
@@ -295,6 +296,7 @@ export const DashboardUser = () => {
   }, []);
 
   const fetchProducts = async () => {
+    setIsLoadingProducts(true);
     try {
       const res = await fetch('/api/products', {
         headers: { Authorization: `Bearer ${token}` }
@@ -304,6 +306,8 @@ export const DashboardUser = () => {
       setProducts(validProducts);
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsLoadingProducts(false);
     }
   };
 
@@ -737,7 +741,18 @@ export const DashboardUser = () => {
 
         {/* Product List */}
         <div className={`flex-1 overflow-y-auto pr-0.5 pb-20 sm:pb-6 transition-all duration-300 ${!canOrder ? 'opacity-70' : ''}`}>
-          {filteredProducts.length === 0 ? (
+          {isLoadingProducts ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2.5 sm:gap-4 tour-products">
+              {[...Array(12)].map((_, i) => (
+                <div key={i} className="bg-white rounded-[16px] sm:rounded-[20px] border border-slate-100 flex flex-col p-3 shadow-sm h-[250px] animate-pulse">
+                  <div className="w-full aspect-square bg-slate-200 rounded-xl mb-3"></div>
+                  <div className="h-3 bg-slate-200 rounded-full w-3/4 mb-2"></div>
+                  <div className="h-3 bg-slate-200 rounded-full w-1/2 mb-auto"></div>
+                  <div className="h-6 bg-slate-200 rounded-full w-full mt-3"></div>
+                </div>
+              ))}
+            </div>
+          ) : filteredProducts.length === 0 ? (
             <div className="bg-white rounded-3xl border border-slate-200/80 p-10 text-center text-slate-500 flex flex-col items-center justify-center my-4 shadow-xs">
               <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
                 <Layers className="w-6 h-6" />
@@ -748,7 +763,7 @@ export const DashboardUser = () => {
               </p>
             </div>
           ) : (
-            <motion.div layout className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2.5 sm:gap-4 tour-products">
+            <motion.div layout className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2.5 sm:gap-4 tour-products">
               <AnimatePresence mode="popLayout">
               {filteredProducts.map(product => {
                 const theme = getCategoryTheme(product.kategori);
