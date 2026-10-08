@@ -1513,18 +1513,22 @@ export const DashboardUser = () => {
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 px-2 py-2 flex justify-around items-center pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <button 
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setSelectedCategory('Semua');
+            setSearchQuery('');
+          }}
+          className="flex flex-col items-center p-2 text-teal-600 relative w-16"
+        >
+          <Home className="w-6 h-6 mb-1" />
+          <span className="text-[10px] font-medium">Beranda</span>
+        </button>
+        <button 
           onClick={() => window.dispatchEvent(new Event('openChat'))}
           className="flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
         >
           <MessagesSquare className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-medium">Chat Admin</span>
-        </button>
-        <button 
-          onClick={() => navigate('/orders')}
-          className="tour-history flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
-        >
-          <ShoppingBag className="w-6 h-6 mb-1" />
-          <span className="text-[10px] font-medium">Pesanan</span>
         </button>
         
         {/* Floating Action Button style for Cart */}
@@ -1541,6 +1545,14 @@ export const DashboardUser = () => {
             )}
           </button>
         </div>
+        
+        <button 
+          onClick={() => navigate('/orders')}
+          className="tour-history flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
+        >
+          <ShoppingBag className="w-6 h-6 mb-1" />
+          <span className="text-[10px] font-medium">Pesanan</span>
+        </button>
         
         <button 
           onClick={() => setIsProfileOpen(true)}
