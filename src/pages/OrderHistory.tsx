@@ -292,9 +292,11 @@ export default function OrderHistory() {
         return;
       }
 
-      const response = await fetch('/api/orders/history', {
+      const response = await fetch(`/api/orders/history?t=${Date.now()}`, {
         headers: {
-          'Authorization': `Bearer ${authToken}`
+          'Authorization': `Bearer ${authToken}`,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
         }
       });
 
