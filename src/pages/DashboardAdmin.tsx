@@ -3513,6 +3513,12 @@ export const DashboardAdmin = () => {
                         <div className="min-w-0 flex-1">
                           <h4 className="font-extrabold text-slate-900 text-sm leading-snug">{u.nama}</h4>
                           <p className="text-xs text-slate-500 font-mono mt-0.5">{u.no_hp}</p>
+                          {u.mustChangePassword && (
+                            <div className="flex items-center gap-1 mt-1 text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded text-[10px] w-fit">
+                              <span className="font-bold">⚠️ Belum Ganti PW</span>
+                              <span className="opacity-80">(Default: Saza12345)</span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                             <span className="inline-block px-2 py-0.5 bg-teal-50 text-teal-800 font-bold text-[10px] rounded-md border border-teal-100">
                               {u.pt}
@@ -3637,6 +3643,12 @@ export const DashboardAdmin = () => {
                           <td className="px-6 py-4">
                             <p className="font-semibold text-slate-800">{u.nama}</p>
                             <p className="text-xs text-slate-500">{u.no_hp}</p>
+                            {u.mustChangePassword && (
+                              <div className="flex items-center gap-1 mt-1 text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-md text-[10px] w-fit shadow-xs">
+                                <span className="font-bold">⚠️ Belum ganti password</span>
+                                <span className="opacity-80">(Default: Saza12345)</span>
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4">
                             <span className="inline-block px-2.5 py-0.5 bg-teal-50 text-teal-800 font-bold text-xs rounded-full border border-teal-100 mb-0.5">

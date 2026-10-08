@@ -22,6 +22,7 @@ export interface User {
   no_hp: string;
   role: 'user' | 'admin' | 'it';
   is_blocked?: boolean;
+  mustChangePassword?: boolean;
   createdAt?: string;
 }
 

@@ -893,6 +893,7 @@ app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
       no_hp: users.no_hp,
       role: users.role,
       is_blocked: users.is_blocked,
+      mustChangePassword: users.mustChangePassword,
       createdAt: users.createdAt
     }).from(users));
     res.json(allUsers);
