@@ -1175,10 +1175,6 @@ export const DashboardAdmin = () => {
 
   const handleConfirmResetPassword = async () => {
     if (!resetPasswordUser) return;
-    if (!newPasswordInput.trim() || newPasswordInput.trim().length < 6) {
-      setResetPasswordError('Password minimal 6 karakter!');
-      return;
-    }
 
     setIsResettingPassword(true);
     setResetPasswordError('');
@@ -1190,7 +1186,7 @@ export const DashboardAdmin = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ newPassword: newPasswordInput.trim() })
+        body: JSON.stringify({ newPassword: 'Saza12345' })
       });
 
       if (res.ok) {
@@ -4389,30 +4385,15 @@ export const DashboardAdmin = () => {
                 </span>
               </div>
 
-              {/* Password Input */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                  <Lock className="w-3.5 h-3.5 text-teal-600" />
-                  <span>Password Baru</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    value={newPasswordInput}
-                    onChange={(e) => setNewPasswordInput(e.target.value)}
-                    placeholder="Masukkan minimal 6 karakter..."
-                    className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1">Minimal 6 karakter kombinasi huruf & angka.</p>
+              {/* Confirmation Text */}
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+                <p className="text-xs text-amber-800 font-medium leading-relaxed">
+                  Apakah Anda yakin ingin mereset kata sandi akun ini?
+                </p>
+                <ul className="mt-2 space-y-1.5 list-disc pl-4 text-xs text-amber-700">
+                  <li>Password akan dikembalikan ke default: <strong className="bg-amber-100 px-1 rounded">Saza12345</strong></li>
+                  <li>Anggota akan diminta untuk <strong className="font-bold">wajib mengganti password baru</strong> saat mereka login berikutnya.</li>
+                </ul>
               </div>
 
               {/* Error Alert */}
@@ -4441,12 +4422,12 @@ export const DashboardAdmin = () => {
                 {isResettingPassword ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Menyimpan...</span>
+                    <span>Mereset...</span>
                   </>
                 ) : (
                   <>
                     <Key className="w-4 h-4 text-teal-200" />
-                    <span>Simpan Password Baru</span>
+                    <span>Ya, Reset Password</span>
                   </>
                 )}
               </button>

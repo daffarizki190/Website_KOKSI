@@ -1035,7 +1035,7 @@ app.put(['/api/users/:id/password', '/api/users/:id/reset-password'], requireAut
     }
     const hashedPassword = await bcryptHash(rawPassword.trim(), 10);
     await withDbRetry(() => db.update(users)
-      .set({ password: hashedPassword })
+      .set({ password: hashedPassword, mustChangePassword: true })
       .where(eq(users.id, Number(req.params.id))));
     res.json({ message: 'Password berhasil direset' });
   } catch (error) {
