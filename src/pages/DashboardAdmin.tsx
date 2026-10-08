@@ -3969,6 +3969,9 @@ export const DashboardAdmin = () => {
                       onChange={(e) => { setImageFile(null); setFormData({ ...formData, imageUrl: e.target.value }); }}
                       className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
+                    {formData.imageUrl?.includes('google.com/search') || formData.imageUrl?.includes('google.com/imgres') ? (
+                      <p className="text-[10px] text-red-500 font-medium">⚠️ Link yang Anda masukkan salah. Jangan salin link dari bagian atas browser, tapi <b>Klik Kanan Gambarnya</b> lalu pilih <b>"Salin Alamat Gambar" (Copy image address)</b>.</p>
+                    ) : null}
                   </div>
                 </div>
               </div>
