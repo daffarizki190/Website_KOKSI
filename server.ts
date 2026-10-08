@@ -11,7 +11,7 @@ import multer from 'multer';
 import fs from 'fs';
 import { db, withDbRetry } from './src/db/index';
 import { users, products, orders, orderItems, cartItems, activityLogs, pushSubscriptions, chats, categoryLearnings } from './src/db/schema';
-import { eq, asc, desc, and, sql } from 'drizzle-orm';
+import { eq, asc, desc, and, sql, inArray } from 'drizzle-orm';
 import webpush from 'web-push';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -2803,10 +2803,10 @@ app.post('/api/orders/delete-by-filter', requireAuth, requireAdmin, async (req: 
     await ensureDatabaseSchema();
 
     // 1. Delete order_items first to maintain referential integrity
-    await withDbRetry(() => db.delete(orderItems).where(sql`order_id IN (${sql.raw(ids.join(','))})`));
+    await withDbRetry(() => db.delete(orderItems).where(inArray(orderItems.orderId, ids)));
 
     // 2. Delete orders
-    const deleted = await withDbRetry(() => db.delete(orders).where(sql`id IN (${sql.raw(ids.join(','))})`).returning());
+    const deleted = await withDbRetry(() => db.delete(orders).where(inArray(orders.id, ids)).returning());
 
     // 3. Mirror in-memory demo store
     for (const id of ids) {

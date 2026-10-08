@@ -301,26 +301,15 @@ export default function OrderHistory() {
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data)) {
-          setOrders(prev => {
-            const map = new Map<number, Order>();
-            // Start with local cache — it always has the freshest post-checkout orders
-            prev.forEach(o => map.set(o.id, o));
-            // Merge server data on top (server data may have updated status)
-            data.forEach((o: Order) => {
-              // Only overwrite if server has more recent/different status
-              const existing = map.get(o.id);
-              if (!existing || o.status !== existing.status || (o.items && o.items.length > 0)) {
-                map.set(o.id, o);
-              }
-            });
-            const merged = Array.from(map.values()).sort(
+          setOrders(() => {
+            const sorted = data.sort(
               (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
             );
-            // Persist the merged result back to localStorage
+            // Persist the result back to localStorage
             try {
-              localStorage.setItem(storageKey, JSON.stringify(merged));
+              localStorage.setItem(storageKey, JSON.stringify(sorted));
             } catch (e) {}
-            return merged;
+            return sorted;
           });
           setError(null);
         }
