@@ -1191,6 +1191,7 @@ export const DashboardAdmin = () => {
 
       if (res.ok) {
         toast.success(`Password pengguna "${resetPasswordUser.nama}" berhasil direset!`);
+        fetchUsers();
         setResetPasswordUser(null);
         setNewPasswordInput('');
       } else {
