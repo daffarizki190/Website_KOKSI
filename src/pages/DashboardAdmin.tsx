@@ -752,7 +752,7 @@ export const DashboardAdmin = () => {
       });
 
       if (res.ok) {
-        fetchOrders(true);
+        await fetchOrders(true);
         setSelectedOrderForStatus(null);
         const tgtOrder = orders.find(o => o.id === orderId);
         toast.success(`Status pesanan ${tgtOrder ? getDisplayOrderId(tgtOrder.id, tgtOrder.createdAt) : orderId} berhasil diubah ke "${status}"!`);
@@ -786,7 +786,7 @@ export const DashboardAdmin = () => {
       const data = await res.json();
       if (res.ok) {
         setCancellationActionSuccess('Pengajuan pembatalan DISETUJUI! Pesanan telah resmi Dibatalkan.');
-        fetchOrders(true);
+        await fetchOrders(true);
         setTimeout(() => {
           setCancellationConfirmModal(null);
           setCancellationActionSuccess('');
@@ -820,7 +820,7 @@ export const DashboardAdmin = () => {
       const data = await res.json();
       if (res.ok) {
         setCancellationActionSuccess('Pengajuan pembatalan DITOLAK! Pesanan dikembalikan ke status "Proses".');
-        fetchOrders(true);
+        await fetchOrders(true);
         setTimeout(() => {
           setCancellationConfirmModal(null);
           setCancellationActionSuccess('');
