@@ -1512,7 +1512,8 @@ export const DashboardUser = () => {
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 px-2 py-2 flex justify-around items-center pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-        <button 
+        <motion.button 
+          whileTap={{ scale: 0.85 }}
           onClick={() => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
             setSelectedCategory('Semua');
@@ -1522,18 +1523,21 @@ export const DashboardUser = () => {
         >
           <Home className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-medium">Beranda</span>
-        </button>
-        <button 
-          onClick={() => window.dispatchEvent(new Event('openChat'))}
+        </motion.button>
+        <motion.button 
+          whileTap={{ scale: 0.85 }}
+          onClick={() => window.dispatchEvent(new CustomEvent('openChat'))}
           className="flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
         >
           <MessagesSquare className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-medium">Chat Admin</span>
-        </button>
+        </motion.button>
         
         {/* Floating Action Button style for Cart */}
         <div className="relative -top-6 w-16 flex justify-center">
-          <button 
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.9 }}
             onClick={() => setIsCartOpen(true)}
             className="tour-cart flex flex-col items-center justify-center w-14 h-14 bg-teal-600 hover:bg-teal-700 text-white rounded-full shadow-lg shadow-teal-600/30 border-4 border-slate-50 transition-colors"
           >
@@ -1543,18 +1547,20 @@ export const DashboardUser = () => {
                 {cartItemCount}
               </span>
             )}
-          </button>
+          </motion.button>
         </div>
         
-        <button 
+        <motion.button 
+          whileTap={{ scale: 0.85 }}
           onClick={() => navigate('/orders')}
           className="tour-history flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
         >
           <ShoppingBag className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-medium">Pesanan</span>
-        </button>
+        </motion.button>
         
-        <button 
+        <motion.button 
+          whileTap={{ scale: 0.85 }}
           onClick={() => setIsProfileOpen(true)}
           className="flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
         >
@@ -1562,7 +1568,7 @@ export const DashboardUser = () => {
             {user?.nama?.substring(0, 2)?.toUpperCase() || <UserIcon className="w-4 h-4" />}
           </div>
           <span className="text-[10px] font-medium">Profil</span>
-        </button>
+        </motion.button>
       </nav>
     </div>
   );
