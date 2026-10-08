@@ -1145,6 +1145,16 @@ app.put('/api/users/:id', requireAuth, async (req: AuthRequest, res) => {
       role: u.role
     };
 
+    // Log this activity if an admin/IT is modifying someone else's profile
+    if (req.user && req.user.id !== targetUserId && (req.user.role === 'admin' || req.user.role === 'it')) {
+      await logActivity(
+        req.user.id, 
+        `${req.user.nama} (${req.user.role})`, 
+        'Perbarui Profil Pengguna', 
+        `Memperbarui profil / reset password untuk pengguna "${u.nama}" (${u.no_hp}).`
+      );
+    }
+
     res.json({ message: 'Profil pengguna berhasil diperbarui!', user: userWithoutPass });
   } catch (error: any) {
     console.error('Update user error:', error);
@@ -1180,6 +1190,15 @@ app.put('/api/users/:id/role', requireAuth, async (req: AuthRequest, res) => {
     }
 
     const u = updatedUsers[0];
+
+    // Log this activity
+    await logActivity(
+      req.user?.id || null, 
+      `${req.user?.nama || 'System'} (${req.user?.role || 'user'})`, 
+      'Perubahan Role', 
+      `Role pengguna "${u.nama}" (${u.no_hp}) diubah menjadi "${newRole.toUpperCase()}".`
+    );
+
     res.json({
       message: `Role pengguna "${u.nama}" berhasil diubah menjadi "${newRole.toUpperCase()}".`,
       user: {
@@ -1220,6 +1239,15 @@ app.put('/api/users/:id/block', requireAuth, async (req: AuthRequest, res) => {
     }
 
     const u = updatedUsers[0];
+
+    // Log this activity
+    await logActivity(
+      req.user?.id || null, 
+      `${req.user?.nama || 'System'} (${req.user?.role || 'user'})`, 
+      isBlocked ? 'Blokir Pengguna' : 'Buka Blokir Pengguna', 
+      `Status pengguna "${u.nama}" (${u.no_hp}) diubah menjadi ${isBlocked ? 'DIBLOKIR' : 'AKTIF'}.`
+    );
+
     res.json({
       message: `Pengguna "${u.nama}" berhasil di${isBlocked ? 'blokir' : 'buka blokir'}.`,
       user: {
@@ -2476,6 +2504,14 @@ app.put('/api/orders/:id/status', requireAuth, requireAdmin, async (req: AuthReq
       }
     }
 
+    // Log this activity
+    await logActivity(
+      req.user?.id || null, 
+      `${req.user?.nama || 'System'} (${req.user?.role || 'admin'})`, 
+      'Perbarui Status Pesanan', 
+      `Mengubah status pesanan #${orderId} menjadi "${status}".`
+    );
+
     // Auto-send Telegram Notification on Status Update (DISABLED AS PER REQUEST)
     /*
     try {
@@ -2777,6 +2813,14 @@ app.delete('/api/orders/:id', requireAuth, requireAdmin, async (req: AuthRequest
     const idx = demoOrdersStore.findIndex(o => o.id === orderId);
     if (idx >= 0) demoOrdersStore.splice(idx, 1);
 
+    // Log this activity
+    await logActivity(
+      req.user?.id || null, 
+      `${req.user?.nama || 'System'} (${req.user?.role || 'admin'})`, 
+      'Hapus Pesanan', 
+      `Menghapus pesanan #${orderId}.`
+    );
+
     res.json({ message: `Pesanan #${orderId} berhasil dihapus.`, deleted: deleted[0] });
   } catch (error: any) {
     console.error('Delete order error:', error);
@@ -2813,6 +2857,14 @@ app.post('/api/orders/delete-by-filter', requireAuth, requireAdmin, async (req: 
       const idx = demoOrdersStore.findIndex(o => o.id === id);
       if (idx >= 0) demoOrdersStore.splice(idx, 1);
     }
+
+    // Log this activity
+    await logActivity(
+      req.user?.id || null, 
+      `${req.user?.nama || 'System'} (${req.user?.role || 'admin'})`, 
+      'Hapus Pesanan Massal', 
+      `Menghapus ${deleted.length || ids.length} pesanan. Filter: ${filterDescription || 'Semua/Manual'}`
+    );
 
     res.json({
       message: `Berhasil menghapus ${deleted.length || ids.length} transaksi pesanan.`,
