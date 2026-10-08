@@ -16,7 +16,7 @@ export const Login = () => {
   useEffect(() => {
     if (user) {
       if (user.role === 'admin') navigate('/admin', { replace: true });
-      else if (user.role === 'it') navigate('/it', { replace: true });
+      else if (user.role === 'it') navigate('/it-dashboard', { replace: true });
       else navigate('/dashboard', { replace: true });
     }
   }, [user, navigate]);
