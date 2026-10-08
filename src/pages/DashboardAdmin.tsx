@@ -388,7 +388,7 @@ export const DashboardAdmin = () => {
       if (!res.ok) throw new Error(data.error || 'Gagal menambahkan karyawan');
       
       setAddUserSuccess('Karyawan berhasil ditambahkan. Password sementara: Saza12345');
-      fetchUsers();
+      await fetchUsers();
       
       setTimeout(() => {
         setIsAddUserModalOpen(false);
@@ -1255,7 +1255,7 @@ export const DashboardAdmin = () => {
           const updatedUser = { ...user, ...data.user };
           localStorage.setItem('user', JSON.stringify(updatedUser));
         }
-        fetchUsers();
+        await fetchUsers();
         setTimeout(() => {
           setEditingUser(null);
         }, 800);
@@ -1292,7 +1292,7 @@ export const DashboardAdmin = () => {
         localStorage.setItem('user', JSON.stringify(updatedUser));
       }
 
-      fetchUsers();
+      await fetchUsers();
     } catch (err: any) {
       toast.error(err.message || 'Gagal memperbarui role');
     } finally {
@@ -1318,7 +1318,7 @@ export const DashboardAdmin = () => {
       if (!res.ok) throw new Error(data.error || 'Gagal mengubah status block');
 
       toast.success(data.message || `Status block berhasil diubah.`);
-      fetchUsers();
+      await fetchUsers();
     } catch (err: any) {
       toast.error(err.message || 'Terjadi kesalahan jaringan');
     } finally {
@@ -1358,7 +1358,7 @@ export const DashboardAdmin = () => {
         toast.success(data.message || `Akun "${deleteTargetUser.nama}" berhasil dihapus.`);
         setDeleteTargetUser(null);
         setDeleteReasonInput('');
-        fetchUsers();
+        await fetchUsers();
       } else {
         setDeleteUserError(data.error || 'Gagal menghapus akun pengguna.');
       }
