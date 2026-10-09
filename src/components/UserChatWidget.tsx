@@ -32,6 +32,16 @@ export const UserChatWidget: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setMessages(data);
+        
+        // Mark incoming messages as read
+        fetch('/api/chats/read', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({})
+        });
       }
     } catch (err) {
       console.error('Failed to fetch chats', err);

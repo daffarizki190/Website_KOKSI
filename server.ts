@@ -4605,18 +4605,26 @@ app.post('/api/chats', requireAuth, async (req: any, res) => {
   }
 });
 
-app.patch('/api/chats/read', requireAuth, requireAdmin, async (req: any, res) => {
+app.patch('/api/chats/read', requireAuth, async (req: any, res) => {
   try {
-    const { userId } = req.body; // Mark messages from this user as read
-    if (!userId) return res.status(400).json({ error: 'UserId diperlukan' });
-
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (!isDbConfigured) return res.json({ success: true });
 
-    await withDbRetry(() => db.update(chats)
-      .set({ isRead: true })
-      .where(and(eq(chats.senderId, Number(userId)), eq(chats.isRead, false)))
-    );
+    if (req.user.role === 'admin' || req.user.role === 'it') {
+      const { userId } = req.body; // Mark messages from this user as read
+      if (!userId) return res.status(400).json({ error: 'UserId diperlukan' });
+
+      await withDbRetry(() => db.update(chats)
+        .set({ isRead: true })
+        .where(and(eq(chats.senderId, Number(userId)), eq(chats.isRead, false)))
+      );
+    } else {
+      // User marking messages from Admin to them as read
+      await withDbRetry(() => db.update(chats)
+        .set({ isRead: true })
+        .where(and(eq(chats.receiverId, req.user.id), eq(chats.isRead, false)))
+      );
+    }
 
     res.json({ success: true });
   } catch (err) {
