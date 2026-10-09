@@ -240,11 +240,13 @@ export const AdminChatPanel: React.FC = () => {
                   <div className="flex justify-between items-center mb-0.5">
                     <h4 className="text-[#111b21] font-normal truncate text-[16px]">{contact.nama}</h4>
                     <span className={`text-[12px] shrink-0 ${contact.unreadCount && contact.unreadCount > 0 ? 'text-[#25D366] font-medium' : 'text-[#667781]'}`}>
-                      {contact.lastMessageTime || 'Hari ini'}
+                      {contact.lastMessageTime ? format(new Date(contact.lastMessageTime), 'HH:mm') : 'Hari ini'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <p className="text-[14px] text-[#667781] truncate pr-2">{contact.pt}</p>
+                    <p className={`text-[14px] truncate pr-2 ${contact.unreadCount && contact.unreadCount > 0 ? 'text-[#111b21] font-medium' : 'text-[#667781]'}`}>
+                      {contact.lastMessageText || contact.pt}
+                    </p>
                     {!!contact.unreadCount && contact.unreadCount > 0 && (
                       <span className="bg-[#25D366] text-white text-[12px] font-medium rounded-full h-5 min-w-[20px] px-1.5 flex items-center justify-center shrink-0">
                         {contact.unreadCount}

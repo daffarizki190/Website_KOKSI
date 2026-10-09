@@ -22,8 +22,9 @@ export const UserChatWidget: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const fetchMessages = async () => {
+  const fetchMessages = async (isChatOpen: boolean) => {
     if (!token) return;
     try {
       const res = await fetch('/api/chats', {
@@ -33,15 +34,22 @@ export const UserChatWidget: React.FC = () => {
         const data = await res.json();
         setMessages(data);
         
-        // Mark incoming messages as read
-        fetch('/api/chats/read', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({})
-        });
+        const unread = data.filter((m: ChatMessage) => m.senderId !== user?.id && !m.isRead);
+        setUnreadCount(unread.length);
+        
+        // Mark incoming messages as read ONLY if chat is open
+        if (isChatOpen && unread.length > 0) {
+          fetch('/api/chats/read', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({})
+          }).then(() => {
+            setUnreadCount(0);
+          });
+        }
       }
     } catch (err) {
       console.error('Failed to fetch chats', err);
@@ -49,12 +57,10 @@ export const UserChatWidget: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isOpen) {
-      fetchMessages();
-      const interval = setInterval(fetchMessages, 5000); // poll every 5s
-      return () => clearInterval(interval);
-    }
-  }, [isOpen, token]);
+    fetchMessages(isOpen);
+    const interval = setInterval(() => fetchMessages(isOpen), 5000); // poll every 5s always
+    return () => clearInterval(interval);
+  }, [isOpen, token, user?.id]);
 
   useEffect(() => {
     const handleOpenChat = () => {
@@ -90,7 +96,7 @@ export const UserChatWidget: React.FC = () => {
       });
       
       if (res.ok) {
-        await fetchMessages();
+        await fetchMessages(isOpen);
       } else {
         setNewMessage(tempMessage); // restore on fail
       }
@@ -144,6 +150,11 @@ export const UserChatWidget: React.FC = () => {
             >
               <div className="absolute inset-0 bg-white/20 scale-0 group-hover:scale-100 rounded-full transition-transform duration-300"></div>
               <MessagesSquare className="w-7 h-7 relative z-10" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white z-20">
+                  {unreadCount}
+                </span>
+              )}
             </motion.button>
           </div>
         )}

@@ -4546,16 +4546,50 @@ app.get('/api/chats', requireAuth, async (req: any, res) => {
         )
         .orderBy(asc(chats.createdAt)));
       } else {
-        // Get all unique users who have sent a message (receiver is null means sent to admin)
-        const chatUsers = await withDbRetry(() => db.selectDistinct({
+        // Dapatkan semua user ID yang pernah chatting dengan admin
+        const rawChats = await withDbRetry(() => db.select({
           senderId: chats.senderId,
+          receiverId: chats.receiverId,
+          isRead: chats.isRead,
+          message: chats.message,
+          createdAt: chats.createdAt,
           nama: users.nama,
           pt: users.pt
         })
         .from(chats)
-        .innerJoin(users, eq(chats.senderId, users.id))
-        .where(sql`${chats.receiverId} IS NULL`)
+        .leftJoin(users, sql`${users.id} = CASE WHEN ${chats.receiverId} IS NULL THEN ${chats.senderId} ELSE ${chats.receiverId} END`)
         );
+
+        // Agregasi di JS untuk mencari unreadCount, lastMessage, dll
+        const userMap = new Map<number, any>();
+        for (const chat of rawChats) {
+          const uId = (chat.receiverId === null) ? chat.senderId : chat.receiverId;
+          if (!uId || !chat.nama) continue;
+          
+          if (!userMap.has(uId)) {
+            userMap.set(uId, {
+              senderId: uId,
+              nama: chat.nama,
+              pt: chat.pt,
+              unreadCount: 0,
+              lastMessageTime: chat.createdAt,
+              lastMessageText: chat.message
+            });
+          }
+          
+          const u = userMap.get(uId);
+          // Update last message if this chat is newer
+          if (new Date(chat.createdAt) > new Date(u.lastMessageTime)) {
+            u.lastMessageTime = chat.createdAt;
+            u.lastMessageText = chat.message;
+          }
+          // Increment unread count if admin is receiver (receiverId IS NULL) and not read
+          if (chat.receiverId === null && !chat.isRead) {
+            u.unreadCount++;
+          }
+        }
+        
+        const chatUsers = Array.from(userMap.values()).sort((a, b) => new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime());
         return res.json(chatUsers);
       }
     } else {
@@ -4642,6 +4676,24 @@ app.delete('/api/chats/:id', requireAuth, async (req: any, res) => {
 
     if (req.user.role === 'admin' || req.user.role === 'it') {
       await withDbRetry(() => db.delete(chats).where(eq(chats.id, chatId)));
+      
+      // Catat log penghapusan ke database
+      await withDbRetry(() => db.insert(activityLogs).values({
+        userId: req.user.id,
+        actorName: req.user.nama || 'Admin',
+        action: 'Hapus Pesan Chat (Satuan)',
+        details: `Menghapus 1 pesan dengan ID ${chatId}`
+      }));
+
+      // Tambahkan ke memory queue untuk Dashboard IT
+      itAuditLogsQueue.unshift({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toISOString(),
+        actor: `${req.user?.nama || 'Admin/IT'} (ID #${req.user?.id})`,
+        action: 'Hapus Pesan Chat (Satuan)',
+        details: `Menghapus 1 pesan dengan ID ${chatId}`
+      });
+      if (itAuditLogsQueue.length > 500) itAuditLogsQueue.pop();
     } else {
       const chat = await withDbRetry(() => db.select().from(chats).where(eq(chats.id, chatId)).limit(1));
       if (!chat || chat.length === 0) return res.status(404).json({ error: 'Pesan tidak ditemukan' });
@@ -4675,13 +4727,23 @@ app.post('/api/chats/clear/:userId', requireAuth, requireAdmin, async (req: any,
       )
     ));
 
-    // Catat log penghapusan
+    // Catat log penghapusan ke database
     await withDbRetry(() => db.insert(activityLogs).values({
       userId: req.user.id,
       actorName: req.user.nama || 'Admin',
       action: 'Hapus Seluruh Chat User',
       details: `Menghapus seluruh percakapan dengan User ID ${targetUserId}. Alasan: ${reason}`
     }));
+
+    // Tambahkan juga ke memory queue agar langsung terlihat di Dashboard IT
+    itAuditLogsQueue.unshift({
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toISOString(),
+      actor: `${req.user?.nama || 'Admin/IT'} (ID #${req.user?.id})`,
+      action: 'Hapus Seluruh Chat User',
+      details: `Menghapus seluruh percakapan dengan User ID ${targetUserId}. Alasan: ${reason}`
+    });
+    if (itAuditLogsQueue.length > 500) itAuditLogsQueue.pop();
 
     res.json({ success: true });
   } catch (err) {
