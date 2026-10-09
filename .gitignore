@@ -13,9 +13,11 @@ coverage/
 screenshot-script/
 scripts/
 docs/security_test_results.json
-check*
-test*
-truncate*
+check_*.py
+check_*.ts
+test_*.py
+test_*.ts
+truncate_*.py
 apply_migration*
 create_chats*
 fix_categories*
