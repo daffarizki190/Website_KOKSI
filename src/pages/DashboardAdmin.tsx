@@ -21,6 +21,18 @@ import { CATEGORY_STRUCTURES } from '../data/categories';
 import { smartCategorize } from '../data/smartCategorizer';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import Barcode from 'react-barcode';
+import { EditOrderStatusModal } from '../components/modals/admin/EditOrderStatusModal';
+import { ResetPasswordUserModal } from '../components/modals/admin/ResetPasswordUserModal';
+import { DeleteUserModal } from '../components/modals/admin/DeleteUserModal';
+import { CrudProductModal } from '../components/modals/admin/CrudProductModal';
+import { ImportDataProductModal } from '../components/modals/admin/ImportDataProductModal';
+import { PreviewImportModal } from '../components/modals/admin/PreviewImportModal';
+import { ImportNotificationModal } from '../components/modals/admin/ImportNotificationModal';
+
+
+
+
+
 
 interface Product {
   id: number;
@@ -3749,404 +3761,45 @@ export const DashboardAdmin = () => {
       </main>
 
       {/* MODAL EDIT STATUS ORDER */}
-      {selectedOrderForStatus && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100">
-            <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-sm">Update Status Pesanan {getDisplayOrderId(selectedOrderForStatus.id, selectedOrderForStatus.createdAt)}</h3>
-                <p className="text-[10px] text-teal-400 font-medium">{selectedOrderForStatus.user?.nama} ({selectedOrderForStatus.user?.pt})</p>
-              </div>
-              <button
-                onClick={() => setSelectedOrderForStatus(null)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Pilih Tahap Status</label>
-                <select
-                  value={newStatusValue}
-                  onChange={(e) => setNewStatusValue(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-teal-500"
-                >
-                  <option value="Proses">1. Proses</option>
-                  <option value="Menyiapkan Pesanan">2. Menyiapkan Pesanan</option>
-                  <option value="Pengiriman">3. Pengiriman</option>
-                  <option value="Siap Diambil">4. Siap Diambil</option>
-                  <option value="Selesai">5. Selesai</option>
-                  <option value="Pengajuan Pembatalan">⚠️ Pengajuan Pembatalan (Konfirmasi Admin)</option>
-                  <option value="Dibatalkan">Dibatalkan</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  Catatan / Instruksi untuk Karyawan
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Contoh: Silakan di ambil di Koperasi PT. Siemens Indonesia / BelanjaIn Saza jam 12:00 WIB"
-                  value={newKeteranganValue}
-                  onChange={(e) => setNewKeteranganValue(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-teal-500 placeholder-slate-400"
-                ></textarea>
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedOrderForStatus(null)}
-                  className="px-4 py-2.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  disabled={updatingStatus}
-                  onClick={() => handleUpdateOrderStatus(selectedOrderForStatus.id, newStatusValue, newKeteranganValue)}
-                  className="px-5 py-2.5 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700 shadow-sm"
-                >
-                  {updatingStatus ? 'Menyimpan...' : 'Simpan Status'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <EditOrderStatusModal
+        selectedOrderForStatus={selectedOrderForStatus}
+        setSelectedOrderForStatus={setSelectedOrderForStatus}
+        newStatusValue={newStatusValue}
+        setNewStatusValue={setNewStatusValue}
+        newKeteranganValue={newKeteranganValue}
+        setNewKeteranganValue={setNewKeteranganValue}
+        updatingStatus={updatingStatus}
+        handleUpdateOrderStatus={handleUpdateOrderStatus}
+      />
 
       {/* MODAL CRUD PRODUCT */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100">
-            <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="text-lg font-bold text-slate-900">
-                {editingProduct ? 'Edit Produk' : 'Tambah Produk'}
-              </h3>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Nama Barang</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Pocari Sweat 500ml"
-                  value={formData.nama_barang}
-                  onChange={(e) => {
-                    const newName = e.target.value;
-                    let newCat = formData.kategori;
-                    let newSub = formData.sub_kategori;
-
-                    const smartCat = smartCategorize(newName);
-                    if (smartCat) {
-                      newCat = smartCat.kategori;
-                      newSub = smartCat.sub_kategori;
-                    }
-
-                    setFormData({
-                      ...formData,
-                      nama_barang: newName,
-                      kategori: newCat,
-                      sub_kategori: newSub
-                    });
-                  }}
-                  className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Kategori Utama</label>
-                <select
-                  required
-                  value={formData.kategori}
-                  onChange={(e) => {
-                    const newCat = e.target.value;
-                    const catData = CATEGORY_STRUCTURES.find(c => c.name === newCat);
-                    const availableSubs = catData ? catData.subCategories : [];
-                    setFormData({
-                      ...formData,
-                      kategori: newCat,
-                      sub_kategori: availableSubs[0] || ''
-                    });
-                  }}
-                  className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 sm:text-sm font-bold text-slate-800 transition-colors"
-                >
-                  <option value="" disabled>Pilih Kategori</option>
-                  {CATEGORY_STRUCTURES.map((cat) => (
-                    <option key={cat.id} value={cat.name}>{cat.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Sub-Kategori</label>
-                <select
-                  required
-                  value={formData.sub_kategori}
-                  onChange={(e) => setFormData({ ...formData, sub_kategori: e.target.value })}
-                  className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 sm:text-sm font-semibold text-slate-800 transition-colors"
-                >
-                  <option value="" disabled>Pilih Sub-Kategori</option>
-                  {CATEGORY_STRUCTURES.find(c => c.name === formData.kategori)?.subCategories.map((subName) => (
-                    <option key={subName} value={subName}>{subName}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Gambar Produk</label>
-                <div className="mt-1 flex items-center gap-4">
-                  {(imageFile || formData.imageUrl) ? (
-                    <div className="relative w-16 h-16 rounded overflow-hidden border border-slate-200">
-                      <img 
-                        src={imageFile ? URL.createObjectURL(imageFile) : formData.imageUrl} 
-                        alt="Preview" 
-                        className="object-cover w-full h-full"
-                      />
-                      <button 
-                        type="button"
-                        onClick={() => { setImageFile(null); setFormData({...formData, imageUrl: ''}); }}
-                        className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-bl"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="w-16 h-16 bg-slate-100 rounded border border-dashed border-slate-300 flex items-center justify-center">
-                      <Camera className="w-6 h-6 text-slate-400" />
-                    </div>
-                  )}
-                  <div className="flex-1 space-y-2">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      ref={imageInputRef}
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          setImageFile(e.target.files[0]);
-                        }
-                      }}
-                      className="hidden"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => imageInputRef.current?.click()}
-                        className="px-4 py-2 border border-slate-300 shadow-sm text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50"
-                      >
-                        Pilih Gambar
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!formData.nama_barang?.trim()}
-                        onClick={() => window.open(
-                          `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(formData.nama_barang + ' produk')}`,
-                          '_blank',
-                          'noopener,noreferrer'
-                        )}
-                        className="px-4 py-2 border border-teal-300 shadow-sm text-sm font-medium rounded-md text-teal-700 bg-teal-50 hover:bg-teal-100 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Search className="w-4 h-4" />
-                        Cari Foto
-                      </button>
-                    </div>
-                    <input
-                      type="url"
-                      placeholder="Atau tempel link gambar (klik kanan gambar → Salin alamat gambar)"
-                      value={imageFile ? '' : (formData.imageUrl || '')}
-                      onChange={(e) => { setImageFile(null); setFormData({ ...formData, imageUrl: e.target.value }); }}
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    />
-                    {formData.imageUrl?.includes('google.com/search') || formData.imageUrl?.includes('google.com/imgres') ? (
-                      <p className="text-[10px] text-red-500 font-medium">⚠️ Link yang Anda masukkan salah. Jangan salin link dari bagian atas browser, tapi <b>Klik Kanan Gambarnya</b> lalu pilih <b>"Salin Alamat Gambar" (Copy image address)</b>.</p>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Harga (Rp)</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={formData.harga}
-                    onChange={(e) => setFormData({ ...formData, harga: parseInt(e.target.value) || 0 })}
-                    className="block w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent sm:text-sm font-medium text-slate-800 transition-colors"
-                  />
-                </div>
-              </div>
-              <div className="mt-8 flex justify-end space-x-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2.5 bg-white border border-slate-200 shadow-sm text-xs font-bold uppercase tracking-widest rounded-xl text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-teal-600 shadow-sm text-xs font-bold uppercase tracking-widest rounded-xl text-white hover:bg-teal-700 transition-colors cursor-pointer"
-                >
-                  Simpan
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <CrudProductModal
+        isModalOpen={isModalOpen}
+        setIsModalOpen={setIsModalOpen}
+        editingProduct={editingProduct}
+        handleSubmit={handleSubmit}
+        formData={formData}
+        setFormData={setFormData}
+        smartCategorize={smartCategorize}
+        CATEGORY_STRUCTURES={CATEGORY_STRUCTURES}
+        imageFile={imageFile}
+        setImageFile={setImageFile}
+        imageInputRef={imageInputRef}
+        generateBarcode={() => {}} // or use correct handler if available
+        loading={isLoadingProducts}
+      />
 
       {/* MODAL IMPORT DATA PRODUK EXCEL */}
-      {isImportModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
-            {/* Header */}
-            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-3">
-                <div className="w-11 h-11 rounded-2xl bg-teal-50 border border-teal-100 text-teal-700 flex items-center justify-center font-bold shadow-sm">
-                  <Upload className="w-6 h-6 text-teal-600" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900">Import Data Produk</h3>
-                  <p className="text-[11px] text-slate-500 font-medium">Upload file Excel atau unduh contoh template</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsImportModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-4">
-              {/* Unduh Template */}
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
-                <p className="text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-teal-600" />
-                  <span>1. Unduh Format Template Excel</span>
-                </p>
-                <p className="text-[11px] text-slate-500 mb-3">
-                  Gunakan template ini untuk mengisi daftar nama barang, kategori, harga, dan stok produk baru.
-                </p>
-                <button
-                  onClick={handleDownloadTemplate}
-                  className="w-full py-2.5 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-                >
-                  <Download className="w-4 h-4 text-teal-600" />
-                  <span>Unduh File Template (.xlsx)</span>
-                </button>
-              </div>
-
-              {/* Format yang Diterima */}
-              <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200">
-                <p className="text-xs font-bold text-amber-900 mb-2 flex items-center gap-1.5">
-                  <AlertCircle className="w-4 h-4 text-amber-600" />
-                  <span>Format yang Diterima: KOKSI Supplier</span>
-                </p>
-                <p className="text-[11px] text-amber-800 mb-2">
-                  Sistem <strong>hanya menerima</strong> format Excel dari supplier KOKSI. Kolom yang diperlukan:
-                </p>
-                <div className="grid grid-cols-1 gap-1 mb-2">
-                  {[
-                    ['Kategori / Kategori Minuman', 'Sub-kategori produk (misal: Air Mineral)'],
-                    ['Nama Produk & Gramasi', 'Nama lengkap produk'],
-                    ['Harga Jual ke Anggota', 'Harga yang ditampilkan ke member ✓'],
-                  ].map(([col, desc]) => (
-                    <div key={col} className="flex items-start gap-2">
-                      <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                      <span className="text-[11px] text-amber-900"><strong>{col}</strong> — {desc}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-1 p-2 bg-amber-100 rounded-xl">
-                  <p className="text-[10px] text-amber-700 font-semibold">⚠ Kolom &quot;Harga Dasar&quot; dan &quot;Harga Jual ke KOKSI&quot; diabaikan. Hanya &quot;Harga Jual ke Anggota&quot; yang dipakai.</p>
-                </div>
-              </div>
-
-              {/* Upload File */}
-              <div className="p-4 bg-teal-50/60 rounded-2xl border border-teal-100">
-                <p className="text-xs font-bold text-teal-950 mb-1 flex items-center gap-1.5">
-                  <Upload className="w-4 h-4 text-teal-700" />
-                  <span>Upload File Excel Supplier</span>
-                </p>
-                <p className="text-[11px] text-teal-800/80 mb-3">
-                  Pilih file Excel format KOKSI supplier untuk mengimpor produk ke database.
-                </p>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isCleaningUpCategories}
-                  className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-teal-600/20 flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Upload className="w-4 h-4 text-white" />
-                  <span>Pilih File Excel & Import</span>
-                </button>
-              </div>
-
-              {/* Cleanup Section */}
-              <div className="p-4 bg-orange-50/60 rounded-2xl border border-orange-100">
-                <p className="text-xs font-bold text-orange-950 mb-1 flex items-center gap-1.5">
-                  <RefreshCw className={`w-4 h-4 text-orange-600 ${isCleaningUpCategories ? 'animate-spin' : ''}`} />
-                  <span>3. Rapikan Kategori (Otomatis/Manual)</span>
-                </p>
-                <p className="text-[11px] text-orange-800/80 mb-3">
-                  Merapikan data kategori produk lama yang berantakan menggunakan sistem cerdas (Smart Categorizer). Otomatis berjalan setelah upload.
-                </p>
-
-                {isCleaningUpCategories ? (
-                  <div className="space-y-2">
-                    <div className="w-full bg-orange-200/50 rounded-full h-2 overflow-hidden">
-                      <div
-                        className="bg-orange-500 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${cleanupProgress.total > 0 ? Math.round((cleanupProgress.current / cleanupProgress.total) * 100) : 0}%` }}
-                      ></div>
-                    </div>
-                    <p className="text-[10px] text-orange-700 text-center font-medium">
-                      {cleanupProgress.current > 0 ? `Memproses ${cleanupProgress.current} dari ${cleanupProgress.total} produk...` : 'Menganalisis produk...'}
-                    </p>
-                  </div>
-                ) : (
-                  <button
-                    onClick={handleCleanupCategories}
-                    className="w-full py-2.5 px-4 bg-orange-100 hover:bg-orange-200 active:bg-orange-300 text-orange-800 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>Jalankan Manual Sekarang</span>
-                  </button>
-                )}
-
-                {cleanupMessage && !isCleaningUpCategories && (
-                  <div className={`mt-3 p-2 rounded-lg text-[10px] font-medium border ${cleanupMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                    cleanupMessage.type === 'error' ? 'bg-red-50 text-red-700 border-red-100' :
-                      'bg-blue-50 text-blue-700 border-blue-100'
-                    }`}>
-                    {cleanupMessage.text}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setIsImportModalOpen(false)}
-                disabled={isCleaningUpCategories}
-                className="w-full py-2.5 bg-slate-100 disabled:opacity-50 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors cursor-pointer"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ImportDataProductModal
+        isImportModalOpen={isImportModalOpen}
+        setIsImportModalOpen={setIsImportModalOpen}
+        fileInputRef={fileInputRef}
+        isCleaningUpCategories={isCleaningUpCategories}
+        cleanupProgress={cleanupProgress}
+        handleCleanupCategories={handleCleanupCategories}
+        cleanupMessage={cleanupMessage}
+        handleDownloadTemplate={handleDownloadTemplate}
+      />
 
       {/* MODAL TARIKAN DATA TRANSAKSI BULANAN EXCEL */}
       {isExportModalOpen && (
@@ -4350,173 +4003,25 @@ export const DashboardAdmin = () => {
       )}
 
       {/* MODAL RESET PASSWORD PENGGUNA */}
-      {resetPasswordUser && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
-            {/* Header */}
-            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-3">
-                <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-100 text-amber-700 flex items-center justify-center font-bold shadow-sm">
-                  <Key className="w-6 h-6 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-1.5">
-                    Reset Password Pengguna
-                  </h3>
-                  <p className="text-[11px] text-slate-500 font-medium">Ubah kata sandi akun karyawan</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setResetPasswordUser(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-4">
-              {/* User Info Badge */}
-              <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-extrabold text-slate-800">{resetPasswordUser.nama}</p>
-                  <p className="text-[11px] text-slate-500 font-medium">No. HP: {resetPasswordUser.no_hp}</p>
-                </div>
-                <span className="text-[10px] font-bold px-2.5 py-1 bg-teal-100 text-teal-800 rounded-lg">
-                  ID #{resetPasswordUser.id}
-                </span>
-              </div>
-
-              {/* Confirmation Text */}
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
-                <p className="text-xs text-amber-800 font-medium leading-relaxed">
-                  Apakah Anda yakin ingin mereset kata sandi akun ini?
-                </p>
-                <ul className="mt-2 space-y-1.5 list-disc pl-4 text-xs text-amber-700">
-                  <li>Password akan dikembalikan ke default: <strong className="bg-amber-100 px-1 rounded">Saza12345</strong></li>
-                  <li>Anggota akan diminta untuk <strong className="font-bold">wajib mengganti password baru</strong> saat mereka login berikutnya.</li>
-                </ul>
-              </div>
-
-              {/* Error Alert */}
-              {resetPasswordError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{resetPasswordError}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
-              <button
-                onClick={() => setResetPasswordUser(null)}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-
-              <button
-                onClick={handleConfirmResetPassword}
-                disabled={isResettingPassword}
-                className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-teal-600/20 flex items-center gap-2 cursor-pointer"
-              >
-                {isResettingPassword ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Mereset...</span>
-                  </>
-                ) : (
-                  <>
-                    <Key className="w-4 h-4 text-teal-200" />
-                    <span>Ya, Reset Password</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ResetPasswordUserModal
+        resetPasswordUser={resetPasswordUser}
+        setResetPasswordUser={setResetPasswordUser}
+        resetPasswordError={resetPasswordError}
+        isResettingPassword={isResettingPassword}
+        handleConfirmResetPassword={handleConfirmResetPassword}
+      />
 
       {/* MODAL KONFIRMASI HAPUS AKUN PENGGUNA */}
-      {deleteTargetUser && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center font-bold shadow-xs">
-                  <Trash2 className="w-5 h-5 text-rose-600" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900">Konfirmasi Hapus Akun</h3>
-                  <p className="text-[11px] text-slate-500 font-medium">Penghapusan permanen dari sistem</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setDeleteTargetUser(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-4">
-              {/* User Details Badge */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-extrabold text-slate-900">{deleteTargetUser.nama}</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 bg-teal-50 text-teal-800 rounded border border-teal-100">
-                    {deleteTargetUser.pt}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500">No. HP: {deleteTargetUser.no_hp} | ID: #{deleteTargetUser.id}</p>
-              </div>
-
-              {/* Mandatory Reason Input */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Alasan Penghapusan Akun <span className="text-rose-600">*</span>
-                </label>
-                <textarea
-                  value={deleteReasonInput}
-                  onChange={(e) => {
-                    setDeleteReasonInput(e.target.value);
-                    if (deleteUserError) setDeleteUserError('');
-                  }}
-                  rows={3}
-                  placeholder="Contoh: Karyawan telah resign, Duplikasi data anggota, atau Permintaan pengguna..."
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white resize-none"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">Alasan wajib diisi untuk dicatat dalam Log Audit IT.</p>
-              </div>
-
-              {deleteUserError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{deleteUserError}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
-              <button
-                onClick={() => setDeleteTargetUser(null)}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-
-              <button
-                onClick={handleConfirmDeleteUser}
-                disabled={isDeletingUser || !deleteReasonInput.trim()}
-                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-rose-600/20 flex items-center gap-1.5 cursor-pointer"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>{isDeletingUser ? 'Proses Hapus...' : 'Hapus Akun Permanen'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteUserModal
+        deleteTargetUser={deleteTargetUser}
+        setDeleteTargetUser={setDeleteTargetUser}
+        deleteReasonInput={deleteReasonInput}
+        setDeleteReasonInput={setDeleteReasonInput}
+        deleteUserError={deleteUserError}
+        setDeleteUserError={setDeleteUserError}
+        isDeletingUser={isDeletingUser}
+        handleConfirmDeleteUser={handleConfirmDeleteUser}
+      />
 
       {/* MODAL EDIT PROFIL PENGGUNA (ADMIN ACCESS) */}
       {editingUser && (
@@ -5061,339 +4566,25 @@ export const DashboardAdmin = () => {
         </div>
       )}
       {/* ===================== MODAL PREVIEW IMPORT ===================== */}
-      {isPreviewModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-5xl shadow-2xl border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200">
-            
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center">
-                  <CheckSquare className="w-6 h-6 text-teal-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-extrabold text-slate-900">Preview Data Produk</h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Periksa kembali kategori & sub-kategori sebelum disimpan. Sistem akan merekam pilihan Anda untuk ke depannya.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsPreviewModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 flex items-center justify-center transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Content Table */}
-            <div className="flex-1 overflow-auto bg-slate-50 p-6">
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-left text-sm text-slate-600">
-                  <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-semibold text-xs uppercase">
-                    <tr>
-                      <th className="px-4 py-3">Nama Produk</th>
-                      <th className="px-4 py-3">Kategori</th>
-                      <th className="px-4 py-3">Sub Kategori</th>
-                      <th className="px-4 py-3">Harga</th>
-                      <th className="px-4 py-3">Stok</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {importPreviewData.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-medium text-slate-800">{item.nama_barang}</td>
-                        <td className="px-4 py-3">
-                          <select
-                            value={item.kategori}
-                            onChange={(e) => {
-                              const newCat = e.target.value;
-                              const newSub = CATEGORY_STRUCTURES.find(c => c.name === newCat)?.subCategories[0] || '';
-                              setImportPreviewData(prev => prev.map((p, i) => i === idx ? { ...p, kategori: newCat, sub_kategori: newSub, isModified: true } : p));
-                            }}
-                            className="w-full text-xs rounded-lg border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
-                          >
-                            {CATEGORY_STRUCTURES.map(c => (
-                              <option key={c.name} value={c.name}>{c.name}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-4 py-3">
-                          <select
-                            value={item.sub_kategori}
-                            onChange={(e) => {
-                              setImportPreviewData(prev => prev.map((p, i) => i === idx ? { ...p, sub_kategori: e.target.value, isModified: true } : p));
-                            }}
-                            className="w-full text-xs rounded-lg border-slate-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
-                          >
-                            <option value="">Pilih Sub Kategori</option>
-                            {(CATEGORY_STRUCTURES.find(c => c.name === item.kategori)?.subCategories || []).map(sc => (
-                              <option key={sc} value={sc}>{sc}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-4 py-3">Rp {item.harga.toLocaleString('id-ID')}</td>
-                        <td className="px-4 py-3">{item.stok}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {importPreviewData.length === 0 && (
-                  <div className="text-center py-8 text-slate-500">Tidak ada produk untuk diimport.</div>
-                )}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
-              <button
-                onClick={() => setIsPreviewModalOpen(false)}
-                className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-colors"
-                disabled={isSubmittingPreview}
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleSubmitPreview}
-                disabled={isSubmittingPreview || importPreviewData.length === 0}
-                className="px-5 py-2.5 rounded-xl bg-teal-600 text-white font-bold text-sm hover:bg-teal-700 transition-colors shadow-lg shadow-teal-600/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmittingPreview ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Menyimpan...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    <span>Simpan ke Database</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            <PreviewImportModal
+        isPreviewModalOpen={isPreviewModalOpen}
+        setIsPreviewModalOpen={setIsPreviewModalOpen}
+        importPreviewData={importPreviewData}
+        setImportPreviewData={setImportPreviewData}
+        isSubmittingPreview={isSubmittingPreview}
+        handleSubmitPreview={handleSubmitPreview}
+        smartCategorize={smartCategorize}
+        CATEGORY_STRUCTURES={CATEGORY_STRUCTURES}
+      />
 
       {/* ===================== MODAL NOTIFIKASI HASIL IMPORT EXCEL ===================== */}
-      {importResult && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200">
+      <ImportNotificationModal
+        importResult={importResult}
+        setImportResult={setImportResult}
+        importResultTab={importResultTab}
+        setImportResultTab={setImportResultTab}
+      />
 
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center">
-                  <FileSpreadsheet className="w-6 h-6 text-teal-600" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900">Hasil Import Produk</h3>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    {importResult.insertedCount} baru &nbsp;·&nbsp; {importResult.updatedCount} diperbarui &nbsp;·&nbsp; {importResult.rejectedCount} ditolak
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setImportResult(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Summary badges */}
-            <div className="flex gap-3 px-6 py-3 bg-slate-50 border-b border-slate-100 shrink-0">
-              <button
-                onClick={() => setImportResultTab('inserted')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${importResultTab === 'inserted'
-                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/30'
-                  : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
-                  }`}
-              >
-                <CheckCircle className="w-3.5 h-3.5" />
-                Produk Baru
-                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${importResultTab === 'inserted' ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
-                  {importResult.insertedCount}
-                </span>
-              </button>
-              <button
-                onClick={() => setImportResultTab('updated')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${importResultTab === 'updated'
-                  ? 'bg-sky-600 text-white border-sky-600 shadow-sm shadow-sky-600/30'
-                  : 'bg-white text-sky-700 border-sky-200 hover:bg-sky-50'
-                  }`}
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Diperbarui
-                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${importResultTab === 'updated' ? 'bg-sky-500 text-white' : 'bg-sky-100 text-sky-700'}`}>
-                  {importResult.updatedCount}
-                </span>
-              </button>
-              <button
-                onClick={() => setImportResultTab('rejected')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${importResultTab === 'rejected'
-                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm shadow-rose-600/30'
-                  : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
-                  }`}
-              >
-                <AlertCircle className="w-3.5 h-3.5" />
-                Ditolak
-                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${importResultTab === 'rejected' ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-700'}`}>
-                  {importResult.rejectedCount}
-                </span>
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="overflow-y-auto flex-1 px-6 py-4">
-
-              {/* --- Tab: Produk Baru --- */}
-              {importResultTab === 'inserted' && (
-                importResult.inserted.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                    <Package className="w-10 h-10 mb-2 opacity-40" />
-                    <p className="text-sm font-medium">Tidak ada produk baru yang ditambahkan.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <p className="text-[11px] text-slate-500 font-semibold mb-2 uppercase tracking-wide">
-                      {importResult.insertedCount} produk berhasil ditambahkan ke database
-                    </p>
-                    <div className="overflow-x-auto rounded-xl border border-emerald-100">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="bg-emerald-50 text-emerald-800">
-                            <th className="px-3 py-2 text-left font-bold">#</th>
-                            <th className="px-3 py-2 text-left font-bold">Nama Barang</th>
-                            <th className="px-3 py-2 text-left font-bold">Sub Kategori</th>
-                            <th className="px-3 py-2 text-right font-bold">Harga</th>
-                            <th className="px-3 py-2 text-right font-bold">Stok</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {importResult.inserted.map((item, idx) => (
-                            <tr key={idx} className={`border-t border-emerald-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-emerald-50/30'}`}>
-                              <td className="px-3 py-2 text-slate-400 font-medium">{idx + 1}</td>
-                              <td className="px-3 py-2 text-slate-800 font-semibold">{item.nama_barang}</td>
-                              <td className="px-3 py-2 text-slate-500">{item.sub_kategori || <span className="text-slate-300 italic">—</span>}</td>
-                              <td className="px-3 py-2 text-right text-slate-700 font-medium">Rp {(item.harga ?? 0).toLocaleString('id-ID')}</td>
-                              <td className="px-3 py-2 text-right text-slate-600">{item.stok ?? 0}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )
-              )}
-
-              {/* --- Tab: Diperbarui --- */}
-              {importResultTab === 'updated' && (
-                importResult.updated.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                    <RefreshCw className="w-10 h-10 mb-2 opacity-40" />
-                    <p className="text-sm font-medium">Tidak ada produk yang diperbarui.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <p className="text-[11px] text-slate-500 font-semibold mb-2 uppercase tracking-wide">
-                      {importResult.updatedCount} produk yang sudah ada diperbarui harga & stoknya
-                    </p>
-                    <div className="overflow-x-auto rounded-xl border border-sky-100">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="bg-sky-50 text-sky-800">
-                            <th className="px-3 py-2 text-left font-bold">#</th>
-                            <th className="px-3 py-2 text-left font-bold">Nama Barang</th>
-                            <th className="px-3 py-2 text-left font-bold">Sub Kategori</th>
-                            <th className="px-3 py-2 text-right font-bold">Harga</th>
-                            <th className="px-3 py-2 text-right font-bold">Stok</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {importResult.updated.map((item, idx) => (
-                            <tr key={idx} className={`border-t border-sky-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-sky-50/30'}`}>
-                              <td className="px-3 py-2 text-slate-400 font-medium">{idx + 1}</td>
-                              <td className="px-3 py-2 text-slate-800 font-semibold">{item.nama_barang}</td>
-                              <td className="px-3 py-2 text-slate-500">{item.sub_kategori || <span className="text-slate-300 italic">—</span>}</td>
-                              <td className="px-3 py-2 text-right text-slate-700 font-medium">Rp {(item.harga ?? 0).toLocaleString('id-ID')}</td>
-                              <td className="px-3 py-2 text-right text-slate-600">{item.stok ?? 0}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )
-              )}
-
-              {/* --- Tab: Ditolak --- */}
-              {importResultTab === 'rejected' && (
-                importResult.rejected.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-emerald-500">
-                    <CheckCircle className="w-10 h-10 mb-2" />
-                    <p className="text-sm font-semibold text-slate-600">Tidak ada produk yang ditolak. Semua data valid!</p>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <p className="text-[11px] text-slate-500 font-semibold mb-2 uppercase tracking-wide">
-                      {importResult.rejectedCount} produk tidak dapat diimport — periksa dan perbaiki file Excel Anda
-                    </p>
-                    <div className="overflow-x-auto rounded-xl border border-rose-100">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="bg-rose-50 text-rose-800">
-                            <th className="px-3 py-2 text-left font-bold">#</th>
-                            <th className="px-3 py-2 text-left font-bold">Nama Barang</th>
-                            <th className="px-3 py-2 text-left font-bold">Alasan Ditolak</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {importResult.rejected.map((item, idx) => (
-                            <tr key={idx} className={`border-t border-rose-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-rose-50/30'}`}>
-                              <td className="px-3 py-2 text-slate-400 font-medium">{idx + 1}</td>
-                              <td className="px-3 py-2 text-slate-800 font-semibold align-top">{item.nama_barang}</td>
-                              <td className="px-3 py-2 text-rose-700 align-top">
-                                <span className="inline-flex items-start gap-1">
-                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500 mt-0.5 shrink-0" />
-                                  {item.alasan}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    {/* Panduan perbaikan */}
-                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                      <p className="text-[11px] font-bold text-amber-800 mb-1 flex items-center gap-1">
-                        <AlertCircle className="w-3.5 h-3.5" /> Panduan Perbaikan
-                      </p>
-                      <ul className="text-[11px] text-amber-700 space-y-0.5 list-disc list-inside">
-                        <li>Gunakan <strong>Format KOKSI Supplier</strong> dengan kolom <strong>Nama Produk &amp; Gramasi</strong> dan <strong>Harga Jual ke Anggota</strong></li>
-                        <li>Pastikan Kategori sesuai: <em>Makanan &amp; Minuman Siap Saji (F&amp;B)</em> atau <em>Perawatan Diri &amp; Kesehatan (Personal Care)</em></li>
-                        <li>Kolom <strong>Harga</strong> tidak boleh 0 atau kosong</li>
-                        <li>Tidak boleh ada nama barang yang sama dalam satu file</li>
-                      </ul>
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 shrink-0">
-              <button
-                onClick={() => setImportResult(null)}
-                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Tutup
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
       {/* MODAL IMPORT KARYAWAN EXCEL */}
       {isImportUserModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">

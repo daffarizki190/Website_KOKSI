@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PeriodicSummaryReportModal } from '../components/modals/it/PeriodicSummaryReportModal';
+import { HealthReportModal } from '../components/modals/it/HealthReportModal';
+import { DeleteITUserModal } from '../components/modals/it/DeleteITUserModal';
+import { EditITProfileModal } from '../components/modals/it/EditITProfileModal';
+
 import { 
   Server, Activity, ShieldCheck, Database, FileText, AlertTriangle, 
   RefreshCw, LogOut, Cpu, HardDrive, CpuIcon, CheckCircle2, XCircle, 
@@ -1843,322 +1848,55 @@ ${testsMarkdown}
         )}
       </main>
 
-      {/* PERIODIC SUMMARY REPORT MODAL */}
-      {showSummaryModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-3xl rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh]">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-teal-400" />
-                <h3 className="text-base font-extrabold text-white">
-                  Laporan Rangkuman Berkala Kinerja & Infrastruktur IT
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowSummaryModal(false)}
-                className="p-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="my-4 flex-1 overflow-y-auto bg-slate-950 p-4 rounded-2xl border border-slate-800 font-mono text-xs text-slate-200 whitespace-pre-wrap leading-relaxed">
-              {summaryReportText}
-            </div>
-
-            <div className="pt-4 border-t border-slate-800 flex items-center justify-between gap-3">
-              <button
-                onClick={handleCopySummary}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <Copy className="w-4 h-4 text-teal-400" />
-                <span>{copiedSummary ? 'Tersalin ke Clipboard!' : 'Salin Teks Laporan'}</span>
-              </button>
-
-              <button
-                onClick={() => setShowSummaryModal(false)}
-                className="px-5 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold rounded-xl text-xs transition-all cursor-pointer shadow-md shadow-teal-500/20"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* HEALTH REPORT MODAL (DIAGNOSTIC & HEALTH SUITE) */}
-      {showHealthReportModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-3xl p-6 shadow-2xl flex flex-col max-h-[88vh]">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center font-bold">
-                  <FileText className="w-5 h-5 text-teal-400" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-white">
-                    Laporan Resmi Kesehatan Sistem & Diagnostik API
-                  </h3>
-                  <p className="text-[11px] text-slate-400 font-medium">Dokumen siap cetak & unduh untuk audit infrastruktur platform</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowHealthReportModal(false)}
-                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="my-4 flex-1 overflow-y-auto bg-slate-950 p-5 rounded-2xl border border-slate-800 font-mono text-xs text-slate-200 whitespace-pre-wrap leading-relaxed shadow-inner">
-              {healthReportText}
-            </div>
-
-            <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(healthReportText);
-                    setCopiedHealthReport(true);
-                    toast.success('Laporan kesehatan berhasil disalin!');
-                    setTimeout(() => setCopiedHealthReport(false), 3000);
-                  }}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Copy className="w-4 h-4 text-teal-400" />
-                  <span>{copiedHealthReport ? 'Tersalin ke Clipboard!' : 'Salin Markdown'}</span>
-                </button>
-
-                <button
-                  onClick={handleDownloadHealthReport}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Download className="w-4 h-4 text-teal-400" />
-                  <span>Unduh (.md)</span>
-                </button>
-
-                <button
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Printer className="w-4 h-4 text-slate-400" />
-                  <span>Cetak / PDF</span>
-                </button>
-              </div>
-
-              <button
-                onClick={() => setShowHealthReportModal(false)}
-                className="px-6 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 font-black rounded-xl text-xs transition-all cursor-pointer shadow-md shadow-teal-500/20"
-              >
-                Selesai
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL HAPUS AKUN PENGGUNA (IT PORTAL) */}
-      {deleteTargetUser && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-800 animate-in fade-in zoom-in duration-200 text-slate-100">
-            <div className="flex justify-between items-center pb-4 border-b border-slate-800">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-red-950/80 border border-red-800 text-red-400 flex items-center justify-center font-bold">
-                  <Trash2 className="w-5 h-5 text-red-400" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-white">Konfirmasi Hapus Akun</h3>
-                  <p className="text-[11px] text-slate-400 font-medium">Tindakan ini akan memicu Log Audit IT</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setDeleteTargetUser(null)}
-                className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-4">
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-extrabold text-white">{deleteTargetUser.nama}</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 bg-teal-950 text-teal-300 rounded border border-teal-800">
-                    {deleteTargetUser.departemen || 'PT. Siemens Indonesia'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400">No. HP: {deleteTargetUser.no_hp} | ID: #{deleteTargetUser.id}</p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Alasan Penghapusan Akun <span className="text-red-400">*</span>
-                </label>
-                <textarea
-                  value={deleteReasonInput}
-                  onChange={(e) => {
-                    setDeleteReasonInput(e.target.value);
-                    if (deleteUserError) setDeleteUserError('');
-                  }}
-                  rows={3}
-                  placeholder="Contoh: Permintaan karyawan, Penutupan akun non-aktif, atau Alasan Audit..."
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">Alasan wajib diisi (min 3 karakter) untuk dicatat dalam database audit.</p>
-              </div>
-
-              {deleteUserError && (
-                <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 text-xs font-semibold rounded-xl flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                  <span>{deleteUserError}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
-              <button
-                onClick={() => setDeleteTargetUser(null)}
-                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-
-              <button
-                onClick={handleConfirmDeleteUser}
-                disabled={isDeletingUser || !deleteReasonInput.trim()}
-                className="px-5 py-2.5 bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all shadow-md shadow-red-600/30 flex items-center gap-1.5 cursor-pointer"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>{isDeletingUser ? 'Proses Hapus...' : 'Hapus Akun Permanen'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL EDIT PROFIL IT */}
-      {isProfileModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-800 animate-in fade-in zoom-in duration-200 text-slate-100">
-            <div className="flex justify-between items-center pb-4 border-b border-slate-800">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center font-bold">
-                  <Edit3 className="w-5 h-5 text-teal-400" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-white">Edit Profil IT</h3>
-                  <p className="text-[11px] text-slate-400 font-medium">Perbarui data profil akun IT/Admin BelanjaIn Saza Anda</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsProfileModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">
-                  Nama Lengkap <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={editNama}
-                  onChange={(e) => setEditNama(e.target.value)}
-                  placeholder="Masukkan Nama Lengkap"
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">
-                    Perusahaan <span className="text-red-400">*</span>
-                  </label>
-                  <select
-                    value={editPt}
-                    onChange={(e) => setEditPt(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
-                  >
-                    <option value="PT. Siemens Indonesia">PT. Siemens Indonesia</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">
-                    Departemen <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={editDepartemen}
-                    onChange={(e) => setEditDepartemen(e.target.value)}
-                    placeholder="Contoh: IT, Admin, HR..."
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">
-                  No. HP (WhatsApp) <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={editNoHp}
-                  onChange={(e) => setEditNoHp(e.target.value)}
-                  placeholder="Contoh: 081234567890"
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 mb-1">
-                  Password Baru <span className="text-slate-500 font-normal">(Kosongkan jika tidak diubah)</span>
-                </label>
-                <input
-                  type="password"
-                  value={editPassword}
-                  onChange={(e) => setEditPassword(e.target.value)}
-                  placeholder="Minimal 6 karakter"
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-
-              {editError && (
-                <div className="p-2.5 bg-red-500/20 border border-red-500/30 rounded-xl text-xs text-red-300 font-semibold flex items-center gap-1.5">
-                  <X className="w-4 h-4 shrink-0" />
-                  <span>{editError}</span>
-                </div>
-              )}
-
-              {editSuccess && (
-                <div className="p-2.5 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 font-semibold flex items-center gap-1.5">
-                  <Check className="w-4 h-4 shrink-0" />
-                  <span>{editSuccess}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="pt-3 border-t border-slate-800 flex gap-2">
-              <button
-                onClick={() => setIsProfileModalOpen(false)}
-                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleSaveProfile}
-                disabled={isSavingProfile}
-                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-500 active:bg-teal-700 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-md shadow-teal-600/30 flex items-center justify-center gap-1.5"
-              >
-                <Save className="w-4 h-4" />
-                <span>{isSavingProfile ? 'Menyimpan...' : 'Simpan Profil'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                        {/* ===================== PERIODICSUMMARYREPORTMODAL ===================== */}
+      <PeriodicSummaryReportModal
+        showSummaryModal={showSummaryModal}
+        setShowSummaryModal={setShowSummaryModal}
+        summaryReportText={summaryReportText}
+        handleCopySummary={handleCopySummary}
+        copiedSummary={copiedSummary}
+      />
+                  {/* ===================== HEALTHREPORTMODAL ===================== */}
+      <HealthReportModal
+        showHealthReportModal={showHealthReportModal}
+        setShowHealthReportModal={setShowHealthReportModal}
+        healthReportText={healthReportText}
+        copiedHealthReport={copiedHealthReport}
+        setCopiedHealthReport={setCopiedHealthReport}
+        toast={toast}
+        handleDownloadHealthReport={handleDownloadHealthReport}
+      />
+                  {/* ===================== DELETEITUSERMODAL ===================== */}
+      <DeleteITUserModal
+        deleteTargetUser={deleteTargetUser}
+        setDeleteTargetUser={setDeleteTargetUser}
+        deleteReasonInput={deleteReasonInput}
+        setDeleteReasonInput={setDeleteReasonInput}
+        handleConfirmDeleteUser={handleConfirmDeleteUser}
+        isDeletingUser={isDeletingUser}
+        deleteUserError={deleteUserError}
+        setDeleteUserError={setDeleteUserError}
+      />
+                  {/* ===================== EDITITPROFILEMODAL ===================== */}
+      <EditITProfileModal
+        isProfileModalOpen={isProfileModalOpen}
+        setIsProfileModalOpen={setIsProfileModalOpen}
+        user={user}
+        handleSaveProfile={handleSaveProfile}
+        isSavingProfile={isSavingProfile}
+        editNama={editNama}
+        setEditNama={setEditNama}
+        editPt={editPt}
+        setEditPt={setEditPt}
+        editDepartemen={editDepartemen}
+        setEditDepartemen={setEditDepartemen}
+        editNoHp={editNoHp}
+        setEditNoHp={setEditNoHp}
+        editPassword={editPassword}
+        setEditPassword={setEditPassword}
+        editError={editError}
+        editSuccess={editSuccess}
+      />
     </div>
   );
 }

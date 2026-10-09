@@ -18,6 +18,7 @@ import { Splash } from './components/Splash';
 import { PwaInstallBanner } from './components/PwaInstallBanner';
 import { BackExitGuard } from './components/BackExitGuard';
 import ForceChangePassword from './pages/ForceChangePassword';
+import { PageTransition } from './components/PageTransition';
 import React, { useState } from 'react';
 
 const ProtectedRoute = ({ children, requireAdmin = false, requireIT = false, allowPasswordChange = false }: { children: React.ReactNode, requireAdmin?: boolean, requireIT?: boolean, allowPasswordChange?: boolean }) => {
@@ -63,14 +64,14 @@ const AppContent = () => {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
         <Route path="/register" element={<Navigate to="/login" replace />} />
         
         <Route 
           path="/change-password" 
           element={
             <ProtectedRoute allowPasswordChange>
-              <ForceChangePassword />
+              <PageTransition><ForceChangePassword /></PageTransition>
             </ProtectedRoute>
           } 
         />
@@ -79,7 +80,7 @@ const AppContent = () => {
           path="/dashboard" 
           element={
             <ProtectedRoute>
-              <DashboardUser />
+              <PageTransition><DashboardUser /></PageTransition>
             </ProtectedRoute>
           } 
         />
@@ -87,7 +88,7 @@ const AppContent = () => {
           path="/orders" 
           element={
             <ProtectedRoute>
-              <OrderHistory />
+              <PageTransition><OrderHistory /></PageTransition>
             </ProtectedRoute>
           } 
         />
@@ -95,7 +96,7 @@ const AppContent = () => {
           path="/admin" 
           element={
             <ProtectedRoute requireAdmin>
-              <DashboardAdmin />
+              <PageTransition><DashboardAdmin /></PageTransition>
             </ProtectedRoute>
           } 
         />
@@ -103,7 +104,7 @@ const AppContent = () => {
           path="/admin/scan" 
           element={
             <ProtectedRoute requireAdmin>
-              <ScanBarcodeAdmin />
+              <PageTransition><ScanBarcodeAdmin /></PageTransition>
             </ProtectedRoute>
           } 
         />
@@ -111,7 +112,7 @@ const AppContent = () => {
           path="/it-dashboard" 
           element={
             <ProtectedRoute requireIT>
-              <DashboardIT />
+              <PageTransition><DashboardIT /></PageTransition>
             </ProtectedRoute>
           } 
         />

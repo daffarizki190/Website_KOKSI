@@ -18,8 +18,10 @@ Platform Web & Progressive Web Application (PWA) modern untuk pemesanan kebutuha
 - **Manajemen Transaksi Real-time**: Filter pesanan berdasarkan PT (PT. Siemens Indonesia, Siemens Energy, dll), tanggal, dan status. Update status pesanan sekali klik.
 - **Manajemen Katalog Produk**: Tambah produk baru, edit nama/kategori/harga/stok, serta penghapusan produk dengan modal konfirmasi aman.
 - **Manajemen Pengguna / Karyawan**: Kelola data karyawan, switch role (*user, admin, it*), edit data diri, dan reset password.
+- **WhatsApp-like Admin Chat UI**: Fitur chat admin dengan tampilan dan interaksi persis seperti WhatsApp Web, memudahkan komunikasi admin dengan anggota.
 - **Ekspor Laporan Excel**: Unduh rekapitulasi data penjualan ke format `.xlsx` rapi.
 - **Tampilan Mobile Adaptif (Zero-Swipe)**: Tampilan otomatis beralih menjadi format *Mobile Cards* di HP sehingga tidak ada geser/scroll horizontal.
+- **Optimasi Performa & Component Splitting**: Struktur kode termodularisasi penuh (*100% split modal components*) memisahkan logika UI dan State dari *God Component* untuk performa yang lebih stabil dan *debugging* yang lebih mudah.
 
 ### 3. 🖥️ IT NOC & Mission Control Dashboard
 - **HUD Telemetri Real-time**: Monitoring latensi database PostgreSQL, alokasi memori heap Node.js, status SSL HTTPS, dan log error otomatis.

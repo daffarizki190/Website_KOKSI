@@ -13,7 +13,12 @@ import { BelanjainLogo } from '../components/BelanjainLogo';
 import { Product, CartItem } from '../types';
 import { TourGuide } from '../components/TourGuide';
 import { UserChatWidget } from '../components/UserChatWidget';
-
+import { UserProfileModal } from '../components/modals/user/UserProfileModal';
+import { DeleteAccountModal } from '../components/modals/user/DeleteAccountModal';
+import { EditProfileModal } from '../components/modals/user/EditProfileModal';
+import { CheckoutConfirmModal } from '../components/modals/user/CheckoutConfirmModal';
+import { CheckoutSuccessModal } from '../components/modals/user/CheckoutSuccessModal';
+import { GlobalOrderingClosedModal } from '../components/modals/user/GlobalOrderingClosedModal';
 export const DashboardUser = () => {
   const { user, token, logout } = useAuth();
   const { toast, confirm: confirmModal } = useNotification();
@@ -1031,482 +1036,72 @@ export const DashboardUser = () => {
         )}
       </AnimatePresence>
 
-      {/* Profile Modal */}
-      <AnimatePresence>
-        {isProfileOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsProfileOpen(false)}
-              className="fixed inset-0 bg-black z-40"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
-            >
-              <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 pointer-events-auto border border-slate-100">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-bold text-slate-900">Profil Karyawan</h3>
-                  <button onClick={() => setIsProfileOpen(false)} className="text-slate-400 hover:text-slate-600">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                {user && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4 mb-6">
-                      <div className="w-16 h-16 rounded-full bg-teal-100 border-2 border-teal-200 flex items-center justify-center text-teal-700 font-bold text-2xl">
-                        {user?.nama?.substring(0, 2)?.toUpperCase() || <UserIcon className="w-8 h-8" />}
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900 text-lg">{user.nama}</p>
-                        <p className="text-xs text-slate-500 uppercase tracking-wider">{user.role}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-slate-50 p-4 rounded-xl space-y-3 border border-slate-100">
-                      <div className="flex justify-between items-center">
-                        <p className="text-xs font-medium text-slate-500 uppercase">Perusahaan</p>
-                        <p className="font-bold text-slate-800 text-sm">{user.pt}</p>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <p className="text-xs font-medium text-slate-500 uppercase">Departemen</p>
-                        <p className="font-bold text-slate-800 text-sm">{user.departemen}</p>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <p className="text-xs font-medium text-slate-500 uppercase">No. HP</p>
-                        <p className="font-bold text-slate-800 text-sm">{user.no_hp}</p>
-                      </div>
-                    </div>
+      {/* ===================== USERPROFILEMODAL ===================== */}
+      <UserProfileModal
+        isProfileOpen={isProfileOpen}
+        setIsProfileOpen={setIsProfileOpen}
+        user={user}
+        navigate={navigate}
+        handleOpenEditProfile={handleOpenEditProfile}
+        handleLogout={handleLogout}
+        setIsDeleteModalOpen={setIsDeleteModalOpen}
+      />
 
-                    {(user.role === 'it' || user.role === 'admin') && (
-                      <button
-                        onClick={() => { setIsProfileOpen(false); navigate('/it-dashboard'); }}
-                        className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-slate-900 text-teal-400 font-bold rounded-xl hover:bg-slate-800 transition-colors cursor-pointer text-xs uppercase tracking-wider"
-                      >
-                        <span>Portal Pemantauan IT</span>
-                      </button>
-                    )}
-                    
-                    <div className="pt-3 mt-2 space-y-2">
-                      <button
-                        onClick={handleOpenEditProfile}
-                        className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-colors cursor-pointer text-xs uppercase tracking-wider shadow-sm shadow-teal-600/20"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                        <span>Edit Profil</span>
-                      </button>
+      {/* ===================== DELETEACCOUNTMODAL ===================== */}
+      <DeleteAccountModal
+        isDeleteModalOpen={isDeleteModalOpen}
+        setIsDeleteModalOpen={setIsDeleteModalOpen}
+        deleteReasonInput={deleteReasonInput}
+        setDeleteReasonInput={setDeleteReasonInput}
+        deleteAccountError={deleteAccountError}
+        setDeleteAccountError={setDeleteAccountError}
+        handleConfirmDeleteAccount={handleConfirmDeleteAccount}
+        isDeletingAccount={isDeletingAccount}
+        user={user}
+      />
 
-                      <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 font-bold rounded-xl hover:bg-rose-100 hover:border-rose-300 transition-colors cursor-pointer text-xs uppercase tracking-wider"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        <span>Keluar Akun</span>
-                      </button>
-
-                      {(user.role === 'admin' || user.role === 'it') && (
-                        <button
-                          onClick={() => {
-                            setIsProfileOpen(false);
-                            setIsDeleteModalOpen(true);
-                          }}
-                          className="w-full flex items-center justify-center space-x-1.5 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-xl transition-colors cursor-pointer text-[11px] uppercase tracking-wider"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                          <span>Hapus Akun Saya</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL HAPUS AKUN SAYA */}
-      {isDeleteModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center font-bold">
-                  <AlertTriangle className="w-5 h-5 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900">Konfirmasi Hapus Akun</h3>
-                  <p className="text-[11px] text-slate-500 font-medium">Tindakan ini tidak dapat dibatalkan</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setIsDeleteModalOpen(false);
-                  setDeleteReasonInput('');
-                  setDeleteAccountError('');
-                }}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-3">
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Apakah Anda yakin ingin menghapus akun Anda (<strong className="text-slate-800">{user?.nama}</strong>) dari BelanjaIn Saza (PT. Siemens Indonesia)? Mohon berikan **alasan penghapusan akun**:
-              </p>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Alasan Penghapusan Akun <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={deleteReasonInput}
-                  onChange={(e) => {
-                    setDeleteReasonInput(e.target.value);
-                    if (deleteAccountError) setDeleteAccountError('');
-                  }}
-                  rows={3}
-                  placeholder="Contoh: Resign / Keluar dari perusahaan Siemens, Duplikasi akun, atau Alasan Pribadi..."
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white resize-none"
-                />
-              </div>
-
-              {deleteAccountError && (
-                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-1.5">
-                  <X className="w-4 h-4 shrink-0" />
-                  <span>{deleteAccountError}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 flex gap-2">
-              <button
-                onClick={() => {
-                  setIsDeleteModalOpen(false);
-                  setDeleteReasonInput('');
-                  setDeleteAccountError('');
-                }}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleConfirmDeleteAccount}
-                disabled={isDeletingAccount || !deleteReasonInput.trim()}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 active:bg-red-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-red-600/30 flex items-center justify-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>{isDeletingAccount ? 'Proses Hapus...' : 'Ya, Hapus Akun'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL EDIT PROFIL */}
-      {isEditProfileOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-teal-50 border border-teal-100 text-teal-700 flex items-center justify-center font-bold">
-                  <Edit3 className="w-5 h-5 text-teal-600" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900">Edit Profil Saya</h3>
-                  <p className="text-[11px] text-slate-500 font-medium">Perbarui informasi data akun BelanjaIn Saza Anda</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsEditProfileOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Nama Lengkap <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={editNama}
-                  onChange={(e) => setEditNama(e.target.value)}
-                  placeholder="Masukkan Nama Lengkap"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Perusahaan <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={editPt}
-                    onChange={(e) => setEditPt(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white cursor-pointer"
-                  >
-                    <option value="PT. Siemens Indonesia">PT. Siemens Indonesia</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Departemen <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={editDepartemen}
-                    onChange={(e) => setEditDepartemen(e.target.value)}
-                    placeholder="Contoh: IT, HR, Finance..."
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  No. HP (WhatsApp) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={editNoHp}
-                  onChange={(e) => setEditNoHp(e.target.value)}
-                  placeholder="Contoh: 081234567890"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Password Baru <span className="text-slate-400 font-normal">(Kosongkan jika tidak diubah)</span>
-                </label>
-                <input
-                  type="password"
-                  value={editPassword}
-                  onChange={(e) => setEditPassword(e.target.value)}
-                  placeholder="Minimal 6 karakter"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
-                />
-              </div>
-
-              {editError && (
-                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-1.5">
-                  <X className="w-4 h-4 shrink-0" />
-                  <span>{editError}</span>
-                </div>
-              )}
-
-              {editSuccess && (
-                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
-                  <Check className="w-4 h-4 shrink-0" />
-                  <span>{editSuccess}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 flex gap-2">
-              <button
-                onClick={() => setIsEditProfileOpen(false)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleSaveProfile}
-                disabled={isSavingProfile}
-                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-teal-600/30 flex items-center justify-center gap-1.5"
-              >
-                <Save className="w-4 h-4" />
-                <span>{isSavingProfile ? 'Menyimpan...' : 'Simpan Profil'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ===================== EDITPROFILEMODAL ===================== */}
+      <EditProfileModal
+        isEditProfileOpen={isEditProfileOpen}
+        setIsEditProfileOpen={setIsEditProfileOpen}
+        editNama={editNama}
+        setEditNama={setEditNama}
+        editPt={editPt}
+        setEditPt={setEditPt}
+        editDepartemen={editDepartemen}
+        setEditDepartemen={setEditDepartemen}
+        editNoHp={editNoHp}
+        setEditNoHp={setEditNoHp}
+        editPassword={editPassword}
+        setEditPassword={setEditPassword}
+        editError={editError}
+        editSuccess={editSuccess}
+        handleSaveProfile={handleSaveProfile}
+        isSavingProfile={isSavingProfile}
+      />
       
-      {/* MODAL KONFIRMASI CHECKOUT */}
-      {isCheckoutConfirmOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center font-bold shrink-0 mt-0.5">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">Konfirmasi Pemesanan</h3>
-                <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">
-                  Apakah Anda yakin ingin melanjutkan pesanan ini? 
-                  <span className="block mt-1 font-bold text-red-600">Pesanan yang sudah dilanjutkan tidak dapat dibatalkan.</span>
-                </p>
-              </div>
-            </div>
-            {checkoutError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                <span>{checkoutError}</span>
-              </div>
-            )}
-            <div className="pt-3 border-t border-slate-100 flex gap-2">
-              <button
-                onClick={() => setIsCheckoutConfirmOpen(false)}
-                disabled={isCheckingOut}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={confirmCheckout}
-                disabled={isCheckingOut}
-                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm shadow-teal-600/30 flex items-center justify-center gap-1.5"
-              >
-                {isCheckingOut ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Memproses...</span>
-                  </>
-                ) : (
-                  <span>Ya, Lanjut</span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ===================== CHECKOUTCONFIRMMODAL ===================== */}
+      <CheckoutConfirmModal
+        isCheckoutConfirmOpen={isCheckoutConfirmOpen}
+        setIsCheckoutConfirmOpen={setIsCheckoutConfirmOpen}
+        checkoutError={checkoutError}
+        isCheckingOut={isCheckingOut}
+        confirmCheckout={confirmCheckout}
+      />
 
-      {/* MODAL CHECKOUT SUCCESS */}
-      {checkoutSuccessOrder && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-6 text-center animate-in fade-in zoom-in duration-200">
-            <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-50 border-2 border-emerald-100 text-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/10">
-              <CheckCircle2 className="w-9 h-9 text-emerald-600" />
-            </div>
+      {/* ===================== CHECKOUTSUCCESSMODAL ===================== */}
+      <CheckoutSuccessModal
+        checkoutSuccessOrder={checkoutSuccessOrder}
+        setCheckoutSuccessOrder={setCheckoutSuccessOrder}
+        navigate={navigate}
+      />
 
-            <div className="space-y-2">
-              <span className="inline-flex items-center px-3 py-1 bg-teal-50 border border-teal-200/60 rounded-full text-xs font-black text-teal-800 tracking-wide uppercase">
-                Pesanan #{checkoutSuccessOrder.id}
-              </span>
-              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                Pesanan Berhasil Dibuat!
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed max-w-xs mx-auto">
-                Pesanan Anda telah dikirim ke Pengelola BelanjaIn Saza dan siap diproses di Riwayat Pesanan.
-              </p>
-            </div>
-
-            {/* Order Summary Box */}
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-left space-y-2.5">
-              {(checkoutSuccessOrder.total_amount > 2000) && (
-                <div className="flex justify-between items-center text-xs text-slate-500 font-semibold mb-2">
-                  <span>Biaya Penanganan</span>
-                  <span className="text-sm font-bold text-slate-700">Rp 2.000</span>
-                </div>
-              )}
-              <div className={`flex justify-between items-center text-xs text-slate-500 font-semibold ${(checkoutSuccessOrder.total_amount > 2000) ? 'border-t border-slate-200/60 pt-2' : ''}`}>
-                <span>Total Pembayaran</span>
-                <span className="text-sm font-black text-teal-700">
-                  Rp {(checkoutSuccessOrder.total_amount || 0).toLocaleString('id-ID')}
-                </span>
-              </div>
-              
-              {checkoutSuccessOrder.total_amount > 300000 && (
-                <div className="mt-2 p-2.5 bg-red-50 border border-red-100 rounded-lg">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-red-700 text-[11px] font-bold">Kelebihan ({'>'}300rb)</span>
-                    <span className="text-xs font-black text-red-700">Rp {(checkoutSuccessOrder.total_amount - 300000).toLocaleString('id-ID')}</span>
-                  </div>
-                  <p className="text-[9px] text-red-500 italic leading-tight">
-                    *Bayar mandiri untuk tagihan ini (pembayaran in-app belum aktif).
-                  </p>
-                </div>
-              )}
-
-              <div className="flex justify-between items-center text-xs text-slate-500 font-semibold border-t border-slate-200/60 pt-2 mt-2">
-                <span>Status Pesanan</span>
-                <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg font-bold text-[11px]">
-                  {checkoutSuccessOrder.status || 'Proses'}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <button
-                onClick={() => {
-                  setCheckoutSuccessOrder(null);
-                  navigate('/orders');
-                }}
-                className="w-full py-3.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-2xl text-sm font-extrabold transition-all shadow-lg shadow-teal-600/25 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <ShoppingBag className="w-4 h-4" />
-                <span>Lihat Riwayat Pesanan</span>
-              </button>
-              <button
-                onClick={() => setCheckoutSuccessOrder(null)}
-                className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-sm font-bold transition-all cursor-pointer"
-              >
-                Belanja Lagi
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Global Ordering Closed Modal */}
-      <AnimatePresence>
-        {showClosedModal && isDemoModeLoaded && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-              onClick={handleDismissClosedModal}
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-md bg-white border border-slate-200/70 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center text-center overflow-hidden"
-            >
-              {/* Background Decorations */}
-              <div className="absolute top-0 right-0 w-48 h-48 bg-teal-50/50 rounded-full blur-3xl -z-10 translate-x-1/3 -translate-y-1/3"></div>
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-sky-50/50 rounded-full blur-3xl -z-10 -translate-x-1/3 translate-y-1/3"></div>
-              
-              {/* Animated Icon Container */}
-              <div className="relative mb-5 group">
-                <div className="absolute inset-0 bg-slate-200 rounded-full blur-xl opacity-50"></div>
-                <div className="relative flex items-center justify-center w-20 h-20 rounded-full bg-white border border-slate-100 shadow-sm">
-                  <div className="flex items-center justify-center w-16 h-16 rounded-full bg-slate-50 border border-slate-100/50">
-                    <CalendarDays className="w-8 h-8 text-slate-700 drop-shadow-sm" />
-                  </div>
-                </div>
-              </div>
-              
-              <h3 className="text-xl font-extrabold text-slate-800 mb-2.5 tracking-tight">
-                Layanan Pemesanan Ditutup
-              </h3>
-              
-              <p className="text-sm text-slate-500 font-medium leading-relaxed mb-6">
-                Sistem saat ini sedang berada di luar jadwal operasional. Layanan pemesanan barang hanya tersedia pada hari <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200/80">Senin</span> dan <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200/80">Selasa</span>.
-              </p>
-              
-              <button
-                onClick={handleDismissClosedModal}
-                className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-all shadow-md cursor-pointer"
-              >
-                Saya Mengerti
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* ===================== GLOBALORDERINGCLOSEDMODAL ===================== */}
+      <GlobalOrderingClosedModal
+        showClosedModal={showClosedModal}
+        isDemoModeLoaded={isDemoModeLoaded}
+        handleDismissClosedModal={handleDismissClosedModal}
+      />
 
       <UserChatWidget />
 
