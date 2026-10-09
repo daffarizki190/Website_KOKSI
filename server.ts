@@ -4632,6 +4632,30 @@ app.patch('/api/chats/read', requireAuth, async (req: any, res) => {
   }
 });
 
+app.delete('/api/chats/:id', requireAuth, async (req: any, res) => {
+  try {
+    const chatId = Number(req.params.id);
+    if (!chatId) return res.status(400).json({ error: 'ID pesan tidak valid' });
+
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) return res.json({ success: true });
+
+    if (req.user.role === 'admin' || req.user.role === 'it') {
+      await withDbRetry(() => db.delete(chats).where(eq(chats.id, chatId)));
+    } else {
+      const chat = await withDbRetry(() => db.select().from(chats).where(eq(chats.id, chatId)).limit(1));
+      if (!chat || chat.length === 0) return res.status(404).json({ error: 'Pesan tidak ditemukan' });
+      if (chat[0].senderId !== req.user.id) return res.status(403).json({ error: 'Tidak ada akses untuk menghapus pesan ini' });
+      
+      await withDbRetry(() => db.delete(chats).where(eq(chats.id, chatId)));
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete chat error:', err);
+    res.status(500).json({ error: 'Gagal menghapus pesan' });
+  }
+});
+
 // Explicit API 404 fallback: ensure API requests never serve HTML fallback
 app.all('/api/*', (req, res) => {
   res.status(404).json({ error: `API endpoint ${req.method} ${req.path} tidak ditemukan` });

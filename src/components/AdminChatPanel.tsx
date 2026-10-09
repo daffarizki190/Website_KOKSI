@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { MessageSquare, Send, CheckCircle2, User as UserIcon, Search, Check, CheckCheck, ArrowLeft } from 'lucide-react';
+import { MessageSquare, Send, CheckCircle2, User as UserIcon, Search, Check, CheckCheck, ArrowLeft, Trash2, AlertTriangle, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 
@@ -31,7 +31,28 @@ export const AdminChatPanel: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [messageToDelete, setMessageToDelete] = useState<ChatMessage | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleDeleteMessage = async () => {
+    if (!messageToDelete || !token) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/chats/${messageToDelete.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setMessages(prev => prev.filter(m => m.id !== messageToDelete.id));
+        setMessageToDelete(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete message', err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const fetchUsers = async () => {
     if (!token) return;
@@ -252,7 +273,7 @@ export const AdminChatPanel: React.FC = () => {
                         </div>
                       )}
                       
-                      <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} ${isFirstInGroup ? 'mt-3' : 'mt-[2px]'}`}>
+                      <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} ${isFirstInGroup ? 'mt-3' : 'mt-[2px]'} relative group`}>
                         <div className={`max-w-[85%] md:max-w-[65%] px-2.5 pt-1.5 pb-2 relative shadow-sm flex flex-col ${
                           isMe 
                             ? `bg-[#d9fdd3] ${isFirstInGroup ? 'rounded-l-lg rounded-br-lg rounded-tr-none' : 'rounded-lg'}` 
@@ -281,6 +302,16 @@ export const AdminChatPanel: React.FC = () => {
                               </span>
                             )}
                           </div>
+                        </div>
+                        {/* Delete button (shows on hover) */}
+                        <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? 'right-full mr-2' : 'left-full ml-2'}`}>
+                          <button 
+                            onClick={() => setMessageToDelete(msg)}
+                            className="p-1.5 bg-white shadow-sm border border-gray-200 rounded-full text-red-500 hover:bg-red-50 transition-colors"
+                            title="Hapus Pesan"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </div>
                     </React.Fragment>
@@ -337,6 +368,47 @@ export const AdminChatPanel: React.FC = () => {
                  <path d="M5 1.09L1.78 2.53v3.7c0 2.5 1.38 4.8 3.22 5.68 1.84-.88 3.22-3.17 3.22-5.68v-3.7L5 1.09zm0 6.66c-1.12 0-2.03-.91-2.03-2.03S3.88 3.69 5 3.69s2.03.91 2.03 2.03S6.12 7.75 5 7.75z"/>
                </svg>
                Mendukung enkripsi end-to-end
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Delete Confirmation Modal */}
+      {messageToDelete && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4 mx-auto">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 text-center mb-2">Hapus Pesan?</h3>
+              <p className="text-sm text-slate-600 text-center mb-6">
+                Apakah Anda yakin ingin menghapus pesan ini? Tindakan ini tidak dapat dibatalkan.
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setMessageToDelete(null)}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-colors disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleDeleteMessage}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Hapus
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
