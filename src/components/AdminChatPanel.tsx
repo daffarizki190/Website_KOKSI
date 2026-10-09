@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { MessageSquare, Send, CheckCircle2, User as UserIcon, Search, MoreVertical, Smile, Paperclip, Check, CheckCheck, ArrowLeft, MessageSquarePlus, CircleDashed } from 'lucide-react';
+import { MessageSquare, Send, CheckCircle2, User as UserIcon, Search, Check, CheckCheck, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 
@@ -143,15 +143,7 @@ export const AdminChatPanel: React.FC = () => {
             </div>
           </div>
           <div className="flex gap-4 text-[#54656f]">
-            <button className="hover:text-gray-700 transition-colors">
-              <CircleDashed size={22} />
-            </button>
-            <button className="hover:text-gray-700 transition-colors">
-              <MessageSquarePlus size={22} />
-            </button>
-            <button className="hover:text-gray-700 transition-colors">
-              <MoreVertical size={22} />
-            </button>
+            {/* Icons removed as they were non-functional decorations */}
           </div>
         </div>
 
@@ -230,12 +222,7 @@ export const AdminChatPanel: React.FC = () => {
               </div>
             </div>
             <div className="flex gap-4 text-[#54656f]">
-              <button className="hover:text-gray-700 transition-colors">
-                <Search size={22} />
-              </button>
-              <button className="hover:text-gray-700 transition-colors">
-                <MoreVertical size={22} />
-              </button>
+              {/* Search and menu icons removed as they are dummy */}
             </div>
           </div>
 
@@ -305,15 +292,6 @@ export const AdminChatPanel: React.FC = () => {
 
           {/* Chat Input */}
           <div className="bg-[#f0f2f5] px-4 py-2.5 flex items-end gap-2 z-10 shrink-0">
-            <div className="flex items-center gap-3 py-2 text-[#54656f] shrink-0 mr-1">
-              <button className="hover:text-gray-700 transition-colors rounded-full">
-                <Smile size={26} strokeWidth={1.5} />
-              </button>
-              <button className="hover:text-gray-700 transition-colors rounded-full hidden sm:block">
-                <Paperclip size={24} strokeWidth={1.5} />
-              </button>
-            </div>
-            
             <form onSubmit={handleSendMessage} className="flex-1 flex items-center">
               <input 
                 type="text"
@@ -326,24 +304,13 @@ export const AdminChatPanel: React.FC = () => {
             </form>
             
             <div className="py-1 shrink-0 ml-1">
-              {newMessage.trim() ? (
-                <button 
-                  onClick={handleSendMessage}
-                  disabled={isLoading}
-                  className="text-[#54656f] hover:text-gray-700 p-2 rounded-full transition-colors"
-                >
-                  <Send size={24} strokeWidth={1.5} className="ml-1" />
-                </button>
-              ) : (
-                <button className="text-[#54656f] hover:text-gray-700 p-2 rounded-full transition-colors">
-                   <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                     <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                     <line x1="12" y1="19" x2="12" y2="23"></line>
-                     <line x1="8" y1="23" x2="16" y2="23"></line>
-                   </svg>
-                </button>
-              )}
+              <button 
+                onClick={handleSendMessage}
+                disabled={isLoading || !newMessage.trim()}
+                className={`${newMessage.trim() ? 'text-[#54656f] hover:text-gray-700' : 'text-slate-300'} p-2 rounded-full transition-colors`}
+              >
+                <Send size={24} strokeWidth={1.5} className="ml-1" />
+              </button>
             </div>
           </div>
         </div>
