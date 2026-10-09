@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessagesSquare, X, Send, Minimize2 } from 'lucide-react';
+import { MessagesSquare, X, Send, Minimize2, Check, CheckCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
@@ -209,9 +209,16 @@ export const UserChatWidget: React.FC = () => {
                         >
                           {msg.message}
                         </div>
-                        <span className="text-[10px] text-slate-400 mt-1 px-1">
-                          {format(new Date(msg.createdAt), 'HH:mm')}
-                        </span>
+                        <div className={`flex items-center gap-1 mt-1 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          <span className="text-[10px] text-slate-400">
+                            {format(new Date(msg.createdAt), 'HH:mm')}
+                          </span>
+                          {isMe && (
+                            <span className={msg.isRead ? 'text-emerald-500' : 'text-slate-300'}>
+                              {msg.isRead ? <CheckCheck size={12} strokeWidth={2.5} /> : <Check size={12} strokeWidth={2.5} />}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </React.Fragment>
                   );
