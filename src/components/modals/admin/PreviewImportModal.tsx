@@ -17,7 +17,7 @@ export const PreviewImportModal: React.FC<PreviewImportModalProps> = ({
   isPreviewModalOpen, setIsPreviewModalOpen, importPreviewData, setImportPreviewData, isSubmittingPreview, handleSubmitPreview,
   smartCategorize, CATEGORY_STRUCTURES
 }) => {
-  if (!importPreviewData) return null;
+  if (!isPreviewModalOpen || !importPreviewData) return null;
   
   return (
       <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
