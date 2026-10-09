@@ -11,7 +11,7 @@ import multer from 'multer';
 import fs from 'fs';
 import { db, withDbRetry } from './src/db/index';
 import { users, products, orders, orderItems, cartItems, activityLogs, pushSubscriptions, chats, categoryLearnings } from './src/db/schema';
-import { eq, asc, desc, and, sql, inArray } from 'drizzle-orm';
+import { eq, asc, desc, and, sql, inArray, or, isNull } from 'drizzle-orm';
 import webpush from 'web-push';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -4655,6 +4655,41 @@ app.delete('/api/chats/:id', requireAuth, async (req: any, res) => {
     res.status(500).json({ error: 'Gagal menghapus pesan' });
   }
 });
+
+app.post('/api/chats/clear/:userId', requireAuth, requireAdmin, async (req: any, res) => {
+  try {
+    const targetUserId = Number(req.params.userId);
+    const { reason } = req.body;
+    
+    if (!targetUserId) return res.status(400).json({ error: 'ID user tidak valid' });
+    if (!reason || reason.trim() === '') return res.status(400).json({ error: 'Alasan penghapusan wajib diisi' });
+
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) return res.json({ success: true });
+
+    // Hapus semua chat dengan user ini
+    await withDbRetry(() => db.delete(chats).where(
+      or(
+        and(eq(chats.senderId, targetUserId), isNull(chats.receiverId)),
+        eq(chats.receiverId, targetUserId)
+      )
+    ));
+
+    // Catat log penghapusan
+    await withDbRetry(() => db.insert(activityLogs).values({
+      userId: req.user.id,
+      actorName: req.user.nama || 'Admin',
+      action: 'Hapus Seluruh Chat User',
+      details: `Menghapus seluruh percakapan dengan User ID ${targetUserId}. Alasan: ${reason}`
+    }));
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Clear chats error:', err);
+    res.status(500).json({ error: 'Gagal menghapus percakapan' });
+  }
+});
+
 
 // Explicit API 404 fallback: ensure API requests never serve HTML fallback
 app.all('/api/*', (req, res) => {

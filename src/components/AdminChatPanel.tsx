@@ -33,7 +33,43 @@ export const AdminChatPanel: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [messageToDelete, setMessageToDelete] = useState<ChatMessage | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Clear chat state
+  const [clearChatModalOpen, setClearChatModalOpen] = useState(false);
+  const [clearChatReason, setClearChatReason] = useState('');
+  const [isClearingChat, setIsClearingChat] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleClearChat = async () => {
+    if (!selectedUserId || !token || !clearChatReason.trim()) return;
+    setIsClearingChat(true);
+    try {
+      const res = await fetch(`/api/chats/clear/${selectedUserId}`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ reason: clearChatReason })
+      });
+      if (res.ok) {
+        setMessages([]); // Kosongkan chat secara optimistik
+        setClearChatModalOpen(false);
+        setClearChatReason('');
+        // Refresh users list to update the preview message if needed
+        fetchUsers();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Gagal menghapus percakapan');
+      }
+    } catch (err) {
+      console.error('Failed to clear chat', err);
+      alert('Terjadi kesalahan saat menghapus percakapan');
+    } finally {
+      setIsClearingChat(false);
+    }
+  };
 
   const handleDeleteMessage = async () => {
     if (!messageToDelete || !token) return;
@@ -242,8 +278,14 @@ export const AdminChatPanel: React.FC = () => {
                 <p className="text-[13px] text-[#667781] leading-tight">{activeUser?.pt}</p>
               </div>
             </div>
-            <div className="flex gap-4 text-[#54656f]">
-              {/* Search and menu icons removed as they are dummy */}
+            <div className="flex gap-2 text-[#54656f]">
+              <button 
+                onClick={() => setClearChatModalOpen(true)}
+                title="Hapus Seluruh Chat"
+                className="p-2 hover:bg-gray-200 rounded-full text-red-500 transition-colors"
+              >
+                <Trash2 size={20} />
+              </button>
             </div>
           </div>
 
@@ -406,6 +448,62 @@ export const AdminChatPanel: React.FC = () => {
                       <Trash2 className="w-4 h-4" />
                       Hapus
                     </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Chat Confirmation Modal */}
+      {clearChatModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <div className="w-10 h-10 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <button onClick={() => setClearChatModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">Hapus Seluruh Percakapan?</h3>
+              <p className="text-sm text-slate-600 mb-4">
+                Semua riwayat chat dengan pengguna ini akan dihapus permanen. Mohon berikan alasan penghapusan ini.
+              </p>
+              
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Alasan Penghapusan <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={clearChatReason}
+                  onChange={(e) => setClearChatReason(e.target.value)}
+                  placeholder="Contoh: Permintaan pengguna / Data tidak relevan"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none text-sm"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setClearChatModalOpen(false)}
+                  disabled={isClearingChat}
+                  className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-colors disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleClearChat}
+                  disabled={isClearingChat || !clearChatReason.trim()}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isClearingChat ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    'Hapus Semua'
                   )}
                 </button>
               </div>
