@@ -340,27 +340,20 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
                   <ChevronLeft className="w-6 h-6" />
                 </button>
 
-                {/* CS Avatar & Indicator */}
+                {/* CS Avatar */}
                 <div className="relative">
                   <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-teal-600 via-teal-500 to-emerald-500 p-0.5 shadow-sm flex items-center justify-center text-white">
                     <MessagesSquare className="w-5 h-5" />
                   </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  </span>
                 </div>
 
                 {/* Text Info */}
-                <div className="flex flex-col">
+                <div className="flex flex-col justify-center">
                   <div className="flex items-center gap-1.5">
                     <h2 className="font-bold text-slate-800 text-sm leading-tight">Admin KOKSI</h2>
                     <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/70 text-[10px] font-semibold px-1.5 py-0.2 rounded-md">
                       Support
                     </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    <p className="text-[11px] text-slate-500 font-medium">Online • Respon Cepat</p>
                   </div>
                 </div>
               </div>
