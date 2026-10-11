@@ -188,8 +188,8 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
         {
           id: 'hours-' + Date.now(),
           type: 'operating_hours',
-          title: 'Jam Operasional Koperasi',
-          content: 'Koperasi KOKSI buka setiap Senin s/d Jumat pukul 08:00 - 17:00 WIB.',
+          title: 'Jadwal Operasional Pemesanan Web',
+          content: 'Layanan pemesanan BelanjaIn Saza dibuka setiap hari Senin dan Selasa.\n\nDi luar hari tersebut (Rabu s/d Minggu), layanan pemesanan barang ditutup sesuai jadwal operasional sistem.',
           createdAt: new Date()
         }
       ]);
@@ -389,7 +389,7 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold rounded-full border border-slate-200/60 transition-all shrink-0 active:scale-95"
               >
                 <Clock className="w-3.5 h-3.5 text-slate-500" />
-                <span>Jam Buka</span>
+                <span>Jadwal Pemesanan</span>
               </button>
 
               <button
