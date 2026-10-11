@@ -10,7 +10,6 @@ import {
   Clock, 
   PackageCheck, 
   CreditCard, 
-  Sparkles, 
   RefreshCw, 
   ExternalLink,
   PhoneCall,
@@ -212,7 +211,7 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
           id: 'admin-tpl-' + Date.now(),
           type: 'wait_template',
           title: 'Diteruskan ke Admin KOKSI',
-          content: `Halo ${user?.nama || 'Kak'}! Silakan tulis pertanyaan atau keluhan Anda di bawah ini.\n\n⏳ Tim Admin KOKSI akan segera membaca & membalas chat Anda secepat mungkin. Mohon menunggu sebentar ya! 🙏`,
+          content: `Halo ${user?.nama || 'Kak'}! Silakan tulis pertanyaan atau keluhan Anda di bawah ini.\n\nTim Admin KOKSI akan segera membaca & membalas chat Anda secepat mungkin. Mohon menunggu sebentar ya!`,
           createdAt: new Date()
         }
       ]);
@@ -274,10 +273,7 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
                   setHasOpenedChat(true);
                 }}
               >
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Ada pertanyaan? Chat Admin di sini</span>
-                </div>
+                <span>Ada pertanyaan? Chat Admin di sini</span>
                 <div className="absolute -bottom-2 right-4 w-0 h-0 border-l-[8px] border-l-transparent border-t-[10px] border-t-emerald-600 border-r-[8px] border-r-transparent"></div>
               </motion.div>
             )}
