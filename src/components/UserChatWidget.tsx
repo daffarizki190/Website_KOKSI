@@ -189,7 +189,7 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
           id: 'hours-' + Date.now(),
           type: 'operating_hours',
           title: 'Jam Operasional Koperasi',
-          content: 'Koperasi KOKSI buka setiap Senin s/d Jumat pukul 08:00 - 17:00 WIB.\nPengambilan pesanan dapat dilakukan di Kasir KOKSI saat jam kerja.',
+          content: 'Koperasi KOKSI buka setiap Senin s/d Jumat pukul 08:00 - 17:00 WIB.',
           createdAt: new Date()
         }
       ]);
