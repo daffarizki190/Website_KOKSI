@@ -15,11 +15,12 @@ import {
   PhoneCall,
   Info
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
+import { createPortal } from 'react-dom';
 
 interface ChatMessage {
   id: number;
@@ -49,8 +50,23 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
   const navigate = useNavigate();
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const isOpen = propIsOpen !== undefined ? propIsOpen : internalIsOpen;
-  const setIsOpen = propSetIsOpen || setInternalIsOpen;
+  
+  const setIsOpen = (open: boolean) => {
+    setInternalIsOpen(open);
+    if (propSetIsOpen) {
+      propSetIsOpen(open);
+    }
+  };
+  const setIsOpenRef = useRef(setIsOpen);
+  setIsOpenRef.current = setIsOpen;
   const [hasOpenedChat, setHasOpenedChat] = useState(false);
+
+  // Sync internal state when prop changes
+  useEffect(() => {
+    if (propIsOpen !== undefined) {
+      setInternalIsOpen(propIsOpen);
+    }
+  }, [propIsOpen]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -111,7 +127,7 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
 
   useEffect(() => {
     const handleOpenChat = () => {
-      setIsOpen(true);
+      setIsOpenRef.current(true);
       setHasOpenedChat(true);
     };
     window.addEventListener('openChat', handleOpenChat);
@@ -250,14 +266,14 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
     }
   };
 
-  if (!user || user.role?.toLowerCase() !== 'user') return null;
+  if (!user || user.role?.toLowerCase() === 'admin' || user.role?.toLowerCase() === 'it') return null;
 
   return (
     <>
-      {/* Floating Desktop Button */}
+      {/* Floating Button (Desktop & Mobile) */}
       <AnimatePresence>
         {!isOpen && (
-          <div className="hidden md:flex fixed bottom-6 right-6 z-40 flex-col items-end gap-3">
+          <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 flex flex-col items-end gap-3 pointer-events-auto">
             {!hasOpenedChat && (
               <motion.div
                 initial={{ opacity: 0, y: 10, scale: 0.9 }}
@@ -267,7 +283,7 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
                   delay: 0.5,
                   y: { repeat: Infinity, repeatType: 'reverse', duration: 1 }
                 }}
-                className="relative bg-gradient-to-r from-teal-600 to-emerald-600 text-white text-xs font-semibold px-4 py-2.5 rounded-2xl shadow-xl flex items-center justify-center cursor-pointer mb-2 mr-2"
+                className="hidden md:flex relative bg-gradient-to-r from-teal-600 to-emerald-600 text-white text-xs font-semibold px-4 py-2.5 rounded-2xl shadow-xl items-center justify-center cursor-pointer mb-2 mr-2"
                 onClick={() => {
                   setIsOpen(true);
                   setHasOpenedChat(true);
@@ -278,40 +294,39 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
               </motion.div>
             )}
 
-            <motion.button
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            <button
+              type="button"
               onClick={() => {
                 setIsOpen(true);
                 setHasOpenedChat(true);
               }}
-              className="tour-chat w-14 h-14 bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-teal-700/30 hover:shadow-xl hover:shadow-teal-700/40 transition-all relative overflow-hidden group"
+              className="tour-chat w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-teal-700/30 hover:shadow-xl hover:shadow-teal-700/40 active:scale-95 transition-all relative overflow-hidden group touch-manipulation cursor-pointer"
+              title="Chat Admin"
+              aria-label="Chat Admin"
             >
               <div className="absolute inset-0 bg-white/20 scale-0 group-hover:scale-100 rounded-full transition-transform duration-300"></div>
-              <MessagesSquare className="w-6 h-6 relative z-10" />
+              <MessagesSquare className="w-5 h-5 md:w-6 md:h-6 relative z-10" />
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white z-20 shadow-sm animate-pulse">
                   {unreadCount}
                 </span>
               )}
-            </motion.button>
+            </button>
           </div>
         )}
       </AnimatePresence>
 
-      {/* Main Chat Modal */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 30, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 30, scale: 0.97 }}
-            transition={{ type: "spring", damping: 25, stiffness: 280 }}
-            className="fixed inset-0 md:inset-auto md:bottom-6 md:right-6 w-full h-full md:w-[390px] md:h-[620px] md:max-h-[88vh] bg-slate-50 md:rounded-3xl shadow-2xl flex flex-col overflow-hidden z-[150] md:z-50 border-0 md:border md:border-slate-200/80 font-sans"
-          >
+      {/* Main Chat Modal (Rendered to document.body via Portal to prevent CSS transform containment issues on mobile) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.97 }}
+              transition={{ type: "spring", damping: 25, stiffness: 280 }}
+              className="fixed inset-0 md:inset-auto md:bottom-6 md:right-6 w-full h-full md:w-[390px] md:h-[620px] md:max-h-[88vh] bg-slate-50 md:rounded-3xl shadow-2xl flex flex-col overflow-hidden z-[9999] border-0 md:border md:border-slate-200/80 font-sans"
+            >
             {/* Header: Clean Glassmorphism & Support CS Badge */}
             <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 py-3 shrink-0 flex items-center justify-between shadow-xs sticky top-0 z-20">
               <div className="flex items-center gap-3">
@@ -575,7 +590,9 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
             </footer>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    )}
     </>
   );
 };

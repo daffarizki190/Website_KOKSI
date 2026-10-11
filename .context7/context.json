@@ -1,0 +1,23 @@
+{
+  "project": "BelanjaIn Saza",
+  "organization": "KOKSI - PT. Siemens Indonesia",
+  "version": "1.0.0",
+  "type": "PWA E-Commerce & Koperasi Operations",
+  "stack": {
+    "frontend": ["React 19", "TypeScript", "Vite 6", "Tailwind CSS v4", "Motion v12"],
+    "backend": ["Node.js", "Express", "Drizzle ORM", "PostgreSQL"],
+    "testing": ["Playwright CLI", "Pixel 7 PWA Emulation", "STRIX Security Suite"],
+    "realtime": ["WebSocket / Polling Engine"]
+  },
+  "roles": ["user", "admin", "it"],
+  "rules": {
+    "orderingDays": ["Senin", "Selasa"],
+    "idempotencyHeader": "Idempotency-Key",
+    "qrBarcodeUsage": "single-use",
+    "chatPortalZIndex": 9999
+  },
+  "testCommands": {
+    "all": "npm run test:e2e",
+    "mobile": "npm run test:e2e:mobile"
+  }
+}

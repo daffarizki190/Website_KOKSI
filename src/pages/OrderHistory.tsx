@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingBag, ArrowLeft, Loader2, Package, X, ShoppingCart, ShieldCheck, Clock, ArrowRight, RefreshCw, XCircle, ScanLine, QrCode, Timer, ShieldAlert, Maximize2 } from 'lucide-react';
+import { ShoppingBag, ArrowLeft, Loader2, Package, X, ShoppingCart, ShieldCheck, Clock, ArrowRight, RefreshCw, XCircle, ScanLine, QrCode, Timer, ShieldAlert, Maximize2, MessagesSquare } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +9,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { PullToRefresh } from '../components/PullToRefresh';
 import { Skeleton } from '../components/Skeleton';
+import { UserChatWidget } from '../components/UserChatWidget';
 
 interface OrderItem {
   id: number;
@@ -275,6 +276,7 @@ export default function OrderHistory() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [qrModal, setQrModal] = useState<{ token: string; expiresAt?: string; orderId: string; orderNumId: number } | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -404,6 +406,20 @@ export default function OrderHistory() {
                   <p className="text-[10px] text-slate-500 uppercase tracking-wider">Update Real-Time BelanjaIn Saza</p>
                 </div>
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                type="button"
+                onClick={() => {
+                  setIsChatOpen(true);
+                  window.dispatchEvent(new CustomEvent('openChat'));
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 hover:text-teal-800 rounded-xl transition-all cursor-pointer shadow-sm font-semibold text-xs active:scale-95 touch-manipulation"
+                title="Chat Admin"
+              >
+                <MessagesSquare className="w-4 h-4" />
+                <span className="text-xs font-bold">Chat Admin</span>
+              </button>
             </div>
           </div>
         </div>
@@ -678,6 +694,7 @@ export default function OrderHistory() {
 
         </main>
       </PullToRefresh>
+      <UserChatWidget isOpen={isChatOpen} setIsOpen={setIsChatOpen} />
     </div>
     </>
   );

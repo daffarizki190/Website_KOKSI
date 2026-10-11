@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { 
@@ -19,6 +19,22 @@ import { EditProfileModal } from '../components/modals/user/EditProfileModal';
 import { CheckoutConfirmModal } from '../components/modals/user/CheckoutConfirmModal';
 import { CheckoutSuccessModal } from '../components/modals/user/CheckoutSuccessModal';
 import { GlobalOrderingClosedModal } from '../components/modals/user/GlobalOrderingClosedModal';
+
+// Idempotency Key generator. crypto.randomUUID hanya tersedia di secure context (HTTPS/localhost),
+// jadi sediakan fallback berbasis getRandomValues untuk akses via HTTP LAN.
+const generateIdempotencyKey = (): string => {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+  }
+};
+
 export const DashboardUser = () => {
   const { user, token, logout } = useAuth();
   const { toast, confirm: confirmModal } = useNotification();
@@ -55,6 +71,10 @@ export const DashboardUser = () => {
   const [checkoutSuccessOrder, setCheckoutSuccessOrder] = useState<any | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  // Idempotency: satu key per "niat checkout". Dipakai ulang saat retry, diganti setelah sukses
+  // atau saat isi keranjang berubah. Ref guard mencegah double-click sebelum state re-render.
+  const checkoutIdempotencyKeyRef = useRef<string | null>(null);
+  const checkoutInFlightRef = useRef(false);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
   const [isDemoModeLoaded, setIsDemoModeLoaded] = useState(false);
 
@@ -408,7 +428,18 @@ export const DashboardUser = () => {
     }
   };
 
+  // Isi keranjang berubah = niat checkout baru -> key baru
+  useEffect(() => {
+    checkoutIdempotencyKeyRef.current = null;
+  }, [cart]);
+
   const confirmCheckout = async () => {
+    if (checkoutInFlightRef.current) return; // tolak klik kedua saat request pertama masih jalan
+    checkoutInFlightRef.current = true;
+    if (!checkoutIdempotencyKeyRef.current) {
+      checkoutIdempotencyKeyRef.current = generateIdempotencyKey();
+    }
+    const idempotencyKey = checkoutIdempotencyKeyRef.current;
     setIsCheckingOut(true);
     setCheckoutError(null);
     try {
@@ -422,6 +453,7 @@ export const DashboardUser = () => {
         headers: {
           'Content-Type': 'application/json',
           'x-demo-mode': isDemoModeActive ? 'true' : 'false',
+          'Idempotency-Key': idempotencyKey,
           Authorization: `Bearer ${token || localStorage.getItem('token')}`
         },
         body: JSON.stringify({ items, total_amount })
@@ -481,6 +513,7 @@ export const DashboardUser = () => {
       console.error(err);
       setCheckoutError(err.message || 'Terjadi kesalahan koneksi saat checkout.');
     } finally {
+      checkoutInFlightRef.current = false;
       setIsCheckingOut(false);
     }
   };
@@ -603,17 +636,18 @@ export const DashboardUser = () => {
             <div className="flex items-center gap-2 sm:gap-3">
               <BelanjainLogo size="sm" showSubtitle={true} />
             </div>
-            <div className="hidden md:flex items-center gap-1.5 sm:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-3">
               <button 
+                type="button"
                 onClick={() => {
                   setIsChatOpen(true);
-                  window.dispatchEvent(new Event('openChat'));
+                  window.dispatchEvent(new CustomEvent('openChat'));
                 }}
-                className="md:hidden flex items-center gap-1.5 relative px-2.5 py-1.5 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 hover:text-teal-800 rounded-xl transition-colors cursor-pointer shadow-sm font-semibold text-xs"
+                className="flex items-center gap-1.5 relative px-2.5 py-1.5 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 hover:text-teal-800 rounded-xl transition-all cursor-pointer shadow-sm font-semibold text-xs active:scale-95 touch-manipulation"
                 title="Chat Admin"
               >
                 <MessagesSquare className="w-5 h-5" />
-                <span>Admin</span>
+                <span className="text-xs font-bold">Admin</span>
               </button>
               <button 
                 onClick={() => navigate('/orders')}
@@ -1123,17 +1157,17 @@ export const DashboardUser = () => {
           <Home className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-medium">Beranda</span>
         </motion.button>
-        <motion.button 
-          whileTap={{ scale: 0.85 }}
+        <button 
+          type="button"
           onClick={() => {
             setIsChatOpen(true);
             window.dispatchEvent(new CustomEvent('openChat'));
           }}
-          className="tour-chat flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
+          className="tour-chat flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 active:scale-95 transition-transform relative w-16 cursor-pointer touch-manipulation"
         >
           <MessagesSquare className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-medium">Chat Admin</span>
-        </motion.button>
+        </button>
         
         {/* Floating Action Button style for Cart */}
         <div className="relative -top-6 w-16 flex justify-center">

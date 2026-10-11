@@ -119,7 +119,8 @@ app.use(helmet({
 app.use(cors({
   origin: '*', // Bisa dibatasi ke url frontend spesifik di produksi, contoh: ['https://belanjainsaza.com']
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'x-demo-mode'],
+  exposedHeaders: ['Idempotent-Replayed']
 }));
 
 // --- MIDDLEWARE KEAMANAN: EXPRESS RATE LIMITER ---
@@ -1605,6 +1606,15 @@ async function ensureDatabaseSchema() {
         `);
       } catch (e) { /* column might already be nullable */ }
 
+      // Idempotency Key untuk orders: cegah order ganda akibat double-click / retry jaringan.
+      // UNIQUE (user_id, idempotency_key) — NULL diizinkan berulang, jadi order lama tidak terdampak.
+      try {
+        await db.execute(sql`
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+          CREATE UNIQUE INDEX IF NOT EXISTS orders_user_idempotency_key_idx ON orders (user_id, idempotency_key);
+        `);
+      } catch (e) { /* column/index might already exist */ }
+
       // ALTER existing order_items to add price column if it doesn't exist
       try {
         await db.execute(sql`
@@ -1926,6 +1936,58 @@ const demoOrdersStore: Array<{
   user?: any;
 }> = [];
 
+// ==== IDEMPOTENCY HELPERS (POST /api/orders) ====
+// Request boleh berkali-kali, tapi efeknya cukup sekali.
+const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
+// In-memory fallback (hanya dipakai saat DB tidak dikonfigurasi): `${userId}:${key}` -> orderId
+const memoryIdempotencyStore = new Map<string, number>();
+
+function isIdempotencyConflict(error: any): boolean {
+  const candidates = [error, error?.cause, error?.originalError];
+  return candidates.some((e) =>
+    e && e.code === '23505' && String(e.constraint || e.message || '').includes('idempotency')
+  );
+}
+
+async function loadOrderForReplay(orderId: number, req: AuthRequest) {
+  const [o] = await withDbRetry(() => db.select().from(orders).where(eq(orders.id, orderId)));
+  if (!o) return null;
+  const its = await withDbRetry(() =>
+    db.select({ id: orderItems.id, orderId: orderItems.orderId, productId: orderItems.productId, quantity: orderItems.quantity, price: orderItems.price, productNama: products.nama_barang })
+      .from(orderItems)
+      .leftJoin(products, eq(orderItems.productId, products.id))
+      .where(eq(orderItems.orderId, orderId))
+  );
+  return {
+    id: o.id,
+    userId: o.userId,
+    total_amount: o.total_amount,
+    status: o.status,
+    keterangan: o.keterangan,
+    createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : new Date().toISOString(),
+    items: its.map(it => ({
+      id: it.id,
+      orderId: it.orderId,
+      productId: it.productId,
+      quantity: it.quantity,
+      price: it.price,
+      product: { id: it.productId, nama_barang: it.productNama || `Produk #${it.productId}` }
+    })),
+    user: {
+      id: o.userId,
+      nama: req.user?.nama || 'Karyawan',
+      pt: (req.user as any)?.pt || 'PT. Siemens Indonesia',
+      departemen: (req.user as any)?.departemen || 'General',
+      no_hp: req.user?.no_hp || ''
+    }
+  };
+}
+
+function sendIdempotentReplay(res: Response, order: any) {
+  res.setHeader('Idempotent-Replayed', 'true');
+  res.status(200).json({ message: 'Order already processed', orderId: order.id, order, idempotentReplay: true });
+}
+
 // GLOBAL STATE FOR DEMO MODE
 let globalDemoMode = false;
 
@@ -1982,6 +2044,46 @@ app.post('/api/settings/demo-mode', requireAuth, async (req: AuthRequest, res) =
 app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
   const { items, total_amount } = req.body;
   let userId = Number(req.user?.id);
+
+  // ==== IDEMPOTENCY CHECK (harus paling awal) ====
+  // Jika key yang sama sudah pernah sukses, kembalikan order yang sama tanpa efek tambahan.
+  // Dicek sebelum validasi hari/blokir agar retry tetap konsisten walau melewati batas hari.
+  const rawIdemKey = req.headers['idempotency-key'] || (req.body && req.body.idempotencyKey);
+  const idempotencyKey = typeof rawIdemKey === 'string' ? rawIdemKey.trim() : '';
+  if (idempotencyKey && !IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+    res.status(400).json({ error: 'Idempotency-Key tidak valid (16-128 karakter: huruf, angka, - atau _).' });
+    return;
+  }
+  if (idempotencyKey && userId) {
+    const hasDb = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    try {
+      if (!hasDb) {
+        const existingId = memoryIdempotencyStore.get(`${userId}:${idempotencyKey}`);
+        const existingOrder = existingId ? demoOrdersStore.find(o => o.id === existingId) : null;
+        if (existingOrder) {
+          sendIdempotentReplay(res, existingOrder);
+          return;
+        }
+      } else {
+        await ensureDatabaseSchema();
+        const existing = await withDbRetry(() =>
+          db.select({ id: orders.id }).from(orders)
+            .where(and(eq(orders.userId, userId), eq(orders.idempotencyKey, idempotencyKey)))
+            .limit(1)
+        );
+        if (existing.length > 0) {
+          const replay = await loadOrderForReplay(existing[0].id, req);
+          if (replay) {
+            console.log(`[ORDER] Idempotent replay order #${replay.id} for user ${userId}`);
+            sendIdempotentReplay(res, replay);
+            return;
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('[ORDER] Idempotency lookup failed:', e?.message || e);
+    }
+  }
 
   // Cek Hari Pemesanan (Hanya Senin dan Selasa), kecuali dalam Mode Demo Global
   let isDemoMode = globalDemoMode || req.headers['x-demo-mode'] === 'true';
@@ -2046,6 +2148,7 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
       user: { id: userId || 999, nama: req.user?.nama || 'Karyawan', pt: (req.user as any)?.pt || 'PT. Siemens Indonesia', departemen: (req.user as any)?.departemen || 'General', no_hp: req.user?.no_hp || '' }
     };
     demoOrdersStore.unshift(newOrderObj);
+    if (userId && idempotencyKey) memoryIdempotencyStore.set(`${userId}:${idempotencyKey}`, orderId);
     if (userId) memoryCartStore.delete(userId);
     res.status(201).json({ message: 'Order created successfully', orderId, order: newOrderObj });
     return;
@@ -2126,11 +2229,14 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
       }
 
       // 2. Insert order record with server-validated total
+      //    Insert order dilakukan SEBELUM potong stok: jika key bentrok (request paralel / retry
+      //    setelah COMMIT), unique index melempar 23505 dan seluruh transaksi di-rollback.
       const [newOrder] = await tx.insert(orders).values({
         userId,
         total_amount: calculatedTotal,
         status: 'Proses',
-        keterangan: 'Pesanan telah dibuat dan sedang dalam proses'
+        keterangan: 'Pesanan telah dibuat dan sedang dalam proses',
+        idempotencyKey: idempotencyKey || null
       }).returning();
       const oId = newOrder.id;
 
@@ -2240,6 +2346,28 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
     res.status(201).json({ message: 'Order created successfully', orderId: createdOrderId, order: fullCreatedOrder });
 
   } catch (error: any) {
+    // Request kembar (double-click paralel atau withDbRetry mengulang transaksi yang sebenarnya
+    // sudah COMMIT): kembalikan order yang sudah ada, bukan error dan bukan order baru.
+    if (idempotencyKey && isIdempotencyConflict(error)) {
+      try {
+        const existing = await withDbRetry(() =>
+          db.select({ id: orders.id }).from(orders)
+            .where(and(eq(orders.userId, userId), eq(orders.idempotencyKey, idempotencyKey)))
+            .limit(1)
+        );
+        const replay = existing.length > 0 ? await loadOrderForReplay(existing[0].id, req) : null;
+        if (replay) {
+          console.log(`[ORDER] Idempotent conflict resolved -> replay order #${replay.id} for user ${userId}`);
+          sendIdempotentReplay(res, replay);
+          return;
+        }
+      } catch (e: any) {
+        console.warn('[ORDER] Idempotency conflict replay failed:', e?.message || e);
+      }
+      res.status(409).json({ error: 'Pesanan yang sama sedang diproses. Silakan cek Riwayat Pesanan.' });
+      return;
+    }
+
     const errMsg = error?.message || String(error);
     console.error('[ORDER] Creation failed:', errMsg);
 
