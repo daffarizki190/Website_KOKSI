@@ -13,11 +13,9 @@ coverage/
 screenshot-script/
 scripts/
 docs/security_test_results.json
-check_*.py
-check_*.ts
-test_*.py
-test_*.ts
-truncate_*.py
+check*
+test*
+truncate*
 apply_migration*
 create_chats*
 fix_categories*
@@ -26,3 +24,8 @@ out*.json
 # Local presentation materials & screenshots
 Presentasi_KOKSI/
 Materi_NotebookLM.txt
+
+# Playwright Test Artifacts
+test-results/
+playwright-report/
+blob-report/

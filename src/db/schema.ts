@@ -1,4 +1,4 @@
-import { integer, pgTable, serial, text, timestamp, varchar, boolean } from 'drizzle-orm/pg-core';
+import { integer, pgTable, serial, text, timestamp, varchar, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 export const users = pgTable('users', {
@@ -40,8 +40,12 @@ export const orders = pgTable('orders', {
   keterangan: text('keterangan'),
   pickupToken: text('pickup_token').unique(),
   pickupTokenExpiresAt: timestamp('pickup_token_expires_at'),
+  // Idempotency Key: identitas unik per percobaan checkout agar retry / double-click tidak membuat order ganda
+  idempotencyKey: text('idempotency_key'),
   createdAt: timestamp('created_at').defaultNow(),
-});
+}, (t) => [
+  uniqueIndex('orders_user_idempotency_key_idx').on(t.userId, t.idempotencyKey),
+]);
 
 export const orderItems = pgTable('order_items', {
   id: serial('id').primaryKey(),

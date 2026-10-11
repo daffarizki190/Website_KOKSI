@@ -5,22 +5,13 @@ export const TourGuide: React.FC = () => {
   const [run, setRun] = useState(false);
 
   useEffect(() => {
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
-    
-    // Jika aplikasi baru saja diinstal, paksa tour untuk berjalan
-    if (isStandalone && localStorage.getItem('force_tour_on_next_pwa_load') === 'true') {
-      localStorage.removeItem('hasSeenTourGuide_PWA');
-      localStorage.removeItem('force_tour_on_next_pwa_load');
-    }
-
-    const storageKey = isStandalone ? 'hasSeenTourGuide_PWA' : 'hasSeenTourGuide';
-    
-    const hasSeenTour = localStorage.getItem(storageKey);
+    // Check if user has already seen the tour in browser or PWA
+    const hasSeenTour = localStorage.getItem('hasSeenTourGuide') || localStorage.getItem('hasSeenTourGuide_PWA');
     if (!hasSeenTour) {
       // Small delay to ensure DOM is fully rendered
       const timer = setTimeout(() => {
         setRun(true);
-      }, 500);
+      }, 800);
       return () => clearTimeout(timer);
     }
   }, []);
@@ -31,9 +22,8 @@ export const TourGuide: React.FC = () => {
     
     if (finishedStatuses.includes(status)) {
       setRun(false);
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
-      const storageKey = isStandalone ? 'hasSeenTourGuide_PWA' : 'hasSeenTourGuide';
-      localStorage.setItem(storageKey, 'true');
+      localStorage.setItem('hasSeenTourGuide', 'true');
+      localStorage.setItem('hasSeenTourGuide_PWA', 'true');
     }
   };
 
@@ -89,7 +79,7 @@ export const TourGuide: React.FC = () => {
         primaryColor: '#0d9488', // teal-600
         textColor: '#334155', // slate-700
         overlayColor: 'rgba(15, 23, 42, 0.65)', // dark overlay
-        zIndex: 9999,
+        zIndex: 100,
       }}
       styles={{
         tooltip: {

@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "db:push": "drizzle-kit push --config=src/db/drizzle.config.ts"
+    "db:push": "drizzle-kit push --config=src/db/drizzle.config.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:mobile": "playwright test --project=\"Mobile Chrome (PWA Simulation)\""
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
