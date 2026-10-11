@@ -1297,17 +1297,17 @@ app.delete('/api/users/:id', requireAuth, async (req: AuthRequest, res) => {
 
     const targetUser = targetUsers[0];
 
-    // Delete user orders and order_items to maintain DB integrity
-    const userOrders = await db.select().from(orders).where(eq(orders.userId, targetUserId));
-    for (const ord of userOrders) {
-      await db.delete(orderItems).where(eq(orderItems.orderId, ord.id));
-    }
-    if (userOrders.length > 0) {
-      await db.delete(orders).where(eq(orders.userId, targetUserId));
-    }
-
-    // Delete user record
-    await db.delete(users).where(eq(users.id, targetUserId));
+    // Atomically delete user orders, order_items, and user record within transaction
+    await withDbRetry(() => db.transaction(async (tx) => {
+      const userOrders = await tx.select().from(orders).where(eq(orders.userId, targetUserId));
+      for (const ord of userOrders) {
+        await tx.delete(orderItems).where(eq(orderItems.orderId, ord.id));
+      }
+      if (userOrders.length > 0) {
+        await tx.delete(orders).where(eq(orders.userId, targetUserId));
+      }
+      await tx.delete(users).where(eq(users.id, targetUserId));
+    }));
 
     // Log to IT Audit Trail
     await logActivity(req.user?.id || null, `${req.user?.nama || 'System'} (${req.user?.role || 'user'})`, 'Penghapusan Akun Pengguna', `Akun "${targetUser.nama}" (${targetUser.no_hp}, ${targetUser.pt}) telah dihapus. Alasan: "${reason.trim()}".`);
@@ -2086,7 +2086,10 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
 
       userId = dbUser.id;
 
-      // 1. Validate and ensure each product exists in DB with sufficient stock
+      // 1. Validate and ensure each product exists in DB and fetch authoritative prices
+      let calculatedTotal = 0;
+      const verifiedItems: Array<{ productId: number; quantity: number; price: number; catatan: string | null }> = [];
+
       for (const item of items) {
         const pId = Number(item.productId);
         const reqQty = Math.round(Number(item.quantity) || 1);
@@ -2112,29 +2115,33 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
           prodList = [newProd];
         }
 
-        // PENGECEKAN STOK DINONAKTIFKAN (Semua barang selalu tersedia)
-        // if (prodList[0].stok < reqQty) {
-        //   throw new Error(`Stok "${prodList[0].nama_barang}" tidak mencukupi (tersisa: ${prodList[0].stok}, diminta: ${reqQty}).`);
-        // }
+        const actualPrice = prodList[0].harga;
+        calculatedTotal += actualPrice * reqQty;
+        verifiedItems.push({
+          productId: pId,
+          quantity: reqQty,
+          price: actualPrice,
+          catatan: item.catatan || null
+        });
       }
 
-      // 2. Insert order record
+      // 2. Insert order record with server-validated total
       const [newOrder] = await tx.insert(orders).values({
         userId,
-        total_amount: cleanTotalAmount,
+        total_amount: calculatedTotal,
         status: 'Proses',
         keterangan: 'Pesanan telah dibuat dan sedang dalam proses'
       }).returning();
       const oId = newOrder.id;
 
-      // 3. Insert order items
-      for (const item of items) {
+      // 3. Insert order items using authoritative server prices
+      for (const vItem of verifiedItems) {
         await tx.insert(orderItems).values({
           orderId: oId,
-          productId: Number(item.productId),
-          quantity: Math.round(Number(item.quantity) || 1),
-          price: Math.round(Number(item.price) || 0),
-          catatan: item.catatan || null
+          productId: vItem.productId,
+          quantity: vItem.quantity,
+          price: vItem.price,
+          catatan: vItem.catatan
         });
       }
 
@@ -2623,8 +2630,24 @@ app.put('/api/orders/:id/cancel', requireAuth, async (req: AuthRequest, res) => 
 
     await ensureDatabaseSchema();
 
-    // If Admin cancels directly, refund stock immediately
-    if (req.user?.role === 'admin') {
+    // Validasi IDOR: Pastikan pesanan benar-benar ada
+    const targetOrderList = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    if (targetOrderList.length === 0) {
+      res.status(404).json({ error: 'Pesanan tidak ditemukan' });
+      return;
+    }
+
+    const targetOrder = targetOrderList[0];
+    const isAdminOrIT = req.user?.role === 'admin' || req.user?.role === 'it';
+
+    // Validasi Hak Akses IDOR: Hanya pemilik pesanan atau Admin/IT yang boleh membatalkan
+    if (!isAdminOrIT && targetOrder.userId !== userId) {
+      res.status(403).json({ error: 'Akses Ditolak: Anda tidak memiliki wewenang untuk membatalkan pesanan pengguna lain!' });
+      return;
+    }
+
+    // If Admin/IT cancels directly, refund stock immediately
+    if (isAdminOrIT) {
       const updated = await db.update(orders)
         .set({
           status: 'Dibatalkan',
@@ -2658,31 +2681,17 @@ app.put('/api/orders/:id/cancel', requireAuth, async (req: AuthRequest, res) => 
         }
       }
 
-      // Auto-send Telegram Notification to Admin on Cancellation (DISABLED)
-      /*
-      try {
-        const tgMsg = `🚫 *PESANAN #${orderId} DIBATALKAN OLEH ADMIN*
-📝 *Alasan:* ${alasan.toString().trim()}
-📦 Stok barang telah dikembalikan ke sistem.
-Waktu: ${new Date().toLocaleString('id-ID')} WIB`;
-        const adminChatIds = getAdminChatIds();
-        for (const cid of adminChatIds) {
-          // sendTelegramMessage(cid, tgMsg).catch(() => {});
-        }
-      } catch (e) {}
-      */
-
       res.json({ message: 'Pesanan berhasil dibatalkan oleh Admin dan stok telah dikembalikan.', order: updated[0] || memOrder });
       return;
     }
 
-    // Jika Pengguna biasa yang mengajukan pembatalan
+    // Jika Pengguna biasa yang mengajukan pembatalan (Hanya pesanan miliknya sendiri)
     const updated = await db.update(orders)
       .set({
         status: 'Pengajuan Pembatalan',
         keterangan: `Pengajuan Pembatalan: ${alasan.toString().trim()}`
       })
-      .where(eq(orders.id, orderId))
+      .where(and(eq(orders.id, orderId), eq(orders.userId, userId)))
       .returning();
 
     // Auto-send Telegram Notification to Admin on User Cancellation Request (DISABLED)
@@ -2904,9 +2913,9 @@ app.post('/api/orders/verify-barcode', requireAuth, async (req: AuthRequest, res
 
     const targetOrder = existingOrders[0];
 
-    // Check if user is trying to scan someone else's order (if not admin)
-    if (req.user?.role !== 'admin' && targetOrder.userId !== req.user?.id) {
-      res.status(403).json({ error: 'Anda tidak memiliki hak untuk memverifikasi pesanan pengguna lain.' });
+    // Validasi Keamanan Scanner: Hanya Admin atau Tim IT (Petugas Koperasi) yang berhak memverifikasi fisik pengambilan barang
+    if (req.user?.role !== 'admin' && req.user?.role !== 'it') {
+      res.status(403).json({ error: 'Akses Ditolak: Pemindaian barcode verifikasi pengambilan barang hanya dapat dilakukan oleh Petugas Kasir / Admin KOKSI.' });
       return;
     }
 

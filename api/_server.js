@@ -25,6 +25,7 @@ __export(schema_exports, {
   activityLogsRelations: () => activityLogsRelations,
   cartItems: () => cartItems,
   cartItemsRelations: () => cartItemsRelations,
+  categoryLearnings: () => categoryLearnings,
   chats: () => chats,
   chatsRelations: () => chatsRelations,
   orderItems: () => orderItems,
@@ -184,6 +185,14 @@ var settings = pgTable("settings", {
   setting_value: text("setting_value").notNull(),
   updated_at: timestamp("updated_at").defaultNow()
 });
+var categoryLearnings = pgTable("category_learnings", {
+  id: serial("id").primaryKey(),
+  keyword: text("keyword").notNull().unique(),
+  // exact product name or keyword
+  kategori: text("kategori").notNull(),
+  sub_kategori: text("sub_kategori").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+});
 
 // src/db/index.ts
 var createPool = () => {
@@ -281,7 +290,7 @@ async function withDbRetry(operation, maxRetries = 2) {
 }
 
 // server.ts
-import { eq, asc, desc, and, sql } from "drizzle-orm";
+import { eq, asc, desc, and, sql, inArray, or, isNull } from "drizzle-orm";
 import webpush from "web-push";
 import helmet from "helmet";
 import cors from "cors";
@@ -385,8 +394,8 @@ var apiRateLimiter = rateLimit({
   message: { error: "Terlalu banyak permintaan (Rate limit exceeded). Mohon tunggu beberapa saat." }
 });
 app.use("/api/", apiRateLimiter);
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 var serverStartTime = Date.now();
 var trafficStats = {
   totalRequests: 0,
@@ -1004,6 +1013,7 @@ app.get("/api/users", requireAuth, requireAdmin, async (req, res) => {
       no_hp: users.no_hp,
       role: users.role,
       is_blocked: users.is_blocked,
+      mustChangePassword: users.mustChangePassword,
       createdAt: users.createdAt
     }).from(users));
     res.json(allUsers);
@@ -1124,7 +1134,7 @@ app.put(["/api/users/:id/password", "/api/users/:id/reset-password"], requireAut
       return;
     }
     const hashedPassword = await bcryptHash(rawPassword.trim(), 10);
-    await withDbRetry(() => db.update(users).set({ password: hashedPassword }).where(eq(users.id, Number(req.params.id))));
+    await withDbRetry(() => db.update(users).set({ password: hashedPassword, mustChangePassword: true }).where(eq(users.id, Number(req.params.id))));
     res.json({ message: "Password berhasil direset" });
   } catch (error) {
     console.error("Failed to update password:", error);
@@ -1207,6 +1217,14 @@ app.put("/api/users/:id", requireAuth, async (req, res) => {
       no_hp: u.no_hp,
       role: u.role
     };
+    if (req.user && req.user.id !== targetUserId && (req.user.role === "admin" || req.user.role === "it")) {
+      await logActivity(
+        req.user.id,
+        `${req.user.nama} (${req.user.role})`,
+        "Perbarui Profil Pengguna",
+        `Memperbarui profil / reset password untuk pengguna "${u.nama}" (${u.no_hp}).`
+      );
+    }
     res.json({ message: "Profil pengguna berhasil diperbarui!", user: userWithoutPass });
   } catch (error) {
     console.error("Update user error:", error);
@@ -1232,6 +1250,12 @@ app.put("/api/users/:id/role", requireAuth, async (req, res) => {
       return;
     }
     const u = updatedUsers[0];
+    await logActivity(
+      req.user?.id || null,
+      `${req.user?.nama || "System"} (${req.user?.role || "user"})`,
+      "Perubahan Role",
+      `Role pengguna "${u.nama}" (${u.no_hp}) diubah menjadi "${newRole.toUpperCase()}".`
+    );
     res.json({
       message: `Role pengguna "${u.nama}" berhasil diubah menjadi "${newRole.toUpperCase()}".`,
       user: {
@@ -1263,6 +1287,12 @@ app.put("/api/users/:id/block", requireAuth, async (req, res) => {
       return;
     }
     const u = updatedUsers[0];
+    await logActivity(
+      req.user?.id || null,
+      `${req.user?.nama || "System"} (${req.user?.role || "user"})`,
+      isBlocked ? "Blokir Pengguna" : "Buka Blokir Pengguna",
+      `Status pengguna "${u.nama}" (${u.no_hp}) diubah menjadi ${isBlocked ? "DIBLOKIR" : "AKTIF"}.`
+    );
     res.json({
       message: `Pengguna "${u.nama}" berhasil di${isBlocked ? "blokir" : "buka blokir"}.`,
       user: {
@@ -1303,14 +1333,16 @@ app.delete("/api/users/:id", requireAuth, async (req, res) => {
       return;
     }
     const targetUser = targetUsers[0];
-    const userOrders = await db.select().from(orders).where(eq(orders.userId, targetUserId));
-    for (const ord of userOrders) {
-      await db.delete(orderItems).where(eq(orderItems.orderId, ord.id));
-    }
-    if (userOrders.length > 0) {
-      await db.delete(orders).where(eq(orders.userId, targetUserId));
-    }
-    await db.delete(users).where(eq(users.id, targetUserId));
+    await withDbRetry(() => db.transaction(async (tx) => {
+      const userOrders = await tx.select().from(orders).where(eq(orders.userId, targetUserId));
+      for (const ord of userOrders) {
+        await tx.delete(orderItems).where(eq(orderItems.orderId, ord.id));
+      }
+      if (userOrders.length > 0) {
+        await tx.delete(orders).where(eq(orders.userId, targetUserId));
+      }
+      await tx.delete(users).where(eq(users.id, targetUserId));
+    }));
     await logActivity(req.user?.id || null, `${req.user?.nama || "System"} (${req.user?.role || "user"})`, "Penghapusan Akun Pengguna", `Akun "${targetUser.nama}" (${targetUser.no_hp}, ${targetUser.pt}) telah dihapus. Alasan: "${reason.trim()}".`);
     res.json({ message: `Akun "${targetUser.nama}" berhasil dihapus.` });
   } catch (error) {
@@ -1371,6 +1403,7 @@ app.get("/api/products", requireAuth, async (req, res) => {
       res.json(inMemoryProducts);
       return;
     }
+    await ensureDatabaseSchema();
     const productList = await withDbRetry(() => db.select().from(products));
     res.json(productList);
   } catch (error) {
@@ -1424,6 +1457,16 @@ app.put("/api/products/:id", requireAuth, requireAdmin, async (req, res) => {
     res.json(updated[0]);
   } catch (error) {
     res.status(500).json({ error: "Failed to update product" });
+  }
+});
+app.delete("/api/products/all", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await withDbRetry(() => db.delete(cartItems));
+    await withDbRetry(() => db.delete(products));
+    res.json({ message: "Semua produk berhasil dihapus" });
+  } catch (error) {
+    console.error("Gagal menghapus semua produk:", error);
+    res.status(500).json({ error: "Gagal menghapus semua produk (mungkin ada transaksi yang mengikat)" });
   }
 });
 app.delete("/api/products/:id", requireAuth, requireAdmin, async (req, res) => {
@@ -1941,6 +1984,8 @@ app.post("/api/orders", requireAuth, async (req, res) => {
         dbUser = createdU;
       }
       userId = dbUser.id;
+      let calculatedTotal = 0;
+      const verifiedItems = [];
       for (const item of items) {
         const pId = Number(item.productId);
         const reqQty = Math.round(Number(item.quantity) || 1);
@@ -1963,21 +2008,29 @@ app.post("/api/orders", requireAuth, async (req, res) => {
           }).returning();
           prodList = [newProd];
         }
+        const actualPrice = prodList[0].harga;
+        calculatedTotal += actualPrice * reqQty;
+        verifiedItems.push({
+          productId: pId,
+          quantity: reqQty,
+          price: actualPrice,
+          catatan: item.catatan || null
+        });
       }
       const [newOrder] = await tx.insert(orders).values({
         userId,
-        total_amount: cleanTotalAmount,
+        total_amount: calculatedTotal,
         status: "Proses",
         keterangan: "Pesanan telah dibuat dan sedang dalam proses"
       }).returning();
       const oId = newOrder.id;
-      for (const item of items) {
+      for (const vItem of verifiedItems) {
         await tx.insert(orderItems).values({
           orderId: oId,
-          productId: Number(item.productId),
-          quantity: Math.round(Number(item.quantity) || 1),
-          price: Math.round(Number(item.price) || 0),
-          catatan: item.catatan || null
+          productId: vItem.productId,
+          quantity: vItem.quantity,
+          price: vItem.price,
+          catatan: vItem.catatan
         });
       }
       for (const item of items) {
@@ -2267,6 +2320,12 @@ app.put("/api/orders/:id/status", requireAuth, requireAdmin, async (req, res) =>
         memOrder.pickupTokenExpiresAt = updateData.pickupTokenExpiresAt;
       }
     }
+    await logActivity(
+      req.user?.id || null,
+      `${req.user?.nama || "System"} (${req.user?.role || "admin"})`,
+      "Perbarui Status Pesanan",
+      `Mengubah status pesanan #${orderId} menjadi "${status}".`
+    );
     res.json(updated[0] || memOrder || { success: true });
   } catch (error) {
     console.error("Failed to update order status:", error);
@@ -2342,7 +2401,18 @@ app.put("/api/orders/:id/cancel", requireAuth, async (req, res) => {
       return;
     }
     await ensureDatabaseSchema();
-    if (req.user?.role === "admin") {
+    const targetOrderList = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    if (targetOrderList.length === 0) {
+      res.status(404).json({ error: "Pesanan tidak ditemukan" });
+      return;
+    }
+    const targetOrder = targetOrderList[0];
+    const isAdminOrIT = req.user?.role === "admin" || req.user?.role === "it";
+    if (!isAdminOrIT && targetOrder.userId !== userId) {
+      res.status(403).json({ error: "Akses Ditolak: Anda tidak memiliki wewenang untuk membatalkan pesanan pengguna lain!" });
+      return;
+    }
+    if (isAdminOrIT) {
       const updated2 = await db.update(orders).set({
         status: "Dibatalkan",
         keterangan: `Dibatalkan oleh Admin. Alasan: ${alasan.toString().trim()}`
@@ -2373,7 +2443,7 @@ app.put("/api/orders/:id/cancel", requireAuth, async (req, res) => {
     const updated = await db.update(orders).set({
       status: "Pengajuan Pembatalan",
       keterangan: `Pengajuan Pembatalan: ${alasan.toString().trim()}`
-    }).where(eq(orders.id, orderId)).returning();
+    }).where(and(eq(orders.id, orderId), eq(orders.userId, userId))).returning();
     const memOrder = demoOrdersStore.find((o) => o.id === orderId);
     if (memOrder) {
       memOrder.status = "Pengajuan Pembatalan";
@@ -2455,6 +2525,12 @@ app.delete("/api/orders/:id", requireAuth, requireAdmin, async (req, res) => {
     const deleted = await withDbRetry(() => db.delete(orders).where(eq(orders.id, orderId)).returning());
     const idx = demoOrdersStore.findIndex((o) => o.id === orderId);
     if (idx >= 0) demoOrdersStore.splice(idx, 1);
+    await logActivity(
+      req.user?.id || null,
+      `${req.user?.nama || "System"} (${req.user?.role || "admin"})`,
+      "Hapus Pesanan",
+      `Menghapus pesanan #${orderId}.`
+    );
     res.json({ message: `Pesanan #${orderId} berhasil dihapus.`, deleted: deleted[0] });
   } catch (error) {
     console.error("Delete order error:", error);
@@ -2474,12 +2550,18 @@ app.post("/api/orders/delete-by-filter", requireAuth, requireAdmin, async (req, 
       return;
     }
     await ensureDatabaseSchema();
-    await withDbRetry(() => db.delete(orderItems).where(sql`order_id IN (${sql.raw(ids.join(","))})`));
-    const deleted = await withDbRetry(() => db.delete(orders).where(sql`id IN (${sql.raw(ids.join(","))})`).returning());
+    await withDbRetry(() => db.delete(orderItems).where(inArray(orderItems.orderId, ids)));
+    const deleted = await withDbRetry(() => db.delete(orders).where(inArray(orders.id, ids)).returning());
     for (const id of ids) {
       const idx = demoOrdersStore.findIndex((o) => o.id === id);
       if (idx >= 0) demoOrdersStore.splice(idx, 1);
     }
+    await logActivity(
+      req.user?.id || null,
+      `${req.user?.nama || "System"} (${req.user?.role || "admin"})`,
+      "Hapus Pesanan Massal",
+      `Menghapus ${deleted.length || ids.length} pesanan. Filter: ${filterDescription || "Semua/Manual"}`
+    );
     res.json({
       message: `Berhasil menghapus ${deleted.length || ids.length} transaksi pesanan.`,
       deletedCount: deleted.length || ids.length
@@ -2509,8 +2591,8 @@ app.post("/api/orders/verify-barcode", requireAuth, async (req, res) => {
       return;
     }
     const targetOrder = existingOrders[0];
-    if (req.user?.role !== "admin" && targetOrder.userId !== req.user?.id) {
-      res.status(403).json({ error: "Anda tidak memiliki hak untuk memverifikasi pesanan pengguna lain." });
+    if (req.user?.role !== "admin" && req.user?.role !== "it") {
+      res.status(403).json({ error: "Akses Ditolak: Pemindaian barcode verifikasi pengambilan barang hanya dapat dilakukan oleh Petugas Kasir / Admin KOKSI." });
       return;
     }
     if (targetOrder.status === "Dibatalkan" || targetOrder.status === "Ditolak") {
@@ -2548,6 +2630,34 @@ var ALLOWED_IMPORT_CATEGORIES = [
   "Makanan & Minuman Siap Saji (F&B)",
   "Perawatan Diri & Kesehatan (Personal Care)"
 ];
+app.get("/api/categories/learnings", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const data = await withDbRetry(() => db.select().from(categoryLearnings));
+    res.json(data);
+  } catch (error) {
+    console.error("Gagal mengambil category learnings:", error);
+    res.status(500).json({ error: "Gagal mengambil data" });
+  }
+});
+app.post("/api/categories/learnings", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { keyword, kategori, sub_kategori } = req.body;
+    if (!keyword || !kategori || !sub_kategori) {
+      res.status(400).json({ error: "Keyword, kategori, dan sub_kategori harus diisi" });
+      return;
+    }
+    await withDbRetry(
+      () => db.insert(categoryLearnings).values({ keyword, kategori, sub_kategori }).onConflictDoUpdate({
+        target: categoryLearnings.keyword,
+        set: { kategori, sub_kategori, createdAt: /* @__PURE__ */ new Date() }
+      })
+    );
+    res.json({ message: "Success" });
+  } catch (error) {
+    console.error("Gagal menyimpan category learning:", error);
+    res.status(500).json({ error: "Gagal menyimpan data" });
+  }
+});
 app.post("/api/products/batch", requireAuth, requireAdmin, async (req, res) => {
   try {
     const newProducts = req.body.products;
@@ -4002,13 +4112,41 @@ app.get("/api/chats", requireAuth, async (req, res) => {
            OR (${chats.receiverId} = ${Number(userId)})`
         ).orderBy(asc(chats.createdAt)));
       } else {
-        const chatUsers = await withDbRetry(
-          () => db.selectDistinct({
+        const rawChats = await withDbRetry(
+          () => db.select({
             senderId: chats.senderId,
+            receiverId: chats.receiverId,
+            isRead: chats.isRead,
+            message: chats.message,
+            createdAt: chats.createdAt,
             nama: users.nama,
             pt: users.pt
-          }).from(chats).innerJoin(users, eq(chats.senderId, users.id)).where(sql`${chats.receiverId} IS NULL`)
+          }).from(chats).leftJoin(users, sql`${users.id} = CASE WHEN ${chats.receiverId} IS NULL THEN ${chats.senderId} ELSE ${chats.receiverId} END`)
         );
+        const userMap = /* @__PURE__ */ new Map();
+        for (const chat of rawChats) {
+          const uId = chat.receiverId === null ? chat.senderId : chat.receiverId;
+          if (!uId || !chat.nama) continue;
+          if (!userMap.has(uId)) {
+            userMap.set(uId, {
+              senderId: uId,
+              nama: chat.nama,
+              pt: chat.pt,
+              unreadCount: 0,
+              lastMessageTime: chat.createdAt,
+              lastMessageText: chat.message
+            });
+          }
+          const u = userMap.get(uId);
+          if (new Date(chat.createdAt) > new Date(u.lastMessageTime)) {
+            u.lastMessageTime = chat.createdAt;
+            u.lastMessageText = chat.message;
+          }
+          if (chat.receiverId === null && !chat.isRead) {
+            u.unreadCount++;
+          }
+        }
+        const chatUsers = Array.from(userMap.values()).sort((a, b) => new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime());
         return res.json(chatUsers);
       }
     } else {
@@ -4048,18 +4186,92 @@ app.post("/api/chats", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Gagal mengirim pesan" });
   }
 });
-app.patch("/api/chats/read", requireAuth, requireAdmin, async (req, res) => {
+app.patch("/api/chats/read", requireAuth, async (req, res) => {
   try {
-    const { userId } = req.body;
-    if (!userId) return res.status(400).json({ error: "UserId diperlukan" });
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (!isDbConfigured) return res.json({ success: true });
-    await withDbRetry(
-      () => db.update(chats).set({ isRead: true }).where(and(eq(chats.senderId, Number(userId)), eq(chats.isRead, false)))
-    );
+    if (req.user.role === "admin" || req.user.role === "it") {
+      const { userId } = req.body;
+      if (!userId) return res.status(400).json({ error: "UserId diperlukan" });
+      await withDbRetry(
+        () => db.update(chats).set({ isRead: true }).where(and(eq(chats.senderId, Number(userId)), eq(chats.isRead, false)))
+      );
+    } else {
+      await withDbRetry(
+        () => db.update(chats).set({ isRead: true }).where(and(eq(chats.receiverId, req.user.id), eq(chats.isRead, false)))
+      );
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Gagal memperbarui status pesan" });
+  }
+});
+app.delete("/api/chats/:id", requireAuth, async (req, res) => {
+  try {
+    const chatId = Number(req.params.id);
+    if (!chatId) return res.status(400).json({ error: "ID pesan tidak valid" });
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) return res.json({ success: true });
+    if (req.user.role === "admin" || req.user.role === "it") {
+      await withDbRetry(() => db.delete(chats).where(eq(chats.id, chatId)));
+      await withDbRetry(() => db.insert(activityLogs).values({
+        userId: req.user.id,
+        actorName: req.user.nama || "Admin",
+        action: "Hapus Pesan Chat (Satuan)",
+        details: `Menghapus 1 pesan dengan ID ${chatId}`
+      }));
+      itAuditLogsQueue.unshift({
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        actor: `${req.user?.nama || "Admin/IT"} (ID #${req.user?.id})`,
+        action: "Hapus Pesan Chat (Satuan)",
+        details: `Menghapus 1 pesan dengan ID ${chatId}`
+      });
+      if (itAuditLogsQueue.length > 500) itAuditLogsQueue.pop();
+    } else {
+      const chat = await withDbRetry(() => db.select().from(chats).where(eq(chats.id, chatId)).limit(1));
+      if (!chat || chat.length === 0) return res.status(404).json({ error: "Pesan tidak ditemukan" });
+      if (chat[0].senderId !== req.user.id) return res.status(403).json({ error: "Tidak ada akses untuk menghapus pesan ini" });
+      await withDbRetry(() => db.delete(chats).where(eq(chats.id, chatId)));
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete chat error:", err);
+    res.status(500).json({ error: "Gagal menghapus pesan" });
+  }
+});
+app.post("/api/chats/clear/:userId", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const targetUserId = Number(req.params.userId);
+    const { reason } = req.body;
+    if (!targetUserId) return res.status(400).json({ error: "ID user tidak valid" });
+    if (!reason || reason.trim() === "") return res.status(400).json({ error: "Alasan penghapusan wajib diisi" });
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (!isDbConfigured) return res.json({ success: true });
+    await withDbRetry(() => db.delete(chats).where(
+      or(
+        and(eq(chats.senderId, targetUserId), isNull(chats.receiverId)),
+        eq(chats.receiverId, targetUserId)
+      )
+    ));
+    await withDbRetry(() => db.insert(activityLogs).values({
+      userId: req.user.id,
+      actorName: req.user.nama || "Admin",
+      action: "Hapus Seluruh Chat User",
+      details: `Menghapus seluruh percakapan dengan User ID ${targetUserId}. Alasan: ${reason}`
+    }));
+    itAuditLogsQueue.unshift({
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      actor: `${req.user?.nama || "Admin/IT"} (ID #${req.user?.id})`,
+      action: "Hapus Seluruh Chat User",
+      details: `Menghapus seluruh percakapan dengan User ID ${targetUserId}. Alasan: ${reason}`
+    });
+    if (itAuditLogsQueue.length > 500) itAuditLogsQueue.pop();
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Clear chats error:", err);
+    res.status(500).json({ error: "Gagal menghapus percakapan" });
   }
 });
 app.all("/api/*", (req, res) => {
