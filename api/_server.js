@@ -40,7 +40,7 @@ __export(schema_exports, {
   users: () => users,
   usersRelations: () => usersRelations
 });
-import { integer, pgTable, serial, text, timestamp, varchar, boolean } from "drizzle-orm/pg-core";
+import { integer, pgTable, serial, text, timestamp, varchar, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 var users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -78,8 +78,12 @@ var orders = pgTable("orders", {
   keterangan: text("keterangan"),
   pickupToken: text("pickup_token").unique(),
   pickupTokenExpiresAt: timestamp("pickup_token_expires_at"),
+  // Idempotency Key: identitas unik per percobaan checkout agar retry / double-click tidak membuat order ganda
+  idempotencyKey: text("idempotency_key"),
   createdAt: timestamp("created_at").defaultNow()
-});
+}, (t) => [
+  uniqueIndex("orders_user_idempotency_key_idx").on(t.userId, t.idempotencyKey)
+]);
 var orderItems = pgTable("order_items", {
   id: serial("id").primaryKey(),
   orderId: integer("order_id").references(() => orders.id).notNull(),
@@ -380,7 +384,8 @@ app.use(cors({
   origin: "*",
   // Bisa dibatasi ke url frontend spesifik di produksi, contoh: ['https://belanjainsaza.com']
   methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "x-demo-mode"],
+  exposedHeaders: ["Idempotent-Replayed"]
 }));
 var apiRateLimiter = rateLimit({
   windowMs: 60 * 1e3,
@@ -1605,6 +1610,13 @@ async function ensureDatabaseSchema() {
       }
       try {
         await db.execute(sql`
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+          CREATE UNIQUE INDEX IF NOT EXISTS orders_user_idempotency_key_idx ON orders (user_id, idempotency_key);
+        `);
+      } catch (e) {
+      }
+      try {
+        await db.execute(sql`
           ALTER TABLE order_items ADD COLUMN IF NOT EXISTS price INTEGER NOT NULL DEFAULT 0;
         `);
       } catch (e) {
@@ -1850,6 +1862,48 @@ app.delete("/api/cart", requireAuth, async (req, res) => {
   }
 });
 var demoOrdersStore = [];
+var IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
+var memoryIdempotencyStore = /* @__PURE__ */ new Map();
+function isIdempotencyConflict(error) {
+  const candidates = [error, error?.cause, error?.originalError];
+  return candidates.some(
+    (e) => e && e.code === "23505" && String(e.constraint || e.message || "").includes("idempotency")
+  );
+}
+async function loadOrderForReplay(orderId, req) {
+  const [o] = await withDbRetry(() => db.select().from(orders).where(eq(orders.id, orderId)));
+  if (!o) return null;
+  const its = await withDbRetry(
+    () => db.select({ id: orderItems.id, orderId: orderItems.orderId, productId: orderItems.productId, quantity: orderItems.quantity, price: orderItems.price, productNama: products.nama_barang }).from(orderItems).leftJoin(products, eq(orderItems.productId, products.id)).where(eq(orderItems.orderId, orderId))
+  );
+  return {
+    id: o.id,
+    userId: o.userId,
+    total_amount: o.total_amount,
+    status: o.status,
+    keterangan: o.keterangan,
+    createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+    items: its.map((it) => ({
+      id: it.id,
+      orderId: it.orderId,
+      productId: it.productId,
+      quantity: it.quantity,
+      price: it.price,
+      product: { id: it.productId, nama_barang: it.productNama || `Produk #${it.productId}` }
+    })),
+    user: {
+      id: o.userId,
+      nama: req.user?.nama || "Karyawan",
+      pt: req.user?.pt || "PT. Siemens Indonesia",
+      departemen: req.user?.departemen || "General",
+      no_hp: req.user?.no_hp || ""
+    }
+  };
+}
+function sendIdempotentReplay(res, order) {
+  res.setHeader("Idempotent-Replayed", "true");
+  res.status(200).json({ message: "Order already processed", orderId: order.id, order, idempotentReplay: true });
+}
 var globalDemoMode = false;
 if (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST) {
   db.execute(sql`SELECT setting_value FROM settings WHERE setting_key = 'demo_mode'`).then((res) => {
@@ -1896,6 +1950,40 @@ app.post("/api/settings/demo-mode", requireAuth, async (req, res) => {
 app.post("/api/orders", requireAuth, async (req, res) => {
   const { items, total_amount } = req.body;
   let userId = Number(req.user?.id);
+  const rawIdemKey = req.headers["idempotency-key"] || req.body && req.body.idempotencyKey;
+  const idempotencyKey = typeof rawIdemKey === "string" ? rawIdemKey.trim() : "";
+  if (idempotencyKey && !IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+    res.status(400).json({ error: "Idempotency-Key tidak valid (16-128 karakter: huruf, angka, - atau _)." });
+    return;
+  }
+  if (idempotencyKey && userId) {
+    const hasDb = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    try {
+      if (!hasDb) {
+        const existingId = memoryIdempotencyStore.get(`${userId}:${idempotencyKey}`);
+        const existingOrder = existingId ? demoOrdersStore.find((o) => o.id === existingId) : null;
+        if (existingOrder) {
+          sendIdempotentReplay(res, existingOrder);
+          return;
+        }
+      } else {
+        await ensureDatabaseSchema();
+        const existing = await withDbRetry(
+          () => db.select({ id: orders.id }).from(orders).where(and(eq(orders.userId, userId), eq(orders.idempotencyKey, idempotencyKey))).limit(1)
+        );
+        if (existing.length > 0) {
+          const replay = await loadOrderForReplay(existing[0].id, req);
+          if (replay) {
+            console.log(`[ORDER] Idempotent replay order #${replay.id} for user ${userId}`);
+            sendIdempotentReplay(res, replay);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[ORDER] Idempotency lookup failed:", e?.message || e);
+    }
+  }
   let isDemoMode = globalDemoMode || req.headers["x-demo-mode"] === "true";
   const jakartaTime = (/* @__PURE__ */ new Date()).toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
   const dayOfWeek = new Date(jakartaTime).getDay();
@@ -1953,6 +2041,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
       user: { id: userId || 999, nama: req.user?.nama || "Karyawan", pt: req.user?.pt || "PT. Siemens Indonesia", departemen: req.user?.departemen || "General", no_hp: req.user?.no_hp || "" }
     };
     demoOrdersStore.unshift(newOrderObj);
+    if (userId && idempotencyKey) memoryIdempotencyStore.set(`${userId}:${idempotencyKey}`, orderId);
     if (userId) memoryCartStore.delete(userId);
     res.status(201).json({ message: "Order created successfully", orderId, order: newOrderObj });
     return;
@@ -2021,7 +2110,8 @@ app.post("/api/orders", requireAuth, async (req, res) => {
         userId,
         total_amount: calculatedTotal,
         status: "Proses",
-        keterangan: "Pesanan telah dibuat dan sedang dalam proses"
+        keterangan: "Pesanan telah dibuat dan sedang dalam proses",
+        idempotencyKey: idempotencyKey || null
       }).returning();
       const oId = newOrder.id;
       for (const vItem of verifiedItems) {
@@ -2110,6 +2200,23 @@ Total: Rp ${cleanTotalAmount.toLocaleString("id-ID")}`,
     }
     res.status(201).json({ message: "Order created successfully", orderId: createdOrderId, order: fullCreatedOrder });
   } catch (error) {
+    if (idempotencyKey && isIdempotencyConflict(error)) {
+      try {
+        const existing = await withDbRetry(
+          () => db.select({ id: orders.id }).from(orders).where(and(eq(orders.userId, userId), eq(orders.idempotencyKey, idempotencyKey))).limit(1)
+        );
+        const replay = existing.length > 0 ? await loadOrderForReplay(existing[0].id, req) : null;
+        if (replay) {
+          console.log(`[ORDER] Idempotent conflict resolved -> replay order #${replay.id} for user ${userId}`);
+          sendIdempotentReplay(res, replay);
+          return;
+        }
+      } catch (e) {
+        console.warn("[ORDER] Idempotency conflict replay failed:", e?.message || e);
+      }
+      res.status(409).json({ error: "Pesanan yang sama sedang diproses. Silakan cek Riwayat Pesanan." });
+      return;
+    }
     const errMsg = error?.message || String(error);
     console.error("[ORDER] Creation failed:", errMsg);
     if (errMsg.includes("Stok") || errMsg.includes("tidak mencukupi") || errMsg.includes("tidak ditemukan")) {

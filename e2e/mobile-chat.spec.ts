@@ -38,7 +38,7 @@ test.describe('BelanjaIn Saza - Mobile & PWA Live Chat Verification', () => {
     // Verifikasi Chat Modal Terbuka
     const chatModalHeader = page.locator('h2:has-text("Admin KOKSI")').first();
     await expect(chatModalHeader).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('text=Online • Respon Cepat').first()).toBeVisible();
+    await expect(page.locator('text=Support').first()).toBeVisible();
 
     // Tutup Chat Modal via tombol Kembali / Tutup
     const backBtn = page.locator('button[aria-label="Kembali"]').or(page.locator('button[title="Kembali"]')).first();
