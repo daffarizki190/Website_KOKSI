@@ -14,9 +14,16 @@ interface ChatMessage {
   createdAt: string;
 }
 
-export const UserChatWidget: React.FC = () => {
+interface UserChatWidgetProps {
+  isOpen?: boolean;
+  setIsOpen?: (open: boolean) => void;
+}
+
+export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOpen, setIsOpen: propSetIsOpen }) => {
   const { user, token } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = propIsOpen !== undefined ? propIsOpen : internalIsOpen;
+  const setIsOpen = propSetIsOpen || setInternalIsOpen;
   const [hasOpenedChat, setHasOpenedChat] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -108,7 +115,7 @@ export const UserChatWidget: React.FC = () => {
     }
   };
 
-  if (!user || user.role !== 'user') return null;
+  if (!user || user.role?.toLowerCase() !== 'user') return null;
 
   return (
     <>
@@ -167,7 +174,7 @@ export const UserChatWidget: React.FC = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: "spring", bounce: 0.3 }}
-            className="fixed bottom-0 right-0 md:bottom-6 md:right-6 w-full h-[100dvh] md:w-[350px] md:h-[500px] md:max-h-[80vh] bg-white md:rounded-2xl shadow-2xl flex flex-col overflow-hidden z-[100] md:z-50 border-0 md:border md:border-slate-200"
+            className="fixed inset-0 md:inset-auto md:bottom-6 md:right-6 w-full h-full md:w-[360px] md:h-[520px] md:max-h-[85vh] bg-white md:rounded-2xl shadow-2xl flex flex-col overflow-hidden z-[150] md:z-50 border-0 md:border md:border-slate-200"
           >
             {/* Header */}
             <div className="bg-gradient-to-r from-teal-500 to-emerald-600 text-white px-4 py-3 flex items-center justify-between shadow-md z-10">

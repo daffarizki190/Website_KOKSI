@@ -47,6 +47,7 @@ export const DashboardUser = () => {
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
   const [addedProductId, setAddedProductId] = useState<number | null>(null);
   
@@ -604,7 +605,10 @@ export const DashboardUser = () => {
             </div>
             <div className="hidden md:flex items-center gap-1.5 sm:gap-3">
               <button 
-                onClick={() => window.dispatchEvent(new Event('openChat'))}
+                onClick={() => {
+                  setIsChatOpen(true);
+                  window.dispatchEvent(new Event('openChat'));
+                }}
                 className="md:hidden flex items-center gap-1.5 relative px-2.5 py-1.5 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 hover:text-teal-800 rounded-xl transition-colors cursor-pointer shadow-sm font-semibold text-xs"
                 title="Chat Admin"
               >
@@ -1103,7 +1107,7 @@ export const DashboardUser = () => {
         handleDismissClosedModal={handleDismissClosedModal}
       />
 
-      <UserChatWidget />
+      <UserChatWidget isOpen={isChatOpen} setIsOpen={setIsChatOpen} />
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 px-2 py-2 flex justify-around items-center pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
@@ -1121,8 +1125,11 @@ export const DashboardUser = () => {
         </motion.button>
         <motion.button 
           whileTap={{ scale: 0.85 }}
-          onClick={() => window.dispatchEvent(new CustomEvent('openChat'))}
-          className="flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
+          onClick={() => {
+            setIsChatOpen(true);
+            window.dispatchEvent(new CustomEvent('openChat'));
+          }}
+          className="tour-chat flex flex-col items-center p-2 text-slate-500 hover:text-teal-600 relative w-16"
         >
           <MessagesSquare className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-medium">Chat Admin</span>
