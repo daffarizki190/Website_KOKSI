@@ -60,6 +60,7 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
   const setIsOpenRef = useRef(setIsOpen);
   setIsOpenRef.current = setIsOpen;
   const [hasOpenedChat, setHasOpenedChat] = useState(false);
+  const isPushedHistoryRef = useRef(false);
 
   // Sync internal state when prop changes
   useEffect(() => {
@@ -67,6 +68,56 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
       setInternalIsOpen(propIsOpen);
     }
   }, [propIsOpen]);
+
+  // Support Android Back Swipe / Hardware Back Button to return to home (Beranda)
+  useEffect(() => {
+    if (isOpen) {
+      // Push history state entry so back gesture pops this modal instead of exiting the APK/page
+      window.history.pushState({ modal: 'chat-widget' }, '');
+      isPushedHistoryRef.current = true;
+
+      const handlePopState = (e: PopStateEvent) => {
+        // Intercept Android back gesture / back button
+        setIsOpen(false);
+        isPushedHistoryRef.current = false;
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    } else {
+      // If closed programmatically (e.g., clicked X or Back Chevron button), pop the history state
+      if (isPushedHistoryRef.current) {
+        isPushedHistoryRef.current = false;
+        if (window.history.state?.modal === 'chat-widget') {
+          window.history.back();
+        }
+      }
+    }
+  }, [isOpen]);
+
+  // Touch Swipe from left edge gesture to close chat (native mobile feel)
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartYRef.current);
+
+    // If swipe starts near left edge (<= 45px) and swipes right >= 65px with horizontal gesture
+    if (touchStartXRef.current <= 45 && deltaX > 65 && deltaY < 60) {
+      setIsOpen(false);
+    }
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+  };
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -325,6 +376,8 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 30, scale: 0.97 }}
               transition={{ type: "spring", damping: 25, stiffness: 280 }}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
               className="fixed inset-0 md:inset-auto md:bottom-6 md:right-6 w-full h-full md:w-[390px] md:h-[620px] md:max-h-[88vh] bg-slate-50 md:rounded-3xl shadow-2xl flex flex-col overflow-hidden z-[9999] border-0 md:border md:border-slate-200/80 font-sans"
             >
             {/* Header: Clean Glassmorphism & Support CS Badge */}
