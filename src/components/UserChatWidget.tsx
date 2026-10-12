@@ -270,10 +270,10 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
 
   return (
     <>
-      {/* Floating Button (Desktop & Mobile) */}
+      {/* Floating Button (Desktop Only - Mobile uses Bottom Nav) */}
       <AnimatePresence>
         {!isOpen && (
-          <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 flex flex-col items-end gap-3 pointer-events-auto">
+          <div className="hidden md:flex fixed bottom-6 right-6 z-40 flex-col items-end gap-3 pointer-events-auto">
             {!hasOpenedChat && (
               <motion.div
                 initial={{ opacity: 0, y: 10, scale: 0.9 }}

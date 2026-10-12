@@ -636,7 +636,8 @@ export const DashboardUser = () => {
             <div className="flex items-center gap-2 sm:gap-3">
               <BelanjainLogo size="sm" showSubtitle={true} />
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-3">
+            {/* Desktop Action Buttons */}
+            <div className="hidden md:flex items-center gap-1.5 sm:gap-3">
               <button 
                 type="button"
                 onClick={() => {
@@ -676,6 +677,14 @@ export const DashboardUser = () => {
                 {user?.nama?.substring(0, 2)?.toUpperCase() || <UserIcon className="w-4 h-4" />}
               </button>
             </div>
+
+            {/* Mobile Header Right (Compact & Clean) */}
+            <div className="flex md:hidden items-center gap-2">
+              <span className="text-[11px] font-bold text-teal-800 bg-teal-50/90 border border-teal-200/80 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="truncate max-w-[110px]">{user?.nama?.split(' ')[0] || 'Karyawan'}</span>
+              </span>
+            </div>
           </div>
         </div>
       </header>
@@ -708,18 +717,18 @@ export const DashboardUser = () => {
         </div>
 
         {/* Main Category Tabs */}
-        <div className="mb-4 shrink-0 mt-2">
-          <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none no-scrollbar tour-categories">
+        <div className="mb-3 shrink-0 mt-1">
+          <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto pb-1.5 scrollbar-none no-scrollbar tour-categories">
             <button
               onClick={() => handleCategorySelect('Semua')}
-              className={`flex-shrink-0 min-w-[100px] sm:min-w-[120px] p-2 sm:p-2.5 rounded-xl transition-all cursor-pointer shadow-sm border ${
+              className={`flex-shrink-0 min-w-[95px] sm:min-w-[120px] p-2 sm:p-2.5 rounded-xl transition-all cursor-pointer shadow-2xs border ${
                 selectedCategory === 'Semua'
-                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                  ? 'bg-teal-50 border-teal-300 text-teal-800'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
               }`}
             >
               <div className="font-bold text-xs sm:text-sm text-left mb-0.5">Semua Kategori</div>
-              <div className="text-[10px] sm:text-xs text-left opacity-60">{products.length} Produk</div>
+              <div className="text-[10px] sm:text-xs text-left opacity-70">{products.length} Produk</div>
             </button>
             {dynamicCategories.map((cat) => {
               const isSelected = selectedCategory === cat.name;
@@ -728,14 +737,14 @@ export const DashboardUser = () => {
                 <button
                   key={cat.id}
                   onClick={() => handleCategorySelect(cat.name)}
-                  className={`flex-shrink-0 min-w-[100px] sm:min-w-[120px] p-2 sm:p-2.5 rounded-xl transition-all cursor-pointer shadow-sm border ${
+                  className={`flex-shrink-0 min-w-[95px] sm:min-w-[120px] p-2 sm:p-2.5 rounded-xl transition-all cursor-pointer shadow-2xs border ${
                     isSelected
-                      ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                      ? 'bg-teal-50 border-teal-300 text-teal-800'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
                 >
                   <div className="font-bold text-xs sm:text-sm text-left mb-0.5 truncate">{cat.name}</div>
-                  <div className="text-[10px] sm:text-xs text-left opacity-60">{catProductCount} Produk</div>
+                  <div className="text-[10px] sm:text-xs text-left opacity-70">{catProductCount} Produk</div>
                 </button>
               );
             })}
@@ -749,8 +758,8 @@ export const DashboardUser = () => {
               onClick={() => setSelectedSubCategory('Semua')}
               className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer ${
                 selectedSubCategory === 'Semua'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-200/70 text-slate-700 hover:bg-slate-200'
+                  ? 'bg-teal-700 text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200/60'
               }`}
             >
               Semua ({filteredProducts.length})
@@ -768,12 +777,12 @@ export const DashboardUser = () => {
                   onClick={() => setSelectedSubCategory(sub)}
                   className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                     isSubSelected
-                      ? 'bg-slate-900 text-white font-bold shadow-xs'
-                      : 'bg-slate-200/70 text-slate-700 hover:bg-slate-200'
+                      ? 'bg-teal-700 text-white font-bold shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200/60'
                   }`}
                 >
                   <span>{sub}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSubSelected ? 'bg-slate-800 text-slate-200' : 'bg-white/80 text-slate-600'}`}>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSubSelected ? 'bg-teal-800 text-teal-100' : 'bg-white text-slate-600 border border-slate-200/50'}`}>
                     {subCount}
                   </span>
                 </button>
@@ -853,8 +862,8 @@ export const DashboardUser = () => {
 
 
                     {/* Product Image */}
-                    <div className="w-full aspect-square bg-slate-50 relative shrink-0 overflow-hidden border-b border-slate-50">
-                      <div className="absolute inset-0 w-full h-full flex items-center justify-center p-3">
+                    <div className="w-full aspect-square bg-slate-50 relative shrink-0 overflow-hidden border-b border-slate-100">
+                      <div className="absolute inset-0 w-full h-full flex items-center justify-center p-2.5">
                         {product.imageUrl ? (
                           <img 
                             src={product.imageUrl} 
@@ -863,13 +872,11 @@ export const DashboardUser = () => {
                             loading="lazy"
                           />
                         ) : (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 bg-slate-50/50">
-                            <div className="w-8 h-8 sm:w-12 sm:h-12 border-2 border-slate-300 rounded-lg flex items-center justify-center mb-1 sm:mb-2">
-                              <div className="w-4 h-4 sm:w-6 sm:h-6 bg-slate-300 transform rotate-45 flex items-center justify-center">
-                                 <div className="w-3 h-3 sm:w-5 sm:h-5 bg-slate-50 transform -rotate-45"></div>
-                              </div>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-gradient-to-b from-slate-50 to-slate-100/70 p-2">
+                            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-white border border-slate-200/60 shadow-2xs flex items-center justify-center text-teal-600 mb-1.5">
+                              <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2]" />
                             </div>
-                            <span className="text-[8px] sm:text-[10px] font-bold text-center leading-tight">NO IMAGE<br/>AVAILABLE</span>
+                            <span className="text-[8px] sm:text-[9px] font-semibold text-slate-400 tracking-tight">Katalog KOKSI</span>
                           </div>
                         )}
                       </div>
@@ -878,19 +885,19 @@ export const DashboardUser = () => {
                     {/* Product Info */}
                     <div className="p-2 sm:p-2.5 flex flex-col flex-1 bg-white">
                       {/* Category */}
-                      <span className="text-[8px] font-black text-blue-600 uppercase tracking-wider mb-1 line-clamp-1">
+                      <span className="text-[8px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-md inline-block max-w-fit uppercase tracking-wider mb-1 line-clamp-1">
                         {product.kategori || 'UMUM'}
                       </span>
                       
                       {/* Product Name */}
-                      <h3 className="text-slate-800 text-[11px] sm:text-xs font-bold leading-tight line-clamp-2 min-h-[1.75rem] mb-2 group-hover:text-blue-600 transition-colors mt-auto">
+                      <h3 className="text-slate-800 text-[11px] sm:text-xs font-bold leading-snug line-clamp-2 min-h-[1.85rem] mb-2 group-hover:text-teal-700 transition-colors mt-auto">
                         {product.nama_barang}
                       </h3>
 
                       {/* Bottom: Price and Add Button */}
-                      <div className="flex items-end justify-between gap-1 pt-2 border-t border-slate-100">
+                      <div className="flex items-end justify-between gap-1 pt-1.5 border-t border-slate-100">
                         <div className="flex flex-col">
-                          <span className="font-extrabold text-emerald-600 text-[13px] sm:text-base leading-none">
+                          <span className="font-extrabold text-teal-700 text-[13px] sm:text-base leading-none">
                             Rp{product.harga.toLocaleString('id-ID')}
                           </span>
                         </div>
@@ -901,7 +908,7 @@ export const DashboardUser = () => {
                               e.stopPropagation();
                               addToCart(product);
                             }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white py-1 px-2.5 sm:py-1 sm:px-3 rounded-full transition-colors flex items-center justify-center gap-0.5 sm:gap-1 cursor-pointer text-[10px] sm:text-[11px] font-bold active:scale-[0.95] shrink-0 shadow-sm"
+                            className="bg-teal-600 hover:bg-teal-700 text-white py-1 px-2.5 sm:py-1 sm:px-3 rounded-full transition-all flex items-center justify-center gap-0.5 sm:gap-1 cursor-pointer text-[10px] sm:text-[11px] font-bold active:scale-[0.95] shrink-0 shadow-xs shadow-teal-600/20"
                           >
                             <Plus className="w-3 h-3" />
                             Beli
