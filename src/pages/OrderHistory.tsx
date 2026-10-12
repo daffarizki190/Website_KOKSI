@@ -258,22 +258,10 @@ function QRFullscreenModal({ token, expiresAt, orderId, orderNumId, isCompleted,
 export default function OrderHistory() {
   const { token, user } = useAuth();
   const { toast } = useNotification();
-  const storageKey = `saza_user_orders_${user?.id || 'guest'}`;
 
-  // Initialize from localStorage so orders are immediately visible
-  const [orders, setOrders] = useState<Order[]>(() => {
-    try {
-      const stored = localStorage.getItem(storageKey) || localStorage.getItem('saza_user_orders_guest');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch (e) {}
-    return [];
-  });
-  const [loading, setLoading] = useState(false);
+  // Pure database-backed orders state (no stale ghost data from localStorage)
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [qrModal, setQrModal] = useState<{ token: string; expiresAt?: string; orderId: string; orderNumId: number } | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -281,18 +269,29 @@ export default function OrderHistory() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchOrders();
+    // Clear legacy guest cache so it doesn't leak old test transactions
+    try {
+      localStorage.removeItem('saza_user_orders_guest');
+    } catch (e) {}
+
+    fetchOrders(false);
     // Poll every 5 seconds for real-time status updates from Admin
-    const interval = setInterval(fetchOrders, 5000);
+    const interval = setInterval(() => {
+      fetchOrders(true);
+    }, 5000);
     return () => clearInterval(interval);
   }, [token]);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (isBackground = false) => {
     try {
       const authToken = token || localStorage.getItem('token');
       if (!authToken) {
         navigate('/login');
         return;
+      }
+
+      if (!isBackground && orders.length === 0) {
+        setLoading(true);
       }
 
       const response = await fetch(`/api/orders/history?t=${Date.now()}`, {
@@ -306,22 +305,15 @@ export default function OrderHistory() {
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data)) {
-          setOrders(() => {
-            const sorted = data.sort(
-              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            );
-            // Persist the result back to localStorage
-            try {
-              localStorage.setItem(storageKey, JSON.stringify(sorted));
-            } catch (e) {}
-            return sorted;
-          });
+          const sorted = data.sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          setOrders(sorted);
           setError(null);
         }
       }
     } catch (err: any) {
       console.warn('Kendala koneksi riwayat pesanan:', err);
-      // On network error, keep showing local cache — don't reset state
     } finally {
       setLoading(false);
     }
