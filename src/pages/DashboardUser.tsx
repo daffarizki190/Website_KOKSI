@@ -678,13 +678,6 @@ export const DashboardUser = () => {
               </button>
             </div>
 
-            {/* Mobile Header Right (Compact & Clean) */}
-            <div className="flex md:hidden items-center gap-2">
-              <span className="text-[11px] font-bold text-teal-800 bg-teal-50/90 border border-teal-200/80 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="truncate max-w-[110px]">{user?.nama?.split(' ')[0] || 'Karyawan'}</span>
-              </span>
-            </div>
           </div>
         </div>
       </header>
