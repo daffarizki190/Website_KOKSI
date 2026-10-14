@@ -14,6 +14,7 @@ import { DashboardAdmin } from './pages/DashboardAdmin';
 import { ScanBarcodeAdmin } from './pages/ScanBarcode';
 import { DashboardIT } from './pages/DashboardIT';
 import OrderHistory from './pages/OrderHistory';
+import { ReviewsPage } from './pages/ReviewsPage';
 import { Splash } from './components/Splash';
 import { PwaInstallBanner } from './components/PwaInstallBanner';
 import { BackExitGuard } from './components/BackExitGuard';
@@ -89,6 +90,14 @@ const AppContent = () => {
           element={
             <ProtectedRoute>
               <PageTransition><OrderHistory /></PageTransition>
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/reviews" 
+          element={
+            <ProtectedRoute>
+              <PageTransition><ReviewsPage /></PageTransition>
             </ProtectedRoute>
           } 
         />
