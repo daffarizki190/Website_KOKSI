@@ -39,6 +39,15 @@ export interface OrderItem {
   catatan?: string | null;
 }
 
+export interface OrderReview {
+  id: number;
+  orderId: number;
+  userId: number;
+  rating: number;
+  comment?: string | null;
+  createdAt: string;
+}
+
 export interface Order {
   id: number;
   userId: number;
@@ -46,6 +55,9 @@ export interface Order {
   status: string;
   keterangan?: string;
   createdAt: string;
+  pickupToken?: string;
+  pickupTokenExpiresAt?: string;
+  review?: OrderReview | null;
   user?: {
     id: number;
     nama: string;

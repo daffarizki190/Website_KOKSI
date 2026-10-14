@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingBag, ArrowLeft, Loader2, Package, X, ShoppingCart, ShieldCheck, Clock, ArrowRight, RefreshCw, XCircle, ScanLine, QrCode, Timer, ShieldAlert, Maximize2, MessagesSquare } from 'lucide-react';
+import { ShoppingBag, ArrowLeft, Loader2, Package, X, ShoppingCart, ShieldCheck, Clock, ArrowRight, RefreshCw, XCircle, ScanLine, QrCode, Timer, ShieldAlert, Maximize2, MessagesSquare, Star, Edit3 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,6 +10,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { PullToRefresh } from '../components/PullToRefresh';
 import { Skeleton } from '../components/Skeleton';
 import { UserChatWidget } from '../components/UserChatWidget';
+import { OrderReviewModal } from '../components/modals/user/OrderReviewModal';
 
 interface OrderItem {
   id: number;
@@ -27,6 +28,15 @@ interface OrderItem {
   };
 }
 
+interface OrderReview {
+  id: number;
+  orderId: number;
+  userId?: number;
+  rating: number;
+  comment?: string | null;
+  createdAt: string;
+}
+
 interface Order {
   id: number;
   total_amount: number;
@@ -35,11 +45,12 @@ interface Order {
   keterangan?: string;
   pickupToken?: string;
   pickupTokenExpiresAt?: string;
+  review?: OrderReview | null;
   items: OrderItem[];
 }
 
 // ─── QR Fullscreen Modal ──────────────────────────────────────────────────
-function QRFullscreenModal({ token, expiresAt, orderId, orderNumId, isCompleted, onClose, onRefresh }: {
+function QRFullscreenModal({ token, expiresAt, orderId, orderNumId, isCompleted, onClose, onRefresh, onReview }: {
   token: string;
   expiresAt?: string;
   orderId: string;
@@ -47,6 +58,7 @@ function QRFullscreenModal({ token, expiresAt, orderId, orderNumId, isCompleted,
   isCompleted?: boolean;
   onClose: () => void;
   onRefresh?: (orderNumId: number) => Promise<void>;
+  onReview?: (orderNumId: number, orderId: string) => void;
 }) {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [autoCloseLeft, setAutoCloseLeft] = useState(8);
@@ -136,13 +148,29 @@ function QRFullscreenModal({ token, expiresAt, orderId, orderNumId, isCompleted,
             Terima kasih telah mempercayakan kebutuhan Anda di KOKSI.
           </p>
 
-          {/* Auto close countdown */}
-          <button
-            onClick={onClose}
-            className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/20 text-sm mt-2"
-          >
-            Tutup ({autoCloseLeft} detik)
-          </button>
+          {/* Action buttons */}
+          <div className="w-full flex flex-col gap-2 mt-2">
+            {onReview && orderNumId && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onReview(orderNumId, orderId);
+                }}
+                className="w-full py-3 bg-amber-400 hover:bg-amber-300 text-slate-900 font-extrabold rounded-xl transition-all shadow-md shadow-amber-400/20 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Star className="w-4 h-4 fill-slate-900 text-slate-900" />
+                <span>Beri Ulasan Sekarang</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-all text-xs cursor-pointer"
+            >
+              Tutup ({autoCloseLeft} detik)
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -265,6 +293,7 @@ export default function OrderHistory() {
   const [error, setError] = useState<string | null>(null);
   const [qrModal, setQrModal] = useState<{ token: string; expiresAt?: string; orderId: string; orderNumId: number } | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [reviewModal, setReviewModal] = useState<{ orderId: number; displayOrderId: string; initialRating?: number; initialComment?: string | null } | null>(null);
 
   const navigate = useNavigate();
 
@@ -354,6 +383,15 @@ export default function OrderHistory() {
           orderNumId={qrModal.orderNumId}
           isCompleted={isCompleted}
           onClose={() => setQrModal(null)}
+          onReview={(orderNumId, orderId) => {
+            const tgt = orders.find(o => o.id === orderNumId);
+            setReviewModal({
+              orderId: orderNumId,
+              displayOrderId: orderId,
+              initialRating: tgt?.review?.rating,
+              initialComment: tgt?.review?.comment,
+            });
+          }}
           onRefresh={async (numId) => {
             try {
               const res = await fetch(`/api/orders/${numId}/refresh-qr`, {
@@ -645,6 +683,85 @@ export default function OrderHistory() {
                         </div>
                       </button>
                     )}
+
+                    {/* Review Section for Completed / Picked up Orders */}
+                    {currentStep === 5 && (
+                      <div className="mt-4">
+                        {order.review ? (
+                          <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-0.5">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                      key={star}
+                                      className={`w-4 h-4 ${
+                                        star <= order.review!.rating
+                                          ? 'text-amber-400 fill-amber-400'
+                                          : 'text-slate-300 stroke-slate-300'
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-xs font-bold text-amber-950">
+                                  {order.review.rating} / 5
+                                </span>
+                                <span className="text-[11px] text-amber-800/80 font-medium">
+                                  • {format(new Date(order.review.createdAt), 'dd MMM yyyy, HH:mm', { locale: id })}
+                                </span>
+                              </div>
+                              {order.review.comment ? (
+                                <p className="text-xs text-slate-700 italic font-medium leading-relaxed">
+                                  &ldquo;{order.review.comment}&rdquo;
+                                </p>
+                              ) : (
+                                <p className="text-[11px] text-slate-400 italic">
+                                  (Tanpa catatan tertulis)
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setReviewModal({
+                                orderId: order.id,
+                                displayOrderId: getDisplayOrderId(order.id, order.createdAt),
+                                initialRating: order.review!.rating,
+                                initialComment: order.review!.comment || '',
+                              })}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-900 bg-white hover:bg-amber-100 border border-amber-300 rounded-xl transition-colors shrink-0 shadow-2xs cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span>Ubah Ulasan</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="p-4 rounded-2xl bg-teal-50 border border-teal-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                            <div className="flex items-start gap-3">
+                              <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0">
+                                <Star className="w-4 h-4 fill-amber-300 text-amber-300" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-extrabold text-teal-950">Pesanan Telah Selesai Diambil</p>
+                                <p className="text-[11px] text-teal-800 font-medium mt-0.5">
+                                  Bantu kami menjaga kualitas dengan memberikan ulasan & rating belanja Anda.
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setReviewModal({
+                                orderId: order.id,
+                                displayOrderId: getDisplayOrderId(order.id, order.createdAt),
+                              })}
+                              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white text-xs font-bold rounded-xl transition-all shadow-xs shadow-teal-600/30 cursor-pointer"
+                            >
+                              <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                              <span>Beri Ulasan Pesanan</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   
                   <div className="p-4 sm:p-6">
@@ -687,6 +804,21 @@ export default function OrderHistory() {
         </main>
       </PullToRefresh>
       <UserChatWidget isOpen={isChatOpen} setIsOpen={setIsChatOpen} />
+
+      {reviewModal && (
+        <OrderReviewModal
+          isOpen={Boolean(reviewModal)}
+          onClose={() => setReviewModal(null)}
+          orderId={reviewModal.orderId}
+          displayOrderId={reviewModal.displayOrderId}
+          initialRating={reviewModal.initialRating}
+          initialComment={reviewModal.initialComment}
+          onSubmitSuccess={(newReview) => {
+            setOrders(prev => prev.map(o => o.id === newReview.orderId ? { ...o, review: newReview } : o));
+            toast.success("Ulasan Anda berhasil disimpan. Terima kasih!", "Berhasil");
+          }}
+        />
+      )}
     </div>
     </>
   );

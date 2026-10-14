@@ -11,8 +11,10 @@ import {
   UserCheck, Users, Lock, Key, ArrowLeft, Download, Copy, Printer, 
   Terminal, Zap, Globe, Layers, Search, Filter, ShieldAlert,
   Clock, Check, Radio, BarChart3, AlertCircle, ShoppingBag, DollarSign, Package,
-  MessageSquare, Phone, ExternalLink, Send, Trash2, X, User as UserIcon, Edit3, Save
+  MessageSquare, Phone, ExternalLink, Send, Trash2, X, User as UserIcon, Edit3, Save, FileSpreadsheet
 } from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
+import { id as idLocale } from 'date-fns/locale';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { GrafanaNOCDashboard } from '../components/GrafanaNOCDashboard';
@@ -149,8 +151,34 @@ export function DashboardIT() {
   const [usersList, setUsersList] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'noc_monitoring' | 'summary' | 'health' | 'errors' | 'database' | 'security' | 'users' | 'wa_otp' | 'api_testing'>('noc_monitoring');
+  const [activeTab, setActiveTab] = useState<'noc_monitoring' | 'summary' | 'health' | 'errors' | 'audit_logs' | 'database' | 'security' | 'users' | 'wa_otp' | 'api_testing'>('noc_monitoring');
   const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
+
+  // Audit Logs States
+  const [auditLogs, setAuditLogs] = useState<ITAuditLog[]>([]);
+  const [auditLoading, setAuditLoading] = useState<boolean>(false);
+  const [auditSearch, setAuditSearch] = useState<string>('');
+  const [auditActionFilter, setAuditActionFilter] = useState<string>('Semua');
+
+  const fetchAuditLogs = useCallback(async () => {
+    try {
+      setAuditLoading(true);
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch('/api/activity-logs', {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setAuditLogs(data);
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal memuat activity logs:', e);
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [token]);
 
   // API Testing & Health Report States
   const [isTestingApis, setIsTestingApis] = useState(false);
@@ -246,9 +274,10 @@ export function DashboardIT() {
     if (!token) return;
     try {
       setErrorMsg('');
-      const [resMetrics, resUsers] = await Promise.all([
+      const [resMetrics, resUsers, resAudit] = await Promise.all([
         fetch('/api/it/metrics', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/activity-logs', { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
       if (!resMetrics.ok) {
@@ -261,6 +290,13 @@ export function DashboardIT() {
       if (resUsers.ok) {
         const dataUsers = await resUsers.json();
         setUsersList(dataUsers);
+      }
+
+      if (resAudit.ok) {
+        const dataAudit = await resAudit.json();
+        if (Array.isArray(dataAudit)) {
+          setAuditLogs(dataAudit);
+        }
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Terjadi kesalahan sistem');
@@ -774,12 +810,13 @@ ${testsMarkdown}
             <span className="text-[9px] text-slate-500 font-mono font-bold">HUD LIVE</span>
           </div>
 
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
             {[
               { id: 'noc_monitoring', label: 'Grafana NOC', icon: Activity, color: 'text-amber-400', badge: 'PROMETHEUS' },
               { id: 'summary', label: 'Rangkuman', icon: FileText, color: 'text-teal-400' },
               { id: 'health', label: 'Server', icon: Server, color: 'text-cyan-400' },
               { id: 'errors', label: `Log Error (${metrics?.errorLogs.length || 0})`, icon: AlertTriangle, color: 'text-amber-400' },
+              { id: 'audit_logs', label: `Log Audit (${auditLogs.length || metrics?.itAuditLogs?.length || 0})`, icon: ShieldAlert, color: 'text-teal-400' },
               { id: 'database', label: 'Database', icon: Database, color: 'text-blue-400' },
               { id: 'security', label: 'Keamanan', icon: ShieldCheck, color: 'text-emerald-400' },
               { id: 'users', label: 'Akses IT', icon: Users, color: 'text-purple-400' },
@@ -813,6 +850,7 @@ ${testsMarkdown}
             { id: 'summary', label: 'Rangkuman Sistem', icon: FileText, color: 'text-teal-400' },
             { id: 'health', label: 'Kesehatan Server', icon: Server, color: 'text-cyan-400' },
             { id: 'errors', label: `Log Error (${metrics?.errorLogs.length || 0})`, icon: AlertTriangle, color: 'text-amber-400' },
+            { id: 'audit_logs', label: `Log Audit Sistem (${auditLogs.length || metrics?.itAuditLogs?.length || 0})`, icon: ShieldAlert, color: 'text-teal-400' },
             { id: 'database', label: 'Database & APIs', icon: Database, color: 'text-blue-400' },
             { id: 'security', label: 'Keamanan & Rilis', icon: ShieldCheck, color: 'text-emerald-400' },
             { id: 'users', label: 'Akses Peran IT', icon: Users, color: 'text-purple-400' },
@@ -1172,6 +1210,243 @@ ${testsMarkdown}
                 </div>
               </div>
             )}
+
+            {/* TAB AUDIT LOGS */}
+            {activeTab === 'audit_logs' && (() => {
+              const effectiveLogs = auditLogs.length > 0 ? auditLogs : (metrics?.itAuditLogs || []);
+              const filteredLogs = effectiveLogs.filter(log => {
+                const matchSearch = !auditSearch.trim() || 
+                  (log.actor || '').toLowerCase().includes(auditSearch.toLowerCase()) ||
+                  (log.action || '').toLowerCase().includes(auditSearch.toLowerCase()) ||
+                  (log.details || '').toLowerCase().includes(auditSearch.toLowerCase());
+
+                if (!matchSearch) return false;
+                if (auditActionFilter === 'Semua') return true;
+                const act = (log.action || '').toLowerCase();
+                if (auditActionFilter === 'Role') return act.includes('role');
+                if (auditActionFilter === 'Pesanan') return act.includes('pesan');
+                if (auditActionFilter === 'Ulasan') return act.includes('ulasan');
+                if (auditActionFilter === 'Sandi') return act.includes('sandi') || act.includes('pass');
+                if (auditActionFilter === 'Blokir') return act.includes('blokir');
+                return true;
+              });
+
+              const roleCount = effectiveLogs.filter(l => (l.action || '').toLowerCase().includes('role')).length;
+              const orderCount = effectiveLogs.filter(l => (l.action || '').toLowerCase().includes('pesan') || (l.action || '').toLowerCase().includes('ulasan')).length;
+              const securityCount = effectiveLogs.filter(l => (l.action || '').toLowerCase().includes('sandi') || (l.action || '').toLowerCase().includes('pass') || (l.action || '').toLowerCase().includes('blokir')).length;
+
+              const handleExportJSON = () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(effectiveLogs, null, 2));
+                const a = document.createElement('a');
+                a.setAttribute("href", dataStr);
+                a.setAttribute("download", `audit_logs_${format(new Date(), 'yyyyMMdd_HHmm')}.json`);
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                toast.success("Log audit berhasil diexport ke format JSON.", "Export Selesai");
+              };
+
+              const handleExportCSV = () => {
+                const headers = ['Waktu', 'Aktor', 'Aksi', 'Rincian'];
+                const rows = effectiveLogs.map(l => [
+                  `"${l.timestamp || ''}"`,
+                  `"${(l.actor || '').replace(/"/g, '""')}"`,
+                  `"${(l.action || '').replace(/"/g, '""')}"`,
+                  `"${(l.details || '').replace(/"/g, '""')}"`
+                ]);
+                const csv = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                const link = document.createElement("a");
+                link.setAttribute("href", encodeURI(csv));
+                link.setAttribute("download", `audit_logs_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                toast.success("Log audit berhasil diexport ke format CSV.", "Export Selesai");
+              };
+
+              return (
+                <div className="space-y-6">
+                  <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center font-bold shrink-0">
+                          <ShieldAlert className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h2 className="text-base font-extrabold text-white flex items-center gap-2">
+                            <span>Log Audit Aktivitas Sistem</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              LIVE AUDIT
+                            </span>
+                          </h2>
+                          <p className="text-xs text-slate-400 font-medium">
+                            Pencatatan real-time perubahan role, transaksi, login/keamanan, dan tindakan operasional.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => fetchAuditLogs()}
+                          disabled={auditLoading}
+                          className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all border border-slate-700 flex items-center gap-1.5 cursor-pointer"
+                          title="Muat Ulang Log Audit"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${auditLoading ? 'animate-spin' : ''}`} />
+                          <span>Refresh</span>
+                        </button>
+                        <button
+                          onClick={handleExportJSON}
+                          className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all border border-slate-700 flex items-center gap-1.5 cursor-pointer"
+                          title="Download Format JSON"
+                        >
+                          <Download className="w-3.5 h-3.5 text-teal-400" />
+                          <span>Export JSON</span>
+                        </button>
+                        <button
+                          onClick={handleExportCSV}
+                          className="px-3 py-2 bg-teal-600 hover:bg-teal-500 text-slate-950 font-black rounded-xl text-xs transition-all shadow-sm shadow-teal-600/30 flex items-center gap-1.5 cursor-pointer"
+                          title="Download Format CSV"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" />
+                          <span>Export CSV</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Quick KPI stats */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Log</p>
+                        <p className="text-xl font-black text-white mt-0.5">{effectiveLogs.length}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Terekam di sistem</p>
+                      </div>
+                      <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5">
+                        <p className="text-[10px] text-purple-400 font-bold uppercase tracking-wider">Perubahan Role</p>
+                        <p className="text-xl font-black text-purple-300 mt-0.5">{roleCount}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Otorisasi akses</p>
+                      </div>
+                      <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5">
+                        <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Pesanan & Ulasan</p>
+                        <p className="text-xl font-black text-amber-300 mt-0.5">{orderCount}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Aktivitas order</p>
+                      </div>
+                      <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5">
+                        <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Keamanan & Sandi</p>
+                        <p className="text-xl font-black text-emerald-300 mt-0.5">{securityCount}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Integritas akun</p>
+                      </div>
+                    </div>
+
+                    {/* Filter & Search Bar */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+                      <div className="relative flex-1">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={auditSearch}
+                          onChange={(e) => setAuditSearch(e.target.value)}
+                          placeholder="Cari aktor, kata kunci aksi, atau detail log..."
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:border-teal-500 focus:outline-hidden"
+                        />
+                        {auditSearch && (
+                          <button
+                            onClick={() => setAuditSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                        {['Semua', 'Role', 'Pesanan', 'Ulasan', 'Sandi', 'Blokir'].map((cat) => (
+                          <button
+                            key={cat}
+                            onClick={() => setAuditActionFilter(cat)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border whitespace-nowrap cursor-pointer ${
+                              auditActionFilter === cat
+                                ? 'bg-teal-500/20 text-teal-300 border-teal-500/40'
+                                : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white hover:bg-slate-800'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-950/80 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 font-bold">
+                            <th className="p-3 w-44">Waktu</th>
+                            <th className="p-3 w-48">Aktor / Pelaku</th>
+                            <th className="p-3 w-44">Jenis Tindakan</th>
+                            <th className="p-3">Rincian Aktivitas</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                          {filteredLogs.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="p-8 text-center text-slate-500 font-sans">
+                                {auditSearch || auditActionFilter !== 'Semua'
+                                  ? 'Tidak ada log audit yang sesuai dengan filter pencarian.'
+                                  : 'Belum ada log audit yang tercatat.'}
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredLogs.map((log, idx) => {
+                              const actionLower = (log.action || '').toLowerCase();
+                              const isRoleAction = actionLower.includes('role');
+                              const isOrderAction = actionLower.includes('pesan');
+                              const isReviewAction = actionLower.includes('ulasan');
+                              const isSecurityAction = actionLower.includes('pass') || actionLower.includes('sandi') || actionLower.includes('blokir');
+
+                              return (
+                                <tr key={log.id || idx} className="hover:bg-slate-800/40 transition-colors">
+                                  <td className="p-3 text-slate-400 whitespace-nowrap font-sans text-xs">
+                                    <div className="font-semibold text-slate-200">
+                                      {log.timestamp ? format(new Date(log.timestamp), 'dd MMM yyyy, HH:mm:ss', { locale: idLocale }) : '-'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500">
+                                      {log.timestamp ? formatDistanceToNow(new Date(log.timestamp), { addSuffix: true, locale: idLocale }) : ''}
+                                    </div>
+                                  </td>
+                                  <td className="p-3 font-sans">
+                                    <div className="font-bold text-white line-clamp-1">{log.actor || 'System'}</div>
+                                  </td>
+                                  <td className="p-3">
+                                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border font-sans ${
+                                      isRoleAction
+                                        ? 'bg-purple-900/40 text-purple-300 border-purple-700/50'
+                                        : isReviewAction
+                                        ? 'bg-amber-900/40 text-amber-300 border-amber-700/50'
+                                        : isOrderAction
+                                        ? 'bg-teal-900/40 text-teal-300 border-teal-700/50'
+                                        : isSecurityAction
+                                        ? 'bg-rose-900/40 text-rose-300 border-rose-700/50'
+                                        : 'bg-slate-800 text-slate-300 border-slate-700'
+                                    }`}>
+                                      {log.action || 'Aktivitas'}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-slate-300 font-sans text-xs leading-relaxed">
+                                    {log.details || '-'}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* TAB 4: DATABASE & THIRD PARTY APIS */}
             {activeTab === 'database' && (

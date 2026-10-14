@@ -9,7 +9,7 @@ import {
   Phone, MessageSquare, Search, Filter, AlertCircle, AlertTriangle, Check, X,
   QrCode, ScanLine, Camera, CameraOff, Inbox, FilterX, PackageSearch,
   Calendar, FileSpreadsheet, Building2, Key, Lock, Eye, EyeOff, Server, CheckSquare,
-  User as UserIcon, Edit3, Save, TrendingUp, BarChart2, Bell, Printer, UserPlus, ShieldAlert
+  User as UserIcon, Edit3, Save, TrendingUp, BarChart2, Bell, Printer, UserPlus, ShieldAlert, Star
 } from 'lucide-react';
 import XLSX from 'xlsx-js-style';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
@@ -28,6 +28,7 @@ import { CrudProductModal } from '../components/modals/admin/CrudProductModal';
 import { ImportDataProductModal } from '../components/modals/admin/ImportDataProductModal';
 import { PreviewImportModal } from '../components/modals/admin/PreviewImportModal';
 import { ImportNotificationModal } from '../components/modals/admin/ImportNotificationModal';
+import { ITRolePasscodeModal } from '../components/modals/admin/ITRolePasscodeModal';
 
 
 
@@ -80,6 +81,12 @@ interface Order {
   status: string;
   keterangan?: string;
   createdAt: string;
+  review?: {
+    id: number;
+    rating: number;
+    comment?: string | null;
+    createdAt: string;
+  } | null;
   user?: {
     id: number;
     nama: string;
@@ -298,6 +305,7 @@ export const DashboardAdmin = () => {
   const [editUserSuccess, setEditUserSuccess] = useState('');
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [updatingRoleId, setUpdatingRoleId] = useState<number | null>(null);
+  const [itPasscodeTarget, setItPasscodeTarget] = useState<{ userId: number; userName: string; currentRole?: string; isEditModal?: boolean } | null>(null);
 
   // Add User Modal State
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
@@ -1230,13 +1238,8 @@ export const DashboardAdmin = () => {
     setEditUserSuccess('');
   };
 
-  const handleSaveUserProfile = async () => {
+  const doSaveUserProfile = async (passcode?: string) => {
     if (!editingUser) return;
-    if (!editUserNama.trim() || !editUserPt.trim() || !editUserDepartemen.trim() || !editUserNoHp.trim()) {
-      setEditUserError('Nama, PT, Departemen, dan No HP wajib diisi!');
-      return;
-    }
-
     setIsSavingUser(true);
     setEditUserError('');
     setEditUserSuccess('');
@@ -1255,6 +1258,7 @@ export const DashboardAdmin = () => {
           departemen: editUserDepartemen.trim(),
           no_hp: editUserNoHp.trim(),
           role: editUserRole,
+          passcode,
           newPassword: editUserPassword.trim() || undefined
         })
       });
@@ -1273,15 +1277,49 @@ export const DashboardAdmin = () => {
         }, 800);
       } else {
         setEditUserError(data.error || 'Gagal memperbarui profil pengguna');
+        throw new Error(data.error || 'Gagal memperbarui profil pengguna');
       }
     } catch (err: any) {
       setEditUserError(err.message || 'Terjadi kesalahan jaringan');
+      throw err;
     } finally {
       setIsSavingUser(false);
     }
   };
 
-  const handleRoleChange = async (userId: number, newRole: string) => {
+  const handleSaveUserProfile = async () => {
+    if (!editingUser) return;
+    if (!editUserNama.trim() || !editUserPt.trim() || !editUserDepartemen.trim() || !editUserNoHp.trim()) {
+      setEditUserError('Nama, PT, Departemen, dan No HP wajib diisi!');
+      return;
+    }
+
+    // Require passcode if promoting to IT
+    if (editUserRole === 'it' && editingUser.role !== 'it' && user?.role === 'admin') {
+      setItPasscodeTarget({
+        userId: editingUser.id,
+        userName: editUserNama.trim(),
+        currentRole: editingUser.role,
+        isEditModal: true
+      });
+      return;
+    }
+
+    await doSaveUserProfile();
+  };
+
+  const handleRoleChange = async (userId: number, newRole: string, passcode?: string) => {
+    // If admin is promoting user to IT, require passcode "466846"
+    if (newRole === 'it' && user?.role === 'admin' && !passcode) {
+      const tgt = users.find(u => u.id === userId);
+      setItPasscodeTarget({
+        userId,
+        userName: tgt?.nama || `Pengguna #${userId}`,
+        currentRole: tgt?.role || 'user'
+      });
+      return;
+    }
+
     setUpdatingRoleId(userId);
     try {
       const authToken = token || localStorage.getItem('token');
@@ -1291,7 +1329,7 @@ export const DashboardAdmin = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`
         },
-        body: JSON.stringify({ newRole })
+        body: JSON.stringify({ newRole, passcode })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal mengubah role pengguna');
@@ -1307,6 +1345,7 @@ export const DashboardAdmin = () => {
       await fetchUsers();
     } catch (err: any) {
       toast.error(err.message || 'Gagal memperbarui role');
+      throw err;
     } finally {
       setUpdatingRoleId(null);
     }
@@ -3041,6 +3080,37 @@ export const DashboardAdmin = () => {
                           <span className="font-bold text-teal-800">Catatan/Instruksi Admin:</span> {order.keterangan}
                         </div>
                       )}
+
+                      {order.review && (
+                        <div className="bg-amber-50/80 p-3 rounded-xl border border-amber-200/90 text-xs w-full space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-extrabold text-amber-950 text-[11px] uppercase tracking-wide">Ulasan Pelanggan:</span>
+                            <div className="flex items-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`w-3.5 h-3.5 ${
+                                    star <= order.review!.rating
+                                      ? 'text-amber-500 fill-amber-500'
+                                      : 'text-slate-300 stroke-slate-300'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            <span className="font-bold text-amber-900 text-xs">
+                              {order.review.rating}/5 Bintang
+                            </span>
+                            <span className="text-[10px] text-amber-800/80 font-medium">
+                              • {format(new Date(order.review.createdAt), 'dd MMM yyyy, HH:mm', { locale: idLocale })}
+                            </span>
+                          </div>
+                          {order.review.comment && (
+                            <p className="text-slate-700 italic font-medium pt-0.5">
+                              &ldquo;{order.review.comment}&rdquo;
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Items Table */}
@@ -4759,6 +4829,25 @@ export const DashboardAdmin = () => {
         </div>
       )}
 
+      {/* Modal Otorisasi Sandi IT */}
+      <ITRolePasscodeModal
+        isOpen={Boolean(itPasscodeTarget)}
+        onClose={() => setItPasscodeTarget(null)}
+        targetUser={itPasscodeTarget ? {
+          id: itPasscodeTarget.userId,
+          nama: itPasscodeTarget.userName,
+          no_hp: '',
+          role: itPasscodeTarget.currentRole
+        } : null}
+        onConfirm={async (passcode) => {
+          if (!itPasscodeTarget) return;
+          if (itPasscodeTarget.isEditModal) {
+            await doSaveUserProfile(passcode);
+          } else {
+            await handleRoleChange(itPasscodeTarget.userId, 'it', passcode);
+          }
+        }}
+      />
     </div>
   );
 };

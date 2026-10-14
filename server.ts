@@ -10,7 +10,7 @@ import * as jwt from 'jsonwebtoken';
 import multer from 'multer';
 import fs from 'fs';
 import { db, withDbRetry } from './src/db/index';
-import { users, products, orders, orderItems, cartItems, activityLogs, pushSubscriptions, chats, categoryLearnings } from './src/db/schema';
+import { users, products, orders, orderItems, cartItems, activityLogs, pushSubscriptions, chats, categoryLearnings, orderReviews } from './src/db/schema';
 import { eq, asc, desc, and, sql, inArray, or, isNull } from 'drizzle-orm';
 import webpush from 'web-push';
 import helmet from 'helmet';
@@ -851,27 +851,56 @@ app.get('/api/notifications/vapid-public-key', (req, res) => {
 });
 
 // --- ACTIVITY LOGS ROUTE ---
-app.get('/api/activity-logs', requireAuth, requireIT, async (req, res) => {
+app.get('/api/activity-logs', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
-    if (!isDbConfigured) {
-      res.json(itAuditLogsQueue);
+    const isAdminOrIT = req.user?.role === 'admin' || req.user?.role === 'it';
+    if (!isAdminOrIT) {
+      res.status(403).json({ error: 'Akses ditolak: Hanya IT atau Admin yang dapat mengakses log audit.' });
       return;
     }
-    const logs = await withDbRetry(() => db.select({
-      id: activityLogs.id,
-      timestamp: activityLogs.createdAt,
-      actor: activityLogs.actorName,
-      action: activityLogs.action,
-      details: activityLogs.details
-    }).from(activityLogs).orderBy(desc(activityLogs.createdAt)).limit(100));
-    
-    // Merge DB logs with memory logs for fallback completeness
-    const formattedDbLogs = logs.map(l => ({
-      ...l,
-      timestamp: l.timestamp?.toISOString() || new Date().toISOString()
-    }));
-    res.json(formattedDbLogs.length > 0 ? formattedDbLogs : itAuditLogsQueue);
+
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    let dbLogs: any[] = [];
+    if (isDbConfigured) {
+      try {
+        const rows = await withDbRetry(() => db.select({
+          id: activityLogs.id,
+          timestamp: activityLogs.createdAt,
+          actor: activityLogs.actorName,
+          action: activityLogs.action,
+          details: activityLogs.details
+        }).from(activityLogs).orderBy(desc(activityLogs.createdAt)).limit(200));
+
+        dbLogs = rows.map(l => ({
+          id: String(l.id),
+          timestamp: l.timestamp?.toISOString() || new Date().toISOString(),
+          actor: l.actor,
+          action: l.action,
+          details: l.details || ''
+        }));
+      } catch (err) {
+        console.warn('Could not query activityLogs table:', err);
+      }
+    }
+
+    // Merge memory queue with DB logs without duplicate ids
+    const seen = new Set<string>();
+    const combined = [];
+    for (const log of itAuditLogsQueue) {
+      if (!seen.has(log.id)) {
+        seen.add(log.id);
+        combined.push(log);
+      }
+    }
+    for (const log of dbLogs) {
+      if (!seen.has(log.id)) {
+        seen.add(log.id);
+        combined.push(log);
+      }
+    }
+
+    combined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    res.json(combined);
   } catch (error) {
     console.error('Fetch activity logs error:', error);
     res.status(500).json({ error: 'Gagal mengambil data activity log' });
@@ -1119,6 +1148,19 @@ app.put('/api/users/:id', requireAuth, async (req: AuthRequest, res) => {
     };
 
     if (role && ['user', 'admin', 'it'].includes(role)) {
+      if (role === 'it' && req.user?.role === 'admin') {
+        const targetUsers = await db.select().from(users).where(eq(users.id, targetUserId));
+        if (targetUsers.length > 0 && targetUsers[0].role !== 'it') {
+          const passcode = req.body.passcode ? String(req.body.passcode).trim() : '';
+          if (passcode !== '466846') {
+            res.status(403).json({ 
+              error: 'Sandi otorisasi salah! Masukkan sandi "466846" untuk mengubah role pengguna menjadi IT.',
+              requirePasscode: true 
+            });
+            return;
+          }
+        }
+      }
       updateData.role = role;
     }
 
@@ -1174,10 +1216,22 @@ app.put('/api/users/:id/role', requireAuth, async (req: AuthRequest, res) => {
 
     const targetUserId = Number(req.params.id);
     const newRole = (req.body.newRole || req.body.role || '').toString().toLowerCase().trim();
+    const passcode = req.body.passcode ? String(req.body.passcode).trim() : '';
 
     if (!['user', 'admin', 'it'].includes(newRole)) {
       res.status(400).json({ error: 'Role tidak valid! Pilihan: user, admin, it' });
       return;
+    }
+
+    // Security check: Admin changing someone to IT requires passcode "466846"
+    if (newRole === 'it' && req.user?.role === 'admin') {
+      if (passcode !== '466846') {
+        res.status(403).json({ 
+          error: 'Sandi otorisasi salah! Masukkan sandi "466846" untuk mengangkat pengguna menjadi role IT.',
+          requirePasscode: true 
+        });
+        return;
+      }
     }
 
     const updatedUsers = await withDbRetry(() => db.update(users)
@@ -1595,6 +1649,15 @@ async function ensureDatabaseSchema() {
           user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           endpoint TEXT NOT NULL UNIQUE,
           keys TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS order_reviews (
+          id SERIAL PRIMARY KEY,
+          order_id INTEGER NOT NULL UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          rating INTEGER NOT NULL,
+          comment TEXT,
           created_at TIMESTAMP DEFAULT NOW()
         );
       `);
@@ -2426,6 +2489,19 @@ app.get('/api/orders/history', requireAuth, async (req: AuthRequest, res) => {
 
     try {
       const userOrdersList = await db.select().from(orders).where(eq(orders.userId, userId)).orderBy(asc(orders.createdAt));
+      const orderIds = userOrdersList.map(o => o.id);
+      const reviewMap = new Map<number, any>();
+      if (orderIds.length > 0) {
+        try {
+          const revList = await db.select().from(orderReviews).where(inArray(orderReviews.orderId, orderIds));
+          for (const rev of revList) {
+            reviewMap.set(rev.orderId, rev);
+          }
+        } catch (e) {
+          console.warn('Could not query order reviews in history:', e);
+        }
+      }
+
       const result = [];
       for (const ord of userOrdersList) {
         const itemsList = await db.select({
@@ -2442,6 +2518,7 @@ app.get('/api/orders/history', requireAuth, async (req: AuthRequest, res) => {
 
         result.push({
           ...ord,
+          review: reviewMap.get(ord.id) || null,
           items: itemsList.map(item => ({
             id: item.id,
             orderId: item.orderId,
@@ -2475,6 +2552,19 @@ app.get('/api/orders/all', requireAuth, requireAdmin, async (req: AuthRequest, r
     const allOrdersList = await withDbRetry(() =>
       db.select().from(orders).orderBy(asc(orders.createdAt))
     );
+    const orderIds = allOrdersList.map(o => o.id);
+    const reviewMap = new Map<number, any>();
+    if (orderIds.length > 0) {
+      try {
+        const revList = await db.select().from(orderReviews).where(inArray(orderReviews.orderId, orderIds));
+        for (const rev of revList) {
+          reviewMap.set(rev.orderId, rev);
+        }
+      } catch (e) {
+        console.warn('Could not query order reviews in admin orders:', e);
+      }
+    }
+
     const result = [];
     for (const ord of allOrdersList) {
       const userList = await db.select().from(users).where(eq(users.id, ord.userId));
@@ -2494,6 +2584,7 @@ app.get('/api/orders/all', requireAuth, requireAdmin, async (req: AuthRequest, r
 
       result.push({
         ...ord,
+        review: reviewMap.get(ord.id) || null,
         user: ordUser ? {
           id: ordUser.id,
           nama: ordUser.nama,
@@ -2741,6 +2832,110 @@ app.post('/api/orders/pickup', requireAuth, requireAdmin, async (req: AuthReques
   } catch (error) {
     console.error('Failed to process pickup token:', error);
     res.status(500).json({ error: 'Terjadi kesalahan sistem saat memverifikasi Barcode.' });
+  }
+});
+
+// Endpoint Kirim / Perbarui Ulasan Pesanan
+app.post('/api/orders/:id/review', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const orderId = Number(req.params.id);
+    if (!orderId || isNaN(orderId)) {
+      res.status(400).json({ error: 'ID pesanan tidak valid' });
+      return;
+    }
+
+    let userId = Number(req.user?.id);
+    if (!userId || isNaN(userId)) {
+      if (req.user?.no_hp) {
+        const uList = await db.select().from(users).where(eq(users.no_hp, req.user.no_hp));
+        if (uList.length > 0) userId = uList[0].id;
+      }
+    }
+
+    if (!userId || isNaN(userId)) {
+      res.status(401).json({ error: 'Sesi pengguna tidak valid' });
+      return;
+    }
+
+    const { rating, comment } = req.body;
+    const numRating = Number(rating);
+    if (!numRating || isNaN(numRating) || numRating < 1 || numRating > 5) {
+      res.status(400).json({ error: 'Rating harus berupa angka 1 sampai 5 bintang' });
+      return;
+    }
+
+    await ensureDatabaseSchema();
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+
+    if (isDbConfigured) {
+      const orderList = await db.select().from(orders).where(eq(orders.id, orderId));
+      if (orderList.length === 0) {
+        res.status(404).json({ error: 'Pesanan tidak ditemukan' });
+        return;
+      }
+
+      const ord = orderList[0];
+      if (ord.userId !== userId && req.user?.role !== 'admin' && req.user?.role !== 'it') {
+        res.status(403).json({ error: 'Anda tidak memiliki izin untuk mengulas pesanan ini' });
+        return;
+      }
+
+      const statusLower = (ord.status || '').toLowerCase();
+      if (statusLower !== 'selesai' && !statusLower.includes('selesai')) {
+        res.status(400).json({ error: 'Ulasan hanya dapat diberikan setelah pesanan berstatus Selesai / sudah diambil.' });
+        return;
+      }
+
+      const cleanComment = typeof comment === 'string' ? comment.trim() : null;
+
+      const existing = await db.select().from(orderReviews).where(eq(orderReviews.orderId, orderId));
+      let savedReview;
+
+      if (existing.length > 0) {
+        const updated = await db.update(orderReviews)
+          .set({
+            rating: numRating,
+            comment: cleanComment,
+          })
+          .where(eq(orderReviews.orderId, orderId))
+          .returning();
+        savedReview = updated[0];
+      } else {
+        const inserted = await db.insert(orderReviews)
+          .values({
+            orderId,
+            userId,
+            rating: numRating,
+            comment: cleanComment,
+          })
+          .returning();
+        savedReview = inserted[0];
+      }
+
+      try {
+        await db.insert(activityLogs).values({
+          userId,
+          actorName: req.user?.nama || 'User',
+          action: 'Beri Ulasan Pesanan',
+          details: `Pesanan #${orderId}: ${numRating} Bintang${cleanComment ? ` - "${cleanComment.substring(0, 40)}"` : ''}`,
+        });
+      } catch (logErr) {}
+
+      res.json({
+        success: true,
+        message: 'Ulasan berhasil disimpan. Terima kasih atas masukan Anda!',
+        review: savedReview
+      });
+    } else {
+      res.json({
+        success: true,
+        message: 'Ulasan tersimpan (demo mode)',
+        review: { id: Date.now(), orderId, userId, rating: numRating, comment, createdAt: new Date().toISOString() }
+      });
+    }
+  } catch (error: any) {
+    console.error('Error submitting order review:', error);
+    res.status(500).json({ error: error?.message || 'Gagal menyimpan ulasan pesanan' });
   }
 });
 
@@ -3416,40 +3611,6 @@ app.get('/api/it/metrics', requireAuth, requireIT, async (req: AuthRequest, res)
 });
 
 // 2. Update user role (user, admin, it)
-app.put('/api/users/:id/role', requireAuth, requireIT, async (req: AuthRequest, res) => {
-  try {
-    const { newRole } = req.body;
-    const targetUserId = Number(req.params.id);
-
-    if (!['user', 'admin', 'it'].includes(newRole)) {
-      res.status(400).json({ error: 'Role tidak valid. Pilihan role: user, admin, it' });
-      return;
-    }
-
-    const targetUsers = await db.select().from(users).where(eq(users.id, targetUserId));
-    if (targetUsers.length === 0) {
-      res.status(404).json({ error: 'Pengguna tidak ditemukan' });
-      return;
-    }
-
-    const targetUser = targetUsers[0];
-    await db.update(users).set({ role: newRole }).where(eq(users.id, targetUserId));
-
-    itAuditLogsQueue.unshift({
-      id: Math.random().toString(36).substring(2, 9),
-      timestamp: new Date().toISOString(),
-      actor: `${req.user?.nama || 'Admin/IT'} (ID #${req.user?.id})`,
-      action: 'Perubahan Akses Peran Pengguna',
-      details: `Mengubah role pengguna "${targetUser.nama}" (${targetUser.no_hp}) dari ${targetUser.role} menjadi ${newRole}.`
-    });
-
-    res.json({ message: `Role pengguna ${targetUser.nama} berhasil diubah menjadi "${newRole}"` });
-  } catch (error: any) {
-    console.error('Update user role error:', error);
-    res.status(500).json({ error: 'Gagal memperbarui role pengguna' });
-  }
-});
-
 // 3. Clear IT error logs
 app.post('/api/it/logs/clear', requireAuth, requireIT, async (req: AuthRequest, res) => {
   errorLogsQueue.length = 0;
