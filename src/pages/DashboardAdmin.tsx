@@ -119,7 +119,80 @@ export const DashboardAdmin = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileInputUserRef = useRef<HTMLInputElement>(null);
 
-  const [activeTab, setActiveTab] = useState<'orders' | 'analytics' | 'products' | 'users' | 'blocked_users' | 'chats'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'analytics' | 'products' | 'users' | 'blocked_users' | 'chats' | 'reviews'>('orders');
+
+  // Reviews tab state
+  const [adminReviews, setAdminReviews] = useState<any[]>([]);
+  const [adminReviewStats, setAdminReviewStats] = useState<{ totalReviews: number; averageRating: number; recommendationRate: number; distribution: Record<number,number>; tagCounts: Record<string,number> } | null>(null);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewSearch, setReviewSearch] = useState('');
+  const [reviewRatingFilter, setReviewRatingFilter] = useState<number | null>(null);
+  const [reviewSortBy, setReviewSortBy] = useState<'newest' | 'highest' | 'lowest'>('newest');
+
+  const fetchAdminReviews = async () => {
+    setReviewsLoading(true);
+    try {
+      const res = await fetch('/api/reviews', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Gagal memuat ulasan');
+      const data = await res.json();
+      setAdminReviews(data.reviews || []);
+      setAdminReviewStats(data.stats || null);
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal memuat ulasan pelanggan');
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'reviews' && adminReviews.length === 0) {
+      fetchAdminReviews();
+    }
+  }, [activeTab]);
+
+  const filteredAdminReviews = useMemo(() => {
+    return adminReviews
+      .filter(rev => {
+        if (reviewRatingFilter !== null && rev.rating !== reviewRatingFilter) return false;
+        if (reviewSearch.trim()) {
+          const q = reviewSearch.toLowerCase();
+          return (
+            rev.user?.nama?.toLowerCase().includes(q) ||
+            rev.user?.departemen?.toLowerCase().includes(q) ||
+            rev.user?.pt?.toLowerCase().includes(q) ||
+            (rev.comment || '').toLowerCase().includes(q) ||
+            rev.order?.items?.some((it: any) => it.nama_barang?.toLowerCase().includes(q))
+          );
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (reviewSortBy === 'highest') return b.rating - a.rating;
+        if (reviewSortBy === 'lowest') return a.rating - b.rating;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+  }, [adminReviews, reviewRatingFilter, reviewSearch, reviewSortBy]);
+
+  const handleExportReviews = () => {
+    const rows = filteredAdminReviews.map(r => ({
+      'ID Ulasan': r.id,
+      'ID Pesanan': r.orderId,
+      'Nama Karyawan': r.user?.nama || '-',
+      'PT': r.user?.pt || '-',
+      'Departemen': r.user?.departemen || '-',
+      'Rating Bintang': r.rating,
+      'Komentar': r.comment || '-',
+      'Produk': (r.order?.items || []).map((it: any) => `${it.nama_barang} x${it.quantity}`).join(', '),
+      'Total Belanja': r.order?.total_amount ? `Rp ${Number(r.order.total_amount).toLocaleString('id-ID')}` : '-',
+      'Tanggal Ulasan': r.createdAt ? format(new Date(r.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }) : '-',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Laporan Ulasan');
+    XLSX.writeFile(wb, `Laporan_Ulasan_KOKSI_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+  };
 
   // Users state
   const [users, setUsers] = useState<any[]>([]);
@@ -2622,6 +2695,22 @@ export const DashboardAdmin = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('reviews')}
+            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'reviews'
+              ? 'border-amber-500 text-amber-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+          >
+            <Star className="w-4 h-4" />
+            <span>Laporan Ulasan</span>
+            {adminReviewStats && adminReviewStats.totalReviews > 0 && (
+              <span className="px-1.5 py-0.5 text-[10px] bg-amber-400 text-slate-900 rounded-full font-black">
+                {adminReviewStats.totalReviews}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={handleOpenProfileModal}
             className="shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 border-transparent text-slate-600 hover:text-teal-600 transition-colors whitespace-nowrap bg-teal-50/60 rounded-t-lg"
           >
@@ -3825,6 +3914,204 @@ export const DashboardAdmin = () => {
         {activeTab === 'chats' && (
           <div className="flex flex-col flex-1 overflow-hidden space-y-4">
             <AdminChatPanel />
+          </div>
+        )}
+
+        {/* TAB 5: LAPORAN ULASAN */}
+        {activeTab === 'reviews' && (
+          <div className="flex flex-col flex-1 space-y-5">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <Star className="w-5 h-5 text-amber-500 fill-amber-400" />
+                  Laporan Ulasan & Kepuasan Pelanggan
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">Ringkasan penilaian karyawan terhadap layanan dan produk KOKSI</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={fetchAdminReviews}
+                  disabled={reviewsLoading}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${reviewsLoading ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportReviews}
+                  disabled={filteredAdminReviews.length === 0}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export Excel</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Stats Cards */}
+            {adminReviewStats && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-1 shadow-xs">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Ulasan</p>
+                  <p className="text-3xl font-black text-slate-900 tabular-nums">{adminReviewStats.totalReviews}</p>
+                </div>
+                <div className="bg-white border border-amber-200 rounded-2xl p-4 space-y-1 shadow-xs">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Rata-rata Bintang</p>
+                  <div className="flex items-baseline gap-1.5">
+                    <p className="text-3xl font-black text-amber-600 tabular-nums">{adminReviewStats.averageRating.toFixed(1)}</p>
+                    <Star className="w-5 h-5 fill-amber-400 text-amber-400 mb-0.5" />
+                  </div>
+                </div>
+                <div className="bg-white border border-emerald-200 rounded-2xl p-4 space-y-1 shadow-xs">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tingkat Kepuasan</p>
+                  <p className="text-3xl font-black text-emerald-700 tabular-nums">{adminReviewStats.recommendationRate}%</p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2 shadow-xs">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Distribusi Rating</p>
+                  <div className="space-y-1">
+                    {[5, 4, 3, 2, 1].map(star => {
+                      const count = adminReviewStats.distribution[star] || 0;
+                      const pct = adminReviewStats.totalReviews > 0 ? Math.round((count / adminReviewStats.totalReviews) * 100) : 0;
+                      return (
+                        <div key={star} className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-slate-500 w-3">{star}</span>
+                          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-[10px] text-slate-400 w-6 text-right">{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Filters */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={reviewSearch}
+                  onChange={e => setReviewSearch(e.target.value)}
+                  placeholder="Cari nama, PT, departemen, komentar, produk..."
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500 focus:bg-white transition-all"
+                />
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {[null, 5, 4, 3, 2, 1].map(r => (
+                  <button
+                    key={r ?? 'all'}
+                    type="button"
+                    onClick={() => setReviewRatingFilter(r)}
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                      reviewRatingFilter === r
+                        ? 'bg-amber-400 text-slate-900'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {r === null ? 'Semua' : <><span>{r}</span><Star className="w-3 h-3 fill-amber-500 text-amber-500" /></>}
+                  </button>
+                ))}
+                <select
+                  value={reviewSortBy}
+                  onChange={e => setReviewSortBy(e.target.value as 'newest' | 'highest' | 'lowest')}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+                >
+                  <option value="newest">Terbaru</option>
+                  <option value="highest">Rating Tertinggi</option>
+                  <option value="lowest">Rating Terendah</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Reviews Table */}
+            {reviewsLoading ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-xs text-slate-500">Memuat laporan ulasan...</p>
+              </div>
+            ) : filteredAdminReviews.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-2">
+                <Star className="w-10 h-10 text-slate-300 mx-auto" />
+                <p className="text-sm font-bold text-slate-700">Belum ada ulasan</p>
+                <p className="text-xs text-slate-500">Ulasan akan muncul setelah karyawan menyelesaikan & menilai pesanan mereka.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-bold text-slate-600 uppercase tracking-wider">Karyawan</th>
+                        <th className="text-center px-4 py-3 font-bold text-slate-600 uppercase tracking-wider">Rating</th>
+                        <th className="text-left px-4 py-3 font-bold text-slate-600 uppercase tracking-wider">Komentar</th>
+                        <th className="text-left px-4 py-3 font-bold text-slate-600 uppercase tracking-wider">Barang Pesanan</th>
+                        <th className="text-right px-4 py-3 font-bold text-slate-600 uppercase tracking-wider">Total</th>
+                        <th className="text-right px-4 py-3 font-bold text-slate-600 uppercase tracking-wider">Tanggal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredAdminReviews.map(rev => (
+                        <tr key={rev.id} className="hover:bg-amber-50/40 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-700 to-teal-500 text-white flex items-center justify-center font-extrabold text-[10px] shrink-0">
+                                {rev.user?.nama?.split(' ').slice(0,2).map((n: string) => n[0]).join('').toUpperCase() || 'K'}
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-900 leading-tight">{rev.user?.nama || 'Karyawan'}</p>
+                                <p className="text-[11px] text-slate-500">{rev.user?.departemen || '-'} · {rev.user?.pt || '-'}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-0.5">
+                              {[1,2,3,4,5].map(s => (
+                                <Star key={s} className={`w-3.5 h-3.5 ${s <= rev.rating ? 'fill-amber-400 text-amber-400' : 'stroke-slate-200 fill-slate-50'}`} />
+                              ))}
+                            </div>
+                            <p className="text-[10px] font-black text-amber-700 mt-0.5">{rev.rating}/5</p>
+                          </td>
+                          <td className="px-4 py-3 max-w-xs">
+                            {rev.comment ? (
+                              <p className="text-slate-700 italic leading-relaxed line-clamp-2">&ldquo;{rev.comment}&rdquo;</p>
+                            ) : (
+                              <p className="text-slate-400 italic text-[11px]">(Tanpa komentar)</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1">
+                              {(rev.order?.items || []).slice(0, 3).map((it: any, idx: number) => (
+                                <span key={idx} className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded-md text-[10px] font-medium">
+                                  {it.nama_barang} {it.quantity > 1 ? `x${it.quantity}` : ''}
+                                </span>
+                              ))}
+                              {(rev.order?.items || []).length > 3 && (
+                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-md text-[10px]">+{rev.order.items.length - 3} lagi</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
+                            {rev.order?.total_amount ? `Rp ${Number(rev.order.total_amount).toLocaleString('id-ID')}` : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right text-slate-500 whitespace-nowrap">
+                            {rev.createdAt ? format(new Date(rev.createdAt), 'dd MMM yyyy', { locale: idLocale }) : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 text-right text-xs text-slate-500 font-medium">
+                  {filteredAdminReviews.length} ulasan ditampilkan dari total {adminReviews.length}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
