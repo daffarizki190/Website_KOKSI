@@ -9,7 +9,8 @@ import {
   Phone, MessageSquare, Search, Filter, AlertCircle, AlertTriangle, Check, X,
   QrCode, ScanLine, Camera, CameraOff, Inbox, FilterX, PackageSearch,
   Calendar, FileSpreadsheet, Building2, Key, Lock, Eye, EyeOff, Server, CheckSquare,
-  User as UserIcon, Edit3, Save, TrendingUp, BarChart2, Bell, Printer, UserPlus, ShieldAlert, Star
+  User as UserIcon, Edit3, Save, TrendingUp, BarChart2, Bell, Printer, UserPlus, ShieldAlert, Star,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import XLSX from 'xlsx-js-style';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
@@ -623,6 +624,53 @@ export const DashboardAdmin = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Tab horizontal drag and scroll handlers
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const [isDraggingTabs, setIsDraggingTabs] = useState(false);
+  const [tabStartX, setTabStartX] = useState(0);
+  const [tabScrollLeft, setTabScrollLeft] = useState(0);
+  const hasDraggedTabsRef = useRef(false);
+
+  const handleTabMouseDown = (e: React.MouseEvent) => {
+    if (!tabsContainerRef.current) return;
+    setIsDraggingTabs(true);
+    hasDraggedTabsRef.current = false;
+    setTabStartX(e.pageX - tabsContainerRef.current.offsetLeft);
+    setTabScrollLeft(tabsContainerRef.current.scrollLeft);
+  };
+
+  const handleTabMouseLeave = () => {
+    setIsDraggingTabs(false);
+  };
+
+  const handleTabMouseUp = () => {
+    setIsDraggingTabs(false);
+  };
+
+  const handleTabMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingTabs || !tabsContainerRef.current) return;
+    const x = e.pageX - tabsContainerRef.current.offsetLeft;
+    const walk = (x - tabStartX) * 1.5;
+    if (Math.abs(walk) > 5) {
+      hasDraggedTabsRef.current = true;
+    }
+    tabsContainerRef.current.scrollLeft = tabScrollLeft - walk;
+  };
+
+  const handleTabWheel = (e: React.WheelEvent) => {
+    if (tabsContainerRef.current && e.deltaY !== 0) {
+      tabsContainerRef.current.scrollLeft += e.deltaY;
+    }
+  };
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    if (!tabsContainerRef.current) return;
+    tabsContainerRef.current.scrollBy({
+      left: direction === 'left' ? -260 : 260,
+      behavior: 'smooth'
+    });
+  };
 
   const [productSearch, setProductSearch] = useState('');
   const [productCategoryFilter, setProductCategoryFilter] = useState('Semua');
@@ -2627,101 +2675,153 @@ export const DashboardAdmin = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 w-full max-w-full flex-1 flex flex-col min-w-0 overflow-x-hidden">
-        {/* Navigation Tabs (Responsive for Mobile and Desktop) */}
-        <div className="flex flex-row space-x-2 sm:space-x-4 border-b border-slate-200 mb-4 sm:mb-6 shrink-0 overflow-x-auto max-w-full w-full pb-1 scrollbar-none">
+        {/* Navigation Tabs (Responsive with Mouse Drag, Wheel, & Arrow buttons) */}
+        <div className="relative mb-4 sm:mb-6 group shrink-0">
           <button
-            onClick={() => setActiveTab('orders')}
-            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'orders'
-              ? 'border-teal-600 text-teal-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
+            type="button"
+            onClick={() => scrollTabs('left')}
+            className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 items-center justify-center rounded-full bg-white shadow-md border border-slate-200 text-slate-600 hover:text-teal-600 hover:bg-slate-50 transition-all -ml-3 cursor-pointer opacity-80 hover:opacity-100"
+            aria-label="Geser tab ke kiri"
           >
-            <ShoppingBag className="w-4 h-4" />
-            <span>Permintaan Transaksi</span>
-            {pendingOrdersCount > 0 && (
-              <span className="ml-1.5 px-2 py-0.5 text-[10px] bg-amber-500 text-white rounded-full font-black">
-                {pendingOrdersCount} Baru
-              </span>
-            )}
+            <ChevronLeft className="w-4 h-4" />
           </button>
 
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'analytics'
-              ? 'border-teal-600 text-teal-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
+          <div
+            ref={tabsContainerRef}
+            onWheel={handleTabWheel}
+            onMouseDown={handleTabMouseDown}
+            onMouseLeave={handleTabMouseLeave}
+            onMouseUp={handleTabMouseUp}
+            onMouseMove={handleTabMouseMove}
+            className={`flex flex-row space-x-2 sm:space-x-4 border-b border-slate-200 overflow-x-auto max-w-full w-full pb-1 scroll-smooth select-none cursor-grab active:cursor-grabbing scrollbar-none touch-pan-x`}
           >
-            <TrendingUp className="w-4 h-4 text-teal-600" />
-            <span>Grafik & Tren Penjualan</span>
-          </button>
+            <button
+              onClick={() => {
+                if (hasDraggedTabsRef.current) return;
+                setActiveTab('orders');
+              }}
+              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'orders'
+                ? 'border-teal-600 text-teal-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span>Permintaan Transaksi</span>
+              {pendingOrdersCount > 0 && (
+                <span className="ml-1.5 px-2 py-0.5 text-[10px] bg-amber-500 text-white rounded-full font-black">
+                  {pendingOrdersCount} Baru
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                if (hasDraggedTabsRef.current) return;
+                setActiveTab('analytics');
+              }}
+              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'analytics'
+                ? 'border-teal-600 text-teal-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+            >
+              <TrendingUp className="w-4 h-4 text-teal-600" />
+              <span>Grafik & Tren Penjualan</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (hasDraggedTabsRef.current) return;
+                setActiveTab('products');
+              }}
+              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'products'
+                ? 'border-teal-600 text-teal-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+            >
+              <Package className="w-4 h-4" />
+              <span>Data Produk</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (hasDraggedTabsRef.current) return;
+                setActiveTab('users');
+              }}
+              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'users'
+                ? 'border-teal-600 text-teal-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+            >
+              <FileText className="w-4 h-4" />
+              <span>Daftar Pengguna ({users.filter(u => !u.is_blocked).length})</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (hasDraggedTabsRef.current) return;
+                setActiveTab('blocked_users');
+              }}
+              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'blocked_users'
+                ? 'border-red-600 text-red-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+            >
+              <ShieldAlert className="w-4 h-4" />
+              <span>Anggota Diblokir ({users.filter(u => u.is_blocked).length})</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (hasDraggedTabsRef.current) return;
+                setActiveTab('chats');
+              }}
+              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'chats'
+                ? 'border-teal-600 text-teal-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>Pesan Anggota</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (hasDraggedTabsRef.current) return;
+                setActiveTab('reviews');
+              }}
+              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'reviews'
+                ? 'border-amber-500 text-amber-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+            >
+              <Star className="w-4 h-4" />
+              <span>Laporan Ulasan</span>
+              {adminReviewStats && adminReviewStats.totalReviews > 0 && (
+                <span className="px-1.5 py-0.5 text-[10px] bg-amber-400 text-slate-900 rounded-full font-black">
+                  {adminReviewStats.totalReviews}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                if (hasDraggedTabsRef.current) return;
+                handleOpenProfileModal();
+              }}
+              className="shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 border-transparent text-slate-600 hover:text-teal-600 transition-colors whitespace-nowrap bg-teal-50/60 rounded-t-lg cursor-pointer"
+            >
+              <UserIcon className="w-4 h-4 text-teal-600" />
+              <span>Edit Profil Saya</span>
+            </button>
+          </div>
 
           <button
-            onClick={() => setActiveTab('products')}
-            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'products'
-              ? 'border-teal-600 text-teal-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
+            type="button"
+            onClick={() => scrollTabs('right')}
+            className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 items-center justify-center rounded-full bg-white shadow-md border border-slate-200 text-slate-600 hover:text-teal-600 hover:bg-slate-50 transition-all -mr-3 cursor-pointer opacity-80 hover:opacity-100"
+            aria-label="Geser tab ke kanan"
           >
-            <Package className="w-4 h-4" />
-            <span>Data Produk</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'users'
-              ? 'border-teal-600 text-teal-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>Daftar Pengguna ({users.filter(u => !u.is_blocked).length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('blocked_users')}
-            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'blocked_users'
-              ? 'border-red-600 text-red-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-          >
-            <ShieldAlert className="w-4 h-4" />
-            <span>Anggota Diblokir ({users.filter(u => u.is_blocked).length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('chats')}
-            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'chats'
-              ? 'border-teal-600 text-teal-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span>Pesan Anggota</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('reviews')}
-            className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'reviews'
-              ? 'border-amber-500 text-amber-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-          >
-            <Star className="w-4 h-4" />
-            <span>Laporan Ulasan</span>
-            {adminReviewStats && adminReviewStats.totalReviews > 0 && (
-              <span className="px-1.5 py-0.5 text-[10px] bg-amber-400 text-slate-900 rounded-full font-black">
-                {adminReviewStats.totalReviews}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={handleOpenProfileModal}
-            className="shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 border-transparent text-slate-600 hover:text-teal-600 transition-colors whitespace-nowrap bg-teal-50/60 rounded-t-lg"
-          >
-            <UserIcon className="w-4 h-4 text-teal-600" />
-            <span>Edit Profil Saya</span>
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 
