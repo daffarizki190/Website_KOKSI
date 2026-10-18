@@ -172,8 +172,18 @@ export const UserChatWidget: React.FC<UserChatWidgetProps> = ({ isOpen: propIsOp
 
   useEffect(() => {
     fetchMessages(isOpen);
-    const interval = setInterval(() => fetchMessages(isOpen), 5000); // poll every 5s
-    return () => clearInterval(interval);
+    const delay = isOpen ? 5000 : 30000;
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchMessages(isOpen);
+    }, delay);
+    const onVisible = () => {
+      if (!document.hidden) fetchMessages(isOpen);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [isOpen, token, user?.id]);
 
   useEffect(() => {

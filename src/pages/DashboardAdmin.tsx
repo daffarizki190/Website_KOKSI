@@ -637,12 +637,18 @@ export const DashboardAdmin = () => {
       fetchOrders();
       fetchCategoryLearnings();
 
-      // Real-time polling every 4 seconds for new incoming orders
       const interval = setInterval(() => {
-        fetchOrders(true);
-      }, 4000);
+        if (!document.hidden) fetchOrders(true);
+      }, 8000);
+      const onVisible = () => {
+        if (!document.hidden) fetchOrders(true);
+      };
+      document.addEventListener('visibilitychange', onVisible);
 
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', onVisible);
+      };
     }
   }, [user]);
 

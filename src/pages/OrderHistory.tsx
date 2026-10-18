@@ -304,11 +304,17 @@ export default function OrderHistory() {
     } catch (e) {}
 
     fetchOrders(false);
-    // Poll every 5 seconds for real-time status updates from Admin
     const interval = setInterval(() => {
-      fetchOrders(true);
-    }, 5000);
-    return () => clearInterval(interval);
+      if (!document.hidden) fetchOrders(true);
+    }, 10000);
+    const onVisible = () => {
+      if (!document.hidden) fetchOrders(true);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [token]);
 
   const fetchOrders = async (isBackground = false) => {

@@ -16,6 +16,7 @@ import webpush from 'web-push';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_koperasi';
 if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'supersecretjwtkey_koperasi')) {
@@ -54,6 +55,7 @@ const bcryptCompare = async (s: string, hash: string): Promise<boolean> => {
 const app = express();
 // Enable proxy trust so that client IP and headers are correctly resolved behind reverse proxy
 app.set('trust proxy', 1);
+app.use(compression());
 
 // --- KONFIGURASI FOLDER UPLOAD & MULTER ---
 const isVercel = process.env.VERCEL === '1';
@@ -5057,13 +5059,19 @@ async function seedDefaultUsers() {
 }
 
 // --- CHAT ENDPOINTS ---
+let lastChatCleanupAt = 0;
+const CHAT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+
 app.get('/api/chats', requireAuth, async (req: any, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (!isDbConfigured) return res.json([]);
     
-    // Auto-cleanup: delete chats older than 30 days
-    await withDbRetry(() => db.delete(chats).where(sql`${chats.createdAt} < NOW() - INTERVAL '30 days'`));
+    const now = Date.now();
+    if (now - lastChatCleanupAt > CHAT_CLEANUP_INTERVAL_MS) {
+      lastChatCleanupAt = now;
+      await withDbRetry(() => db.delete(chats).where(sql`${chats.createdAt} < NOW() - INTERVAL '30 days'`));
+    }
 
     let query: any;
     if (req.user.role === 'admin' || req.user.role === 'it') {
@@ -5084,53 +5092,20 @@ app.get('/api/chats', requireAuth, async (req: any, res) => {
           sql`(${chats.senderId} = ${Number(userId)} AND ${chats.receiverId} IS NULL) 
            OR (${chats.receiverId} = ${Number(userId)})`
         )
-        .orderBy(asc(chats.createdAt)));
+        .orderBy(desc(chats.createdAt))
+        .limit(200));
       } else {
-        // Dapatkan semua user ID yang pernah chatting dengan admin
-        const rawChats = await withDbRetry(() => db.select({
-          senderId: chats.senderId,
-          receiverId: chats.receiverId,
-          isRead: chats.isRead,
-          message: chats.message,
-          createdAt: chats.createdAt,
-          nama: users.nama,
-          pt: users.pt
-        })
-        .from(chats)
-        .leftJoin(users, sql`${users.id} = CASE WHEN ${chats.receiverId} IS NULL THEN ${chats.senderId} ELSE ${chats.receiverId} END`)
-        );
-
-        // Agregasi di JS untuk mencari unreadCount, lastMessage, dll
-        const userMap = new Map<number, any>();
-        for (const chat of rawChats) {
-          const uId = (chat.receiverId === null) ? chat.senderId : chat.receiverId;
-          if (!uId || !chat.nama) continue;
-          
-          if (!userMap.has(uId)) {
-            userMap.set(uId, {
-              senderId: uId,
-              nama: chat.nama,
-              pt: chat.pt,
-              unreadCount: 0,
-              lastMessageTime: chat.createdAt,
-              lastMessageText: chat.message
-            });
-          }
-          
-          const u = userMap.get(uId);
-          // Update last message if this chat is newer
-          if (new Date(chat.createdAt) > new Date(u.lastMessageTime)) {
-            u.lastMessageTime = chat.createdAt;
-            u.lastMessageText = chat.message;
-          }
-          // Increment unread count if admin is receiver (receiverId IS NULL) and not read
-          if (chat.receiverId === null && !chat.isRead) {
-            u.unreadCount++;
-          }
-        }
-        
-        const chatUsers = Array.from(userMap.values()).sort((a, b) => new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime());
-        return res.json(chatUsers);
+        const aggregated: any = await withDbRetry(() => db.execute(sql`
+          SELECT u.id AS "senderId", u.nama, u.pt,
+            COUNT(*) FILTER (WHERE c.receiver_id IS NULL AND COALESCE(c.is_read, false) = false)::int AS "unreadCount",
+            MAX(c.created_at) AS "lastMessageTime",
+            (array_agg(c.message ORDER BY c.created_at DESC))[1] AS "lastMessageText"
+          FROM chats c
+          JOIN users u ON u.id = CASE WHEN c.receiver_id IS NULL THEN c.sender_id ELSE c.receiver_id END
+          GROUP BY u.id, u.nama, u.pt
+          ORDER BY "lastMessageTime" DESC
+        `));
+        return res.json(aggregated.rows);
       }
     } else {
       // User only sees their own chat with Admin
@@ -5149,9 +5124,10 @@ app.get('/api/chats', requireAuth, async (req: any, res) => {
         sql`(${chats.senderId} = ${req.user.id} AND ${chats.receiverId} IS NULL) 
          OR (${chats.receiverId} = ${req.user.id})`
       )
-      .orderBy(asc(chats.createdAt)));
+      .orderBy(desc(chats.createdAt))
+      .limit(200));
     }
-    res.json(query);
+    res.json(Array.isArray(query) ? [...query].reverse() : query);
   } catch (err) {
     console.error('Fetch chats error:', err);
     res.status(500).json({ error: 'Gagal mengambil data pesan' });

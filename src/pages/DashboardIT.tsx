@@ -383,8 +383,8 @@ export function DashboardIT() {
     let interval: any = null;
     if (autoRefresh) {
       interval = setInterval(() => {
-        fetchITData();
-      }, 5000);
+        if (!document.hidden) fetchITData();
+      }, 10000);
     }
     return () => {
       if (interval) clearInterval(interval);

@@ -129,11 +129,12 @@ export const AdminChatPanel: React.FC = () => {
   useEffect(() => {
     fetchUsers();
     const interval = setInterval(() => {
+      if (document.hidden) return;
       fetchUsers();
       if (selectedUserId) {
         fetchMessages(selectedUserId);
       }
-    }, 5000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [token, selectedUserId]);
 
