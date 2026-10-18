@@ -627,47 +627,75 @@ export const DashboardAdmin = () => {
 
   // Tab horizontal drag and scroll handlers
   const tabsContainerRef = useRef<HTMLDivElement>(null);
-  const [isDraggingTabs, setIsDraggingTabs] = useState(false);
-  const [tabStartX, setTabStartX] = useState(0);
-  const [tabScrollLeft, setTabScrollLeft] = useState(0);
+  const isDraggingTabsRef = useRef(false);
+  const tabStartXRef = useRef(0);
+  const tabScrollLeftRef = useRef(0);
   const hasDraggedTabsRef = useRef(false);
+
+  useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+
+    // Non-passive wheel handler: mouse wheel scrolls horizontally
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+
+    // Window-level mouse move / up handlers for drag
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDraggingTabsRef.current) return;
+      const x = e.pageX - el.offsetLeft;
+      const walk = (x - tabStartXRef.current) * 1.5;
+      if (Math.abs(walk) > 4) {
+        hasDraggedTabsRef.current = true;
+      }
+      el.scrollLeft = tabScrollLeftRef.current - walk;
+    };
+
+    const onMouseUp = () => {
+      if (isDraggingTabsRef.current) {
+        isDraggingTabsRef.current = false;
+        el.classList.remove('cursor-grabbing');
+        el.classList.add('cursor-grab');
+      }
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!tabsContainerRef.current) return;
+    const activeEl = tabsContainerRef.current.querySelector('[data-active="true"]') as HTMLElement;
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [activeTab]);
 
   const handleTabMouseDown = (e: React.MouseEvent) => {
     if (!tabsContainerRef.current) return;
-    setIsDraggingTabs(true);
+    isDraggingTabsRef.current = true;
     hasDraggedTabsRef.current = false;
-    setTabStartX(e.pageX - tabsContainerRef.current.offsetLeft);
-    setTabScrollLeft(tabsContainerRef.current.scrollLeft);
-  };
-
-  const handleTabMouseLeave = () => {
-    setIsDraggingTabs(false);
-  };
-
-  const handleTabMouseUp = () => {
-    setIsDraggingTabs(false);
-  };
-
-  const handleTabMouseMove = (e: React.MouseEvent) => {
-    if (!isDraggingTabs || !tabsContainerRef.current) return;
-    const x = e.pageX - tabsContainerRef.current.offsetLeft;
-    const walk = (x - tabStartX) * 1.5;
-    if (Math.abs(walk) > 5) {
-      hasDraggedTabsRef.current = true;
-    }
-    tabsContainerRef.current.scrollLeft = tabScrollLeft - walk;
-  };
-
-  const handleTabWheel = (e: React.WheelEvent) => {
-    if (tabsContainerRef.current && e.deltaY !== 0) {
-      tabsContainerRef.current.scrollLeft += e.deltaY;
-    }
+    tabStartXRef.current = e.pageX - tabsContainerRef.current.offsetLeft;
+    tabScrollLeftRef.current = tabsContainerRef.current.scrollLeft;
+    tabsContainerRef.current.classList.remove('cursor-grab');
+    tabsContainerRef.current.classList.add('cursor-grabbing');
   };
 
   const scrollTabs = (direction: 'left' | 'right') => {
     if (!tabsContainerRef.current) return;
     tabsContainerRef.current.scrollBy({
-      left: direction === 'left' ? -260 : 260,
+      left: direction === 'left' ? -280 : 280,
       behavior: 'smooth'
     });
   };
@@ -2675,32 +2703,31 @@ export const DashboardAdmin = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 w-full max-w-full flex-1 flex flex-col min-w-0 overflow-x-hidden">
-        {/* Navigation Tabs (Responsive with Mouse Drag, Wheel, & Arrow buttons) */}
-        <div className="relative mb-4 sm:mb-6 group shrink-0">
+        {/* Navigation Tabs (Responsive with Visible Arrows, Mouse Drag, Wheel, & Scrollbar) */}
+        <div className="flex items-center gap-2 mb-4 sm:mb-6 shrink-0 w-full max-w-full">
           <button
             type="button"
             onClick={() => scrollTabs('left')}
-            className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 items-center justify-center rounded-full bg-white shadow-md border border-slate-200 text-slate-600 hover:text-teal-600 hover:bg-slate-50 transition-all -ml-3 cursor-pointer opacity-80 hover:opacity-100"
+            className="shrink-0 w-8 h-9 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-700 hover:text-teal-600 hover:bg-slate-50 shadow-xs transition-all cursor-pointer"
+            title="Geser tab ke kiri"
             aria-label="Geser tab ke kiri"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-5 h-5" />
           </button>
 
           <div
             ref={tabsContainerRef}
-            onWheel={handleTabWheel}
             onMouseDown={handleTabMouseDown}
-            onMouseLeave={handleTabMouseLeave}
-            onMouseUp={handleTabMouseUp}
-            onMouseMove={handleTabMouseMove}
-            className={`flex flex-row space-x-2 sm:space-x-4 border-b border-slate-200 overflow-x-auto max-w-full w-full pb-1 scroll-smooth select-none cursor-grab active:cursor-grabbing scrollbar-none touch-pan-x`}
+            className={`flex-1 flex flex-row space-x-2 sm:space-x-3 border-b border-slate-200 overflow-x-auto pb-1.5 scroll-smooth select-none cursor-grab active:cursor-grabbing touch-pan-x`}
+            style={{ scrollbarWidth: 'thin' }}
           >
             <button
+              data-active={activeTab === 'orders' ? 'true' : undefined}
               onClick={() => {
                 if (hasDraggedTabsRef.current) return;
                 setActiveTab('orders');
               }}
-              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'orders'
+              className={`shrink-0 py-2.5 px-3.5 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'orders'
                 ? 'border-teal-600 text-teal-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
@@ -2715,11 +2742,12 @@ export const DashboardAdmin = () => {
             </button>
 
             <button
+              data-active={activeTab === 'analytics' ? 'true' : undefined}
               onClick={() => {
                 if (hasDraggedTabsRef.current) return;
                 setActiveTab('analytics');
               }}
-              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'analytics'
+              className={`shrink-0 py-2.5 px-3.5 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'analytics'
                 ? 'border-teal-600 text-teal-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
@@ -2729,11 +2757,12 @@ export const DashboardAdmin = () => {
             </button>
 
             <button
+              data-active={activeTab === 'products' ? 'true' : undefined}
               onClick={() => {
                 if (hasDraggedTabsRef.current) return;
                 setActiveTab('products');
               }}
-              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'products'
+              className={`shrink-0 py-2.5 px-3.5 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'products'
                 ? 'border-teal-600 text-teal-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
@@ -2743,11 +2772,12 @@ export const DashboardAdmin = () => {
             </button>
 
             <button
+              data-active={activeTab === 'users' ? 'true' : undefined}
               onClick={() => {
                 if (hasDraggedTabsRef.current) return;
                 setActiveTab('users');
               }}
-              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'users'
+              className={`shrink-0 py-2.5 px-3.5 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'users'
                 ? 'border-teal-600 text-teal-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
@@ -2757,11 +2787,12 @@ export const DashboardAdmin = () => {
             </button>
 
             <button
+              data-active={activeTab === 'blocked_users' ? 'true' : undefined}
               onClick={() => {
                 if (hasDraggedTabsRef.current) return;
                 setActiveTab('blocked_users');
               }}
-              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'blocked_users'
+              className={`shrink-0 py-2.5 px-3.5 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'blocked_users'
                 ? 'border-red-600 text-red-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
@@ -2771,11 +2802,12 @@ export const DashboardAdmin = () => {
             </button>
 
             <button
+              data-active={activeTab === 'chats' ? 'true' : undefined}
               onClick={() => {
                 if (hasDraggedTabsRef.current) return;
                 setActiveTab('chats');
               }}
-              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'chats'
+              className={`shrink-0 py-2.5 px-3.5 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'chats'
                 ? 'border-teal-600 text-teal-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
@@ -2785,11 +2817,12 @@ export const DashboardAdmin = () => {
             </button>
 
             <button
+              data-active={activeTab === 'reviews' ? 'true' : undefined}
               onClick={() => {
                 if (hasDraggedTabsRef.current) return;
                 setActiveTab('reviews');
               }}
-              className={`shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'reviews'
+              className={`shrink-0 py-2.5 px-3.5 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === 'reviews'
                 ? 'border-amber-500 text-amber-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
@@ -2808,7 +2841,7 @@ export const DashboardAdmin = () => {
                 if (hasDraggedTabsRef.current) return;
                 handleOpenProfileModal();
               }}
-              className="shrink-0 py-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 border-transparent text-slate-600 hover:text-teal-600 transition-colors whitespace-nowrap bg-teal-50/60 rounded-t-lg cursor-pointer"
+              className="shrink-0 py-2.5 px-3.5 font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border-b-2 border-transparent text-slate-600 hover:text-teal-600 transition-colors whitespace-nowrap bg-teal-50/60 rounded-t-lg cursor-pointer"
             >
               <UserIcon className="w-4 h-4 text-teal-600" />
               <span>Edit Profil Saya</span>
@@ -2818,10 +2851,11 @@ export const DashboardAdmin = () => {
           <button
             type="button"
             onClick={() => scrollTabs('right')}
-            className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 items-center justify-center rounded-full bg-white shadow-md border border-slate-200 text-slate-600 hover:text-teal-600 hover:bg-slate-50 transition-all -mr-3 cursor-pointer opacity-80 hover:opacity-100"
+            className="shrink-0 w-8 h-9 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-700 hover:text-teal-600 hover:bg-slate-50 shadow-xs transition-all cursor-pointer"
+            title="Geser tab ke kanan"
             aria-label="Geser tab ke kanan"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-5 h-5" />
           </button>
         </div>
 
