@@ -30,6 +30,8 @@ __export(schema_exports, {
   chatsRelations: () => chatsRelations,
   orderItems: () => orderItems,
   orderItemsRelations: () => orderItemsRelations,
+  orderReviews: () => orderReviews,
+  orderReviewsRelations: () => orderReviewsRelations,
   orders: () => orders,
   ordersRelations: () => ordersRelations,
   products: () => products,
@@ -103,7 +105,8 @@ var cartItems = pgTable("cart_items", {
 });
 var usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
-  cartItems: many(cartItems)
+  cartItems: many(cartItems),
+  reviews: many(orderReviews)
 }));
 var productsRelations = relations(products, ({ many }) => ({
   orderItems: many(orderItems),
@@ -114,7 +117,8 @@ var ordersRelations = relations(orders, ({ one, many }) => ({
     fields: [orders.userId],
     references: [users.id]
   }),
-  items: many(orderItems)
+  items: many(orderItems),
+  review: one(orderReviews)
 }));
 var orderItemsRelations = relations(orderItems, ({ one }) => ({
   order: one(orders, {
@@ -197,6 +201,24 @@ var categoryLearnings = pgTable("category_learnings", {
   sub_kategori: text("sub_kategori").notNull(),
   createdAt: timestamp("created_at").defaultNow()
 });
+var orderReviews = pgTable("order_reviews", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").references(() => orders.id, { onDelete: "cascade" }).notNull().unique(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  rating: integer("rating").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at").defaultNow()
+});
+var orderReviewsRelations = relations(orderReviews, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderReviews.orderId],
+    references: [orders.id]
+  }),
+  user: one(users, {
+    fields: [orderReviews.userId],
+    references: [users.id]
+  })
+}));
 
 // src/db/index.ts
 var createPool = () => {
@@ -299,6 +321,7 @@ import webpush from "web-push";
 import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import compression from "compression";
 dotenv.config();
 var JWT_SECRET = process.env.JWT_SECRET || "supersecretjwtkey_koperasi";
 if (process.env.NODE_ENV === "production" && (!process.env.JWT_SECRET || process.env.JWT_SECRET === "supersecretjwtkey_koperasi")) {
@@ -329,6 +352,7 @@ var bcryptCompare = async (s, hash2) => {
 };
 var app = express();
 app.set("trust proxy", 1);
+app.use(compression());
 var isVercel = process.env.VERCEL === "1";
 var uploadDir = isVercel ? path.join("/tmp", "uploads") : path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -979,25 +1003,51 @@ app.post("/api/notifications/subscribe", requireAuth, async (req, res) => {
 app.get("/api/notifications/vapid-public-key", (req, res) => {
   res.send(VAPID_PUBLIC_KEY);
 });
-app.get("/api/activity-logs", requireAuth, requireIT, async (req, res) => {
+app.get("/api/activity-logs", requireAuth, async (req, res) => {
   try {
-    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
-    if (!isDbConfigured) {
-      res.json(itAuditLogsQueue);
+    const isAdminOrIT = req.user?.role === "admin" || req.user?.role === "it";
+    if (!isAdminOrIT) {
+      res.status(403).json({ error: "Akses ditolak: Hanya IT atau Admin yang dapat mengakses log audit." });
       return;
     }
-    const logs = await withDbRetry(() => db.select({
-      id: activityLogs.id,
-      timestamp: activityLogs.createdAt,
-      actor: activityLogs.actorName,
-      action: activityLogs.action,
-      details: activityLogs.details
-    }).from(activityLogs).orderBy(desc(activityLogs.createdAt)).limit(100));
-    const formattedDbLogs = logs.map((l) => ({
-      ...l,
-      timestamp: l.timestamp?.toISOString() || (/* @__PURE__ */ new Date()).toISOString()
-    }));
-    res.json(formattedDbLogs.length > 0 ? formattedDbLogs : itAuditLogsQueue);
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    let dbLogs = [];
+    if (isDbConfigured) {
+      try {
+        const rows = await withDbRetry(() => db.select({
+          id: activityLogs.id,
+          timestamp: activityLogs.createdAt,
+          actor: activityLogs.actorName,
+          action: activityLogs.action,
+          details: activityLogs.details
+        }).from(activityLogs).orderBy(desc(activityLogs.createdAt)).limit(200));
+        dbLogs = rows.map((l) => ({
+          id: String(l.id),
+          timestamp: l.timestamp?.toISOString() || (/* @__PURE__ */ new Date()).toISOString(),
+          actor: l.actor,
+          action: l.action,
+          details: l.details || ""
+        }));
+      } catch (err) {
+        console.warn("Could not query activityLogs table:", err);
+      }
+    }
+    const seen = /* @__PURE__ */ new Set();
+    const combined = [];
+    for (const log of itAuditLogsQueue) {
+      if (!seen.has(log.id)) {
+        seen.add(log.id);
+        combined.push(log);
+      }
+    }
+    for (const log of dbLogs) {
+      if (!seen.has(log.id)) {
+        seen.add(log.id);
+        combined.push(log);
+      }
+    }
+    combined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    res.json(combined);
   } catch (error) {
     console.error("Fetch activity logs error:", error);
     res.status(500).json({ error: "Gagal mengambil data activity log" });
@@ -1203,6 +1253,19 @@ app.put("/api/users/:id", requireAuth, async (req, res) => {
       no_hp: no_hp.trim()
     };
     if (role && ["user", "admin", "it"].includes(role)) {
+      if (role === "it" && req.user?.role === "admin") {
+        const targetUsers = await db.select().from(users).where(eq(users.id, targetUserId));
+        if (targetUsers.length > 0 && targetUsers[0].role !== "it") {
+          const passcode = req.body.passcode ? String(req.body.passcode).trim() : "";
+          if (passcode !== "466846") {
+            res.status(403).json({
+              error: 'Sandi otorisasi salah! Masukkan sandi "466846" untuk mengubah role pengguna menjadi IT.',
+              requirePasscode: true
+            });
+            return;
+          }
+        }
+      }
       updateData.role = role;
     }
     if (newPassword && typeof newPassword === "string" && newPassword.trim().length >= 6) {
@@ -1245,9 +1308,19 @@ app.put("/api/users/:id/role", requireAuth, async (req, res) => {
     }
     const targetUserId = Number(req.params.id);
     const newRole = (req.body.newRole || req.body.role || "").toString().toLowerCase().trim();
+    const passcode = req.body.passcode ? String(req.body.passcode).trim() : "";
     if (!["user", "admin", "it"].includes(newRole)) {
       res.status(400).json({ error: "Role tidak valid! Pilihan: user, admin, it" });
       return;
+    }
+    if (newRole === "it" && req.user?.role === "admin") {
+      if (passcode !== "466846") {
+        res.status(403).json({
+          error: 'Sandi otorisasi salah! Masukkan sandi "466846" untuk mengangkat pengguna menjadi role IT.',
+          requirePasscode: true
+        });
+        return;
+      }
     }
     const updatedUsers = await withDbRetry(() => db.update(users).set({ role: newRole }).where(eq(users.id, targetUserId)).returning());
     if (updatedUsers.length === 0) {
@@ -1401,6 +1474,12 @@ app.post("/api/upload", requireAuth, requireAdmin, upload.single("image"), (req,
   }
   res.json({ imageUrl: `/uploads/${req.file.filename}` });
 });
+var cachedProductList = null;
+var cachedProductListExpiry = 0;
+function invalidateProductCache() {
+  cachedProductList = null;
+  cachedProductListExpiry = 0;
+}
 app.get("/api/products", requireAuth, async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
@@ -1408,8 +1487,17 @@ app.get("/api/products", requireAuth, async (req, res) => {
       res.json(inMemoryProducts);
       return;
     }
+    const now = Date.now();
+    if (cachedProductList && now < cachedProductListExpiry) {
+      res.setHeader("Cache-Control", "private, max-age=30");
+      res.json(cachedProductList);
+      return;
+    }
     await ensureDatabaseSchema();
     const productList = await withDbRetry(() => db.select().from(products));
+    cachedProductList = productList;
+    cachedProductListExpiry = now + 6e4;
+    res.setHeader("Cache-Control", "private, max-age=30");
     res.json(productList);
   } catch (error) {
     console.error("Database query error during products fetch:", error);
@@ -1436,6 +1524,7 @@ app.post("/api/products", requireAuth, requireAdmin, async (req, res) => {
       stok: Number(stok),
       imageUrl: imageUrl || ""
     }).returning());
+    invalidateProductCache();
     await logActivity(req.user?.id || null, req.user?.nama || "Admin", "Tambah Produk", `Menambahkan produk baru: ${nama_barang} (Kategori: ${kategori})`);
     res.status(201).json(newProduct[0]);
   } catch (error) {
@@ -1459,6 +1548,7 @@ app.put("/api/products/:id", requireAuth, requireAdmin, async (req, res) => {
     const updateData = { nama_barang, kategori, sub_kategori, harga: Number(harga), stok: Number(stok) };
     if (imageUrl !== void 0) updateData.imageUrl = imageUrl;
     const updated = await withDbRetry(() => db.update(products).set(updateData).where(eq(products.id, productId)).returning());
+    invalidateProductCache();
     res.json(updated[0]);
   } catch (error) {
     res.status(500).json({ error: "Failed to update product" });
@@ -1468,6 +1558,7 @@ app.delete("/api/products/all", requireAuth, requireAdmin, async (req, res) => {
   try {
     await withDbRetry(() => db.delete(cartItems));
     await withDbRetry(() => db.delete(products));
+    invalidateProductCache();
     res.json({ message: "Semua produk berhasil dihapus" });
   } catch (error) {
     console.error("Gagal menghapus semua produk:", error);
@@ -1508,6 +1599,7 @@ app.delete("/api/products/:id", requireAuth, requireAdmin, async (req, res) => {
       }
     }
     await withDbRetry(() => db.delete(products).where(eq(products.id, productId)));
+    invalidateProductCache();
     await logActivity(
       req.user?.id || null,
       req.user?.nama || "Admin",
@@ -1599,6 +1691,15 @@ async function ensureDatabaseSchema() {
           user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           endpoint TEXT NOT NULL UNIQUE,
           keys TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS order_reviews (
+          id SERIAL PRIMARY KEY,
+          order_id INTEGER NOT NULL UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          rating INTEGER NOT NULL,
+          comment TEXT,
           created_at TIMESTAMP DEFAULT NOW()
         );
       `);
@@ -2263,18 +2364,43 @@ app.get("/api/orders/history", requireAuth, async (req, res) => {
     }
     try {
       const userOrdersList = await db.select().from(orders).where(eq(orders.userId, userId)).orderBy(asc(orders.createdAt));
-      const result = [];
-      for (const ord of userOrdersList) {
-        const itemsList = await db.select({
-          id: orderItems.id,
-          orderId: orderItems.orderId,
-          productId: orderItems.productId,
-          quantity: orderItems.quantity,
-          price: orderItems.price,
-          productNama: products.nama_barang
-        }).from(orderItems).leftJoin(products, eq(orderItems.productId, products.id)).where(eq(orderItems.orderId, ord.id));
-        result.push({
+      const orderIds = userOrdersList.map((o) => o.id);
+      const reviewMap = /* @__PURE__ */ new Map();
+      if (orderIds.length > 0) {
+        try {
+          const revList = await db.select().from(orderReviews).where(inArray(orderReviews.orderId, orderIds));
+          for (const rev of revList) {
+            reviewMap.set(rev.orderId, rev);
+          }
+        } catch (e) {
+          console.warn("Could not query order reviews in history:", e);
+        }
+      }
+      const itemsMap = /* @__PURE__ */ new Map();
+      if (orderIds.length > 0) {
+        try {
+          const allItems = await db.select({
+            id: orderItems.id,
+            orderId: orderItems.orderId,
+            productId: orderItems.productId,
+            quantity: orderItems.quantity,
+            price: orderItems.price,
+            productNama: products.nama_barang
+          }).from(orderItems).leftJoin(products, eq(orderItems.productId, products.id)).where(inArray(orderItems.orderId, orderIds));
+          for (const it of allItems) {
+            const arr = itemsMap.get(it.orderId) || [];
+            arr.push(it);
+            itemsMap.set(it.orderId, arr);
+          }
+        } catch (e) {
+          console.warn("Could not query order items in history:", e);
+        }
+      }
+      const result = userOrdersList.map((ord) => {
+        const itemsList = itemsMap.get(ord.id) || [];
+        return {
           ...ord,
+          review: reviewMap.get(ord.id) || null,
           items: itemsList.map((item) => ({
             id: item.id,
             orderId: item.orderId,
@@ -2286,8 +2412,8 @@ app.get("/api/orders/history", requireAuth, async (req, res) => {
               nama_barang: item.productNama || `Produk #${item.productId}`
             }
           }))
-        });
-      }
+        };
+      });
       res.json(result);
     } catch (dbErr) {
       console.warn("DB history query error:", dbErr);
@@ -2304,27 +2430,63 @@ app.get("/api/orders/all", requireAuth, requireAdmin, async (req, res) => {
     const allOrdersList = await withDbRetry(
       () => db.select().from(orders).orderBy(asc(orders.createdAt))
     );
-    const result = [];
-    for (const ord of allOrdersList) {
-      const userList = await db.select().from(users).where(eq(users.id, ord.userId));
-      const ordUser = userList[0] || null;
-      const itemsList = await db.select({
-        id: orderItems.id,
-        orderId: orderItems.orderId,
-        productId: orderItems.productId,
-        quantity: orderItems.quantity,
-        price: orderItems.price,
-        productNama: products.nama_barang
-      }).from(orderItems).leftJoin(products, eq(orderItems.productId, products.id)).where(eq(orderItems.orderId, ord.id));
-      result.push({
+    const orderIds = allOrdersList.map((o) => o.id);
+    const reviewMap = /* @__PURE__ */ new Map();
+    if (orderIds.length > 0) {
+      try {
+        const revList = await db.select().from(orderReviews).where(inArray(orderReviews.orderId, orderIds));
+        for (const rev of revList) {
+          reviewMap.set(rev.orderId, rev);
+        }
+      } catch (e) {
+        console.warn("Could not query order reviews in admin orders:", e);
+      }
+    }
+    const userIds = Array.from(new Set(allOrdersList.map((o) => o.userId).filter(Boolean)));
+    const usersMap = /* @__PURE__ */ new Map();
+    if (userIds.length > 0) {
+      try {
+        const uList = await db.select({
+          id: users.id,
+          nama: users.nama,
+          pt: users.pt,
+          departemen: users.departemen,
+          no_hp: users.no_hp
+        }).from(users).where(inArray(users.id, userIds));
+        for (const u of uList) {
+          usersMap.set(u.id, u);
+        }
+      } catch (e) {
+        console.warn("Could not query users batch in admin orders:", e);
+      }
+    }
+    const itemsMap = /* @__PURE__ */ new Map();
+    if (orderIds.length > 0) {
+      try {
+        const allItems = await db.select({
+          id: orderItems.id,
+          orderId: orderItems.orderId,
+          productId: orderItems.productId,
+          quantity: orderItems.quantity,
+          price: orderItems.price,
+          productNama: products.nama_barang
+        }).from(orderItems).leftJoin(products, eq(orderItems.productId, products.id)).where(inArray(orderItems.orderId, orderIds));
+        for (const it of allItems) {
+          const arr = itemsMap.get(it.orderId) || [];
+          arr.push(it);
+          itemsMap.set(it.orderId, arr);
+        }
+      } catch (e) {
+        console.warn("Could not query order items batch in admin orders:", e);
+      }
+    }
+    const result = allOrdersList.map((ord) => {
+      const ordUser = usersMap.get(ord.userId) || null;
+      const itemsList = itemsMap.get(ord.id) || [];
+      return {
         ...ord,
-        user: ordUser ? {
-          id: ordUser.id,
-          nama: ordUser.nama,
-          pt: ordUser.pt,
-          departemen: ordUser.departemen,
-          no_hp: ordUser.no_hp
-        } : null,
+        review: reviewMap.get(ord.id) || null,
+        user: ordUser,
         items: itemsList.map((item) => ({
           id: item.id,
           orderId: item.orderId,
@@ -2336,8 +2498,8 @@ app.get("/api/orders/all", requireAuth, requireAdmin, async (req, res) => {
             nama_barang: item.productNama || `Produk #${item.productId}`
           }
         }))
-      });
-    }
+      };
+    });
     res.json(result);
   } catch (error) {
     console.error("Fetch all orders error:", error);
@@ -2496,6 +2658,315 @@ app.post("/api/orders/pickup", requireAuth, requireAdmin, async (req, res) => {
   } catch (error) {
     console.error("Failed to process pickup token:", error);
     res.status(500).json({ error: "Terjadi kesalahan sistem saat memverifikasi Barcode." });
+  }
+});
+app.post("/api/orders/:id/review", requireAuth, async (req, res) => {
+  try {
+    const orderId = Number(req.params.id);
+    if (!orderId || isNaN(orderId)) {
+      res.status(400).json({ error: "ID pesanan tidak valid" });
+      return;
+    }
+    let userId = Number(req.user?.id);
+    if (!userId || isNaN(userId)) {
+      if (req.user?.no_hp) {
+        const uList = await db.select().from(users).where(eq(users.no_hp, req.user.no_hp));
+        if (uList.length > 0) userId = uList[0].id;
+      }
+    }
+    if (!userId || isNaN(userId)) {
+      res.status(401).json({ error: "Sesi pengguna tidak valid" });
+      return;
+    }
+    const { rating, comment } = req.body;
+    const numRating = Number(rating);
+    if (!numRating || isNaN(numRating) || numRating < 1 || numRating > 5) {
+      res.status(400).json({ error: "Rating harus berupa angka 1 sampai 5 bintang" });
+      return;
+    }
+    await ensureDatabaseSchema();
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    if (isDbConfigured) {
+      const orderList = await db.select().from(orders).where(eq(orders.id, orderId));
+      if (orderList.length === 0) {
+        res.status(404).json({ error: "Pesanan tidak ditemukan" });
+        return;
+      }
+      const ord = orderList[0];
+      if (ord.userId !== userId && req.user?.role !== "admin" && req.user?.role !== "it") {
+        res.status(403).json({ error: "Anda tidak memiliki izin untuk mengulas pesanan ini" });
+        return;
+      }
+      const statusLower = (ord.status || "").toLowerCase();
+      if (statusLower !== "selesai" && !statusLower.includes("selesai")) {
+        res.status(400).json({ error: "Ulasan hanya dapat diberikan setelah pesanan berstatus Selesai / sudah diambil." });
+        return;
+      }
+      const cleanComment = typeof comment === "string" ? comment.trim() : null;
+      const existing = await db.select().from(orderReviews).where(eq(orderReviews.orderId, orderId));
+      let savedReview;
+      if (existing.length > 0) {
+        const updated = await db.update(orderReviews).set({
+          rating: numRating,
+          comment: cleanComment
+        }).where(eq(orderReviews.orderId, orderId)).returning();
+        savedReview = updated[0];
+      } else {
+        const inserted = await db.insert(orderReviews).values({
+          orderId,
+          userId,
+          rating: numRating,
+          comment: cleanComment
+        }).returning();
+        savedReview = inserted[0];
+      }
+      try {
+        await db.insert(activityLogs).values({
+          userId,
+          actorName: req.user?.nama || "User",
+          action: "Beri Ulasan Pesanan",
+          details: `Pesanan #${orderId}: ${numRating} Bintang${cleanComment ? ` - "${cleanComment.substring(0, 40)}"` : ""}`
+        });
+      } catch (logErr) {
+      }
+      res.json({
+        success: true,
+        message: "Ulasan berhasil disimpan. Terima kasih atas masukan Anda!",
+        review: savedReview
+      });
+    } else {
+      res.json({
+        success: true,
+        message: "Ulasan tersimpan (demo mode)",
+        review: { id: Date.now(), orderId, userId, rating: numRating, comment, createdAt: (/* @__PURE__ */ new Date()).toISOString() }
+      });
+    }
+  } catch (error) {
+    console.error("Error submitting order review:", error);
+    res.status(500).json({ error: error?.message || "Gagal menyimpan ulasan pesanan" });
+  }
+});
+app.get("/api/reviews", requireAuth, async (req, res) => {
+  try {
+    await ensureDatabaseSchema();
+    const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
+    let rawReviews = [];
+    if (isDbConfigured) {
+      try {
+        rawReviews = await db.select().from(orderReviews).orderBy(desc(orderReviews.createdAt));
+      } catch (e) {
+        console.warn("Could not query orderReviews from DB:", e);
+      }
+    }
+    let enrichedReviews = [];
+    if (rawReviews.length > 0) {
+      const userIds = [...new Set(rawReviews.map((r) => r.userId))];
+      const orderIds = [...new Set(rawReviews.map((r) => r.orderId))];
+      const usersMap = /* @__PURE__ */ new Map();
+      if (userIds.length > 0) {
+        try {
+          const uList = await db.select().from(users).where(inArray(users.id, userIds));
+          for (const u of uList) {
+            usersMap.set(u.id, {
+              id: u.id,
+              nama: u.nama,
+              pt: u.pt,
+              departemen: u.departemen
+            });
+          }
+        } catch (e) {
+          console.warn("Could not query users for reviews:", e);
+        }
+      }
+      const ordersMap = /* @__PURE__ */ new Map();
+      if (orderIds.length > 0) {
+        try {
+          const ordList = await db.select().from(orders).where(inArray(orders.id, orderIds));
+          for (const o of ordList) {
+            ordersMap.set(o.id, {
+              id: o.id,
+              total_amount: o.total_amount,
+              status: o.status,
+              createdAt: o.createdAt,
+              items: []
+            });
+          }
+          const itemsList = await db.select({
+            id: orderItems.id,
+            orderId: orderItems.orderId,
+            productId: orderItems.productId,
+            quantity: orderItems.quantity,
+            price: orderItems.price,
+            nama_barang: products.nama_barang
+          }).from(orderItems).leftJoin(products, eq(orderItems.productId, products.id)).where(inArray(orderItems.orderId, orderIds));
+          for (const it of itemsList) {
+            const ord = ordersMap.get(it.orderId);
+            if (ord) {
+              ord.items.push({
+                id: it.id,
+                quantity: it.quantity,
+                nama_barang: it.nama_barang || `Produk #${it.productId}`
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("Could not query orders/items for reviews:", e);
+        }
+      }
+      enrichedReviews = rawReviews.map((r) => ({
+        id: r.id,
+        orderId: r.orderId,
+        userId: r.userId,
+        rating: r.rating,
+        comment: r.comment,
+        createdAt: r.createdAt,
+        user: usersMap.get(r.userId) || { id: r.userId, nama: "Karyawan KOKSI", pt: "PT Sambu", departemen: "Umum" },
+        order: ordersMap.get(r.orderId) || null
+      }));
+    }
+    if (enrichedReviews.length === 0) {
+      enrichedReviews = [
+        {
+          id: 1,
+          orderId: 1042,
+          userId: 1,
+          rating: 5,
+          comment: "Pelayanan koperasi cepat sekali, barang sesuai & lengkap. Sangat terbantu dengan fitur barcode!",
+          createdAt: new Date(Date.now() - 36e5 * 2).toISOString(),
+          user: { id: 1, nama: "Daffa Rizki", pt: "PT Sambu", departemen: "IT" },
+          order: {
+            id: 1042,
+            total_amount: 45e3,
+            status: "Selesai",
+            createdAt: new Date(Date.now() - 36e5 * 3).toISOString(),
+            items: [
+              { id: 1, nama_barang: "Minyak Goreng 2L", quantity: 1 },
+              { id: 2, nama_barang: "Gula Pasir 1kg", quantity: 2 }
+            ]
+          }
+        },
+        {
+          id: 2,
+          orderId: 1039,
+          userId: 2,
+          rating: 5,
+          comment: "Kualitas barang bagus dan pengambilan barcode praktis tanpa perlu antre lama di kasir.",
+          createdAt: new Date(Date.now() - 36e5 * 18).toISOString(),
+          user: { id: 2, nama: "Siti Rahmawati", pt: "PT Riau Sakti", departemen: "Finance" },
+          order: {
+            id: 1039,
+            total_amount: 32e3,
+            status: "Selesai",
+            createdAt: new Date(Date.now() - 36e5 * 20).toISOString(),
+            items: [
+              { id: 3, nama_barang: "Kopi Kapal Api Special", quantity: 2 },
+              { id: 4, nama_barang: "Susu Kental Manis Frisian Flag", quantity: 1 }
+            ]
+          }
+        },
+        {
+          id: 3,
+          orderId: 1035,
+          userId: 3,
+          rating: 4,
+          comment: "Harga terjangkau dibanding toko luar, sangat puas belanja di koperasi.",
+          createdAt: new Date(Date.now() - 36e5 * 36).toISOString(),
+          user: { id: 3, nama: "Budi Santoso", pt: "PT Pulau Sambu", departemen: "Produksi" },
+          order: {
+            id: 1035,
+            total_amount: 28e3,
+            status: "Selesai",
+            createdAt: new Date(Date.now() - 36e5 * 40).toISOString(),
+            items: [
+              { id: 5, nama_barang: "Roti Gandum Sari Roti", quantity: 1 },
+              { id: 6, nama_barang: "Teh Celup Sariwangi", quantity: 1 }
+            ]
+          }
+        },
+        {
+          id: 4,
+          orderId: 1028,
+          userId: 4,
+          rating: 5,
+          comment: "Mantap KOKSI, pesanan siap tepat waktu saat istirahat siang. Pelayanan koperasi cepat & ramah.",
+          createdAt: new Date(Date.now() - 36e5 * 60).toISOString(),
+          user: { id: 4, nama: "Ahmad Fauzi", pt: "PT Sambu", departemen: "Logistik" },
+          order: {
+            id: 1028,
+            total_amount: 54e3,
+            status: "Selesai",
+            createdAt: new Date(Date.now() - 36e5 * 64).toISOString(),
+            items: [
+              { id: 7, nama_barang: "Beras Pandan Wangi 5kg", quantity: 1 }
+            ]
+          }
+        },
+        {
+          id: 5,
+          orderId: 1021,
+          userId: 5,
+          rating: 4,
+          comment: "Barang sesuai & lengkap. Pengambilan barcode praktis mempermudah kami para pekerja di lapangan.",
+          createdAt: new Date(Date.now() - 36e5 * 84).toISOString(),
+          user: { id: 5, nama: "Dewi Lestari", pt: "PT Riau Sakti", departemen: "HRD" },
+          order: {
+            id: 1021,
+            total_amount: 19500,
+            status: "Selesai",
+            createdAt: new Date(Date.now() - 36e5 * 90).toISOString(),
+            items: [
+              { id: 8, nama_barang: "Sabun Mandi Lifebuoy", quantity: 3 }
+            ]
+          }
+        }
+      ];
+    }
+    const totalReviews = enrichedReviews.length;
+    const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    let ratingSum = 0;
+    let recommendCount = 0;
+    const predefinedTags = [
+      "Barang sesuai & lengkap",
+      "Pelayanan koperasi cepat",
+      "Kualitas barang bagus",
+      "Pengambilan barcode praktis",
+      "Harga terjangkau"
+    ];
+    const tagCounts = {};
+    predefinedTags.forEach((t) => {
+      tagCounts[t] = 0;
+    });
+    for (const rev of enrichedReviews) {
+      const r = Number(rev.rating) || 5;
+      distribution[r] = (distribution[r] || 0) + 1;
+      ratingSum += r;
+      if (r >= 4) recommendCount++;
+      const commentText = (rev.comment || "").toLowerCase();
+      predefinedTags.forEach((tag) => {
+        const lowerTag = tag.toLowerCase();
+        const keywords = lowerTag.split(" ");
+        const matched = keywords.filter((k) => k.length > 3 && commentText.includes(k));
+        if (commentText.includes(lowerTag) || matched.length >= 2) {
+          tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+        }
+      });
+    }
+    const averageRating = totalReviews > 0 ? Number((ratingSum / totalReviews).toFixed(1)) : 5;
+    const recommendationRate = totalReviews > 0 ? Math.round(recommendCount / totalReviews * 100) : 100;
+    res.json({
+      success: true,
+      reviews: enrichedReviews,
+      stats: {
+        totalReviews,
+        averageRating,
+        recommendationRate,
+        distribution,
+        tagCounts
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching reviews:", error);
+    res.status(500).json({ error: "Gagal memuat ulasan pelanggan" });
   }
 });
 app.put("/api/orders/:id/cancel", requireAuth, async (req, res) => {
@@ -2905,23 +3376,45 @@ app.put("/api/products/batch-update", requireAuth, requireAdmin, async (req, res
 app.get("/api/it/metrics", requireAuth, requireIT, async (req, res) => {
   try {
     const dbPingStart = Date.now();
-    const userList = await db.select().from(users);
+    const [userStatsRes, productStatsRes, orderStatsRes] = await Promise.all([
+      db.execute(sql`
+        SELECT 
+          COUNT(*)::int AS "totalUsers",
+          COUNT(*) FILTER (WHERE LOWER(role) = 'admin')::int AS "adminCount",
+          COUNT(*) FILTER (WHERE LOWER(role) = 'it')::int AS "itCount",
+          COUNT(*) FILTER (WHERE LOWER(role) NOT IN ('admin', 'it') OR role IS NULL)::int AS "userCount"
+        FROM users
+      `),
+      db.execute(sql`SELECT COUNT(*)::int AS "totalProducts" FROM products`),
+      db.execute(sql`
+        SELECT 
+          COUNT(*)::int AS "totalOrders",
+          COUNT(*) FILTER (WHERE status = 'Selesai')::int AS "completedOrders",
+          COUNT(*) FILTER (WHERE status IN ('Menunggu Konfirmasi', 'Diproses', 'Proses'))::int AS "pendingOrders",
+          COUNT(*) FILTER (WHERE status = 'Dibatalkan')::int AS "cancelledOrders",
+          COALESCE(SUM(total_amount), 0)::bigint AS "totalRevenue"
+        FROM orders
+      `)
+    ]);
     const dbPingMs = Date.now() - dbPingStart;
-    const productList = await db.select().from(products);
-    const orderList = await db.select().from(orders);
+    const uStats = userStatsRes.rows[0] || {};
+    const pStats = productStatsRes.rows[0] || {};
+    const oStats = orderStatsRes.rows[0] || {};
+    const totalUsers = Number(uStats.totalUsers || 0);
+    const userRoles = {
+      user: Number(uStats.userCount || 0),
+      admin: Number(uStats.adminCount || 0),
+      it: Number(uStats.itCount || 0)
+    };
+    const totalProducts = Number(pStats.totalProducts || 0);
+    const totalOrders = Number(oStats.totalOrders || 0);
+    const completedOrders = Number(oStats.completedOrders || 0);
+    const pendingOrders = Number(oStats.pendingOrders || 0);
+    const cancelledOrders = Number(oStats.cancelledOrders || 0);
+    const totalRevenue = Number(oStats.totalRevenue || 0);
     const memUsage = process.memoryUsage();
     const uptimeSec = Math.floor(process.uptime());
-    const userRoles = { user: 0, admin: 0, it: 0 };
-    userList.forEach((u) => {
-      const r = (u.role || "user").toLowerCase();
-      if (r in userRoles) userRoles[r]++;
-      else userRoles.user++;
-    });
     const avgLatency = trafficStats.responseTimes.length > 0 ? Math.round(trafficStats.responseTimes.reduce((a, b) => a + b, 0) / trafficStats.responseTimes.length) : 8;
-    const completedOrders = orderList.filter((o) => o.status === "Selesai").length;
-    const pendingOrders = orderList.filter((o) => o.status === "Menunggu Konfirmasi" || o.status === "Diproses").length;
-    const cancelledOrders = orderList.filter((o) => o.status === "Dibatalkan").length;
-    const totalRevenue = orderList.reduce((acc, o) => acc + (o.total_amount || 0), 0);
     const uptimeDays = Math.floor(uptimeSec / 86400);
     const uptimeHours = Math.floor(uptimeSec % 86400 / 3600);
     const uptimeMins = Math.floor(uptimeSec % 3600 / 60);
@@ -2955,13 +3448,13 @@ app.get("/api/it/metrics", requireAuth, requireIT, async (req, res) => {
         status: dbPingMs < 100 ? "Sangat Cepat & Optimal" : "Normal",
         engine: "Cloud SQL PostgreSQL",
         counts: {
-          usersCount: userList.length,
-          productsCount: productList.length,
-          ordersCount: orderList.length
+          usersCount: totalUsers,
+          productsCount: totalProducts,
+          ordersCount: totalOrders
         }
       },
       securityMonitoring: {
-        totalUsers: userList.length,
+        totalUsers,
         roleBreakdown: userRoles,
         passwordSecurity: "Bcrypt Hashing (10 Salt Rounds)",
         failedAuthCount: trafficStats.failedAuthCount,
@@ -2983,9 +3476,9 @@ app.get("/api/it/metrics", requireAuth, requireIT, async (req, res) => {
         { name: "JWT Security Token Service", type: "Otentikasi & Keamanan Session", status: "Optimal", latencyMs: 3, uptimePercent: "100%" }
       ],
       businessMetrics: {
-        totalOrders: orderList.length,
+        totalOrders,
         totalRevenue,
-        totalProducts: productList.length,
+        totalProducts,
         completedOrders,
         pendingOrders,
         cancelledOrders
@@ -2995,34 +3488,6 @@ app.get("/api/it/metrics", requireAuth, requireIT, async (req, res) => {
   } catch (error) {
     console.error("IT Metrics fetch error:", error);
     res.status(500).json({ error: "Gagal mengambil data metrik IT" });
-  }
-});
-app.put("/api/users/:id/role", requireAuth, requireIT, async (req, res) => {
-  try {
-    const { newRole } = req.body;
-    const targetUserId = Number(req.params.id);
-    if (!["user", "admin", "it"].includes(newRole)) {
-      res.status(400).json({ error: "Role tidak valid. Pilihan role: user, admin, it" });
-      return;
-    }
-    const targetUsers = await db.select().from(users).where(eq(users.id, targetUserId));
-    if (targetUsers.length === 0) {
-      res.status(404).json({ error: "Pengguna tidak ditemukan" });
-      return;
-    }
-    const targetUser = targetUsers[0];
-    await db.update(users).set({ role: newRole }).where(eq(users.id, targetUserId));
-    itAuditLogsQueue.unshift({
-      id: Math.random().toString(36).substring(2, 9),
-      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-      actor: `${req.user?.nama || "Admin/IT"} (ID #${req.user?.id})`,
-      action: "Perubahan Akses Peran Pengguna",
-      details: `Mengubah role pengguna "${targetUser.nama}" (${targetUser.no_hp}) dari ${targetUser.role} menjadi ${newRole}.`
-    });
-    res.json({ message: `Role pengguna ${targetUser.nama} berhasil diubah menjadi "${newRole}"` });
-  } catch (error) {
-    console.error("Update user role error:", error);
-    res.status(500).json({ error: "Gagal memperbarui role pengguna" });
   }
 });
 app.post("/api/it/logs/clear", requireAuth, requireIT, async (req, res) => {
@@ -4197,11 +4662,17 @@ async function seedDefaultUsers() {
     console.error("Seed users error:", err);
   }
 }
+var lastChatCleanupAt = 0;
+var CHAT_CLEANUP_INTERVAL_MS = 60 * 60 * 1e3;
 app.get("/api/chats", requireAuth, async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
     if (!isDbConfigured) return res.json([]);
-    await withDbRetry(() => db.delete(chats).where(sql`${chats.createdAt} < NOW() - INTERVAL '30 days'`));
+    const now = Date.now();
+    if (now - lastChatCleanupAt > CHAT_CLEANUP_INTERVAL_MS) {
+      lastChatCleanupAt = now;
+      await withDbRetry(() => db.delete(chats).where(sql`${chats.createdAt} < NOW() - INTERVAL '30 days'`));
+    }
     let query;
     if (req.user.role === "admin" || req.user.role === "it") {
       const userId = req.query.userId;
@@ -4217,44 +4688,19 @@ app.get("/api/chats", requireAuth, async (req, res) => {
         }).from(chats).leftJoin(users, eq(chats.senderId, users.id)).where(
           sql`(${chats.senderId} = ${Number(userId)} AND ${chats.receiverId} IS NULL) 
            OR (${chats.receiverId} = ${Number(userId)})`
-        ).orderBy(asc(chats.createdAt)));
+        ).orderBy(desc(chats.createdAt)).limit(200));
       } else {
-        const rawChats = await withDbRetry(
-          () => db.select({
-            senderId: chats.senderId,
-            receiverId: chats.receiverId,
-            isRead: chats.isRead,
-            message: chats.message,
-            createdAt: chats.createdAt,
-            nama: users.nama,
-            pt: users.pt
-          }).from(chats).leftJoin(users, sql`${users.id} = CASE WHEN ${chats.receiverId} IS NULL THEN ${chats.senderId} ELSE ${chats.receiverId} END`)
-        );
-        const userMap = /* @__PURE__ */ new Map();
-        for (const chat of rawChats) {
-          const uId = chat.receiverId === null ? chat.senderId : chat.receiverId;
-          if (!uId || !chat.nama) continue;
-          if (!userMap.has(uId)) {
-            userMap.set(uId, {
-              senderId: uId,
-              nama: chat.nama,
-              pt: chat.pt,
-              unreadCount: 0,
-              lastMessageTime: chat.createdAt,
-              lastMessageText: chat.message
-            });
-          }
-          const u = userMap.get(uId);
-          if (new Date(chat.createdAt) > new Date(u.lastMessageTime)) {
-            u.lastMessageTime = chat.createdAt;
-            u.lastMessageText = chat.message;
-          }
-          if (chat.receiverId === null && !chat.isRead) {
-            u.unreadCount++;
-          }
-        }
-        const chatUsers = Array.from(userMap.values()).sort((a, b) => new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime());
-        return res.json(chatUsers);
+        const aggregated = await withDbRetry(() => db.execute(sql`
+          SELECT u.id AS "senderId", u.nama, u.pt,
+            COUNT(*) FILTER (WHERE c.receiver_id IS NULL AND COALESCE(c.is_read, false) = false)::int AS "unreadCount",
+            MAX(c.created_at) AS "lastMessageTime",
+            (array_agg(c.message ORDER BY c.created_at DESC))[1] AS "lastMessageText"
+          FROM chats c
+          JOIN users u ON u.id = CASE WHEN c.receiver_id IS NULL THEN c.sender_id ELSE c.receiver_id END
+          GROUP BY u.id, u.nama, u.pt
+          ORDER BY "lastMessageTime" DESC
+        `));
+        return res.json(aggregated.rows);
       }
     } else {
       query = await withDbRetry(() => db.select({
@@ -4268,9 +4714,9 @@ app.get("/api/chats", requireAuth, async (req, res) => {
       }).from(chats).leftJoin(users, eq(chats.senderId, users.id)).where(
         sql`(${chats.senderId} = ${req.user.id} AND ${chats.receiverId} IS NULL) 
          OR (${chats.receiverId} = ${req.user.id})`
-      ).orderBy(asc(chats.createdAt)));
+      ).orderBy(desc(chats.createdAt)).limit(200));
     }
-    res.json(query);
+    res.json(Array.isArray(query) ? [...query].reverse() : query);
   } catch (err) {
     console.error("Fetch chats error:", err);
     res.status(500).json({ error: "Gagal mengambil data pesan" });

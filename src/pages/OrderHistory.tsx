@@ -296,6 +296,7 @@ export default function OrderHistory() {
   const [reviewModal, setReviewModal] = useState<{ orderId: number; displayOrderId: string; initialRating?: number; initialComment?: string | null } | null>(null);
 
   const navigate = useNavigate();
+  const hasPendingOrdersRef = useRef(true);
 
   useEffect(() => {
     // Clear legacy guest cache so it doesn't leak old test transactions
@@ -305,10 +306,10 @@ export default function OrderHistory() {
 
     fetchOrders(false);
     const interval = setInterval(() => {
-      if (!document.hidden) fetchOrders(true);
-    }, 10000);
+      if (!document.hidden && hasPendingOrdersRef.current) fetchOrders(true);
+    }, 15000);
     const onVisible = () => {
-      if (!document.hidden) fetchOrders(true);
+      if (!document.hidden && hasPendingOrdersRef.current) fetchOrders(true);
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
@@ -345,6 +346,10 @@ export default function OrderHistory() {
           );
           setOrders(sorted);
           setError(null);
+          hasPendingOrdersRef.current = sorted.some(o => {
+            const s = (o.status || '').toLowerCase();
+            return !s.includes('selesai') && !s.includes('completed') && !s.includes('batal') && !s.includes('cancelled');
+          });
         }
       }
     } catch (err: any) {

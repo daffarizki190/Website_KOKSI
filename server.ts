@@ -1427,6 +1427,14 @@ app.post('/api/upload', requireAuth, requireAdmin, upload.single('image'), (req,
   res.json({ imageUrl: `/uploads/${req.file.filename}` });
 });
 
+let cachedProductList: any[] | null = null;
+let cachedProductListExpiry = 0;
+
+function invalidateProductCache() {
+  cachedProductList = null;
+  cachedProductListExpiry = 0;
+}
+
 app.get('/api/products', requireAuth, async (req, res) => {
   try {
     const isDbConfigured = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SQL_HOST);
@@ -1434,12 +1442,22 @@ app.get('/api/products', requireAuth, async (req, res) => {
       res.json(inMemoryProducts);
       return;
     }
+
+    const now = Date.now();
+    if (cachedProductList && now < cachedProductListExpiry) {
+      res.setHeader('Cache-Control', 'private, max-age=30');
+      res.json(cachedProductList);
+      return;
+    }
     
     // Ensure tables exist before querying (fixes 500 on fresh deploy)
     await ensureDatabaseSchema();
     
     const productList = await withDbRetry(() => db.select().from(products));
+    cachedProductList = productList;
+    cachedProductListExpiry = now + 60000; // 60s TTL cache
 
+    res.setHeader('Cache-Control', 'private, max-age=30');
     res.json(productList);
   } catch (error) {
     console.error('Database query error during products fetch:', error);
@@ -1462,6 +1480,7 @@ app.post('/api/products', requireAuth, requireAdmin, async (req: any, res) => {
     const newProduct = await withDbRetry(() => db.insert(products).values({
       nama_barang, kategori, sub_kategori, harga: Number(harga), stok: Number(stok), imageUrl: imageUrl || ''
     }).returning());
+    invalidateProductCache();
     await logActivity(req.user?.id || null, req.user?.nama || 'Admin', 'Tambah Produk', `Menambahkan produk baru: ${nama_barang} (Kategori: ${kategori})`);
     res.status(201).json(newProduct[0]);
   } catch (error) {
@@ -1490,6 +1509,7 @@ app.put('/api/products/:id', requireAuth, requireAdmin, async (req: any, res) =>
       .set(updateData)
       .where(eq(products.id, productId))
       .returning());
+    invalidateProductCache();
     res.json(updated[0]);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update product' });
@@ -1502,6 +1522,7 @@ app.delete('/api/products/all', requireAuth, requireAdmin, async (req: AuthReque
     await withDbRetry(() => db.delete(cartItems));
     // Kita biarkan orderItems dulu, jika gagal berarti ada order yang belum selesai
     await withDbRetry(() => db.delete(products));
+    invalidateProductCache();
     res.json({ message: 'Semua produk berhasil dihapus' });
   } catch (error) {
     console.error('Gagal menghapus semua produk:', error);
@@ -1554,6 +1575,7 @@ app.delete('/api/products/:id', requireAuth, requireAdmin, async (req: any, res)
 
     // 4. Hapus produk utama dari tabel products
     await withDbRetry(() => db.delete(products).where(eq(products.id, productId)));
+    invalidateProductCache();
 
     await logActivity(
       req.user?.id || null,
@@ -2504,21 +2526,34 @@ app.get('/api/orders/history', requireAuth, async (req: AuthRequest, res) => {
         }
       }
 
-      const result = [];
-      for (const ord of userOrdersList) {
-        const itemsList = await db.select({
-          id: orderItems.id,
-          orderId: orderItems.orderId,
-          productId: orderItems.productId,
-          quantity: orderItems.quantity,
-          price: orderItems.price,
-          productNama: products.nama_barang
-        })
-        .from(orderItems)
-        .leftJoin(products, eq(orderItems.productId, products.id))
-        .where(eq(orderItems.orderId, ord.id));
+      const itemsMap = new Map<number, any[]>();
+      if (orderIds.length > 0) {
+        try {
+          const allItems = await db.select({
+            id: orderItems.id,
+            orderId: orderItems.orderId,
+            productId: orderItems.productId,
+            quantity: orderItems.quantity,
+            price: orderItems.price,
+            productNama: products.nama_barang
+          })
+          .from(orderItems)
+          .leftJoin(products, eq(orderItems.productId, products.id))
+          .where(inArray(orderItems.orderId, orderIds));
 
-        result.push({
+          for (const it of allItems) {
+            const arr = itemsMap.get(it.orderId) || [];
+            arr.push(it);
+            itemsMap.set(it.orderId, arr);
+          }
+        } catch (e) {
+          console.warn('Could not query order items in history:', e);
+        }
+      }
+
+      const result = userOrdersList.map(ord => {
+        const itemsList = itemsMap.get(ord.id) || [];
+        return {
           ...ord,
           review: reviewMap.get(ord.id) || null,
           items: itemsList.map(item => ({
@@ -2532,8 +2567,8 @@ app.get('/api/orders/history', requireAuth, async (req: AuthRequest, res) => {
               nama_barang: item.productNama || `Produk #${item.productId}`
             }
           }))
-        });
-      }
+        };
+      });
 
       // Always return DB result — even if empty, so client localStorage stays authoritative
       res.json(result);
@@ -2567,33 +2602,57 @@ app.get('/api/orders/all', requireAuth, requireAdmin, async (req: AuthRequest, r
       }
     }
 
-    const result = [];
-    for (const ord of allOrdersList) {
-      const userList = await db.select().from(users).where(eq(users.id, ord.userId));
-      const ordUser = userList[0] || null;
+    const userIds = Array.from(new Set(allOrdersList.map(o => o.userId).filter(Boolean)));
+    const usersMap = new Map<number, any>();
+    if (userIds.length > 0) {
+      try {
+        const uList = await db.select({
+          id: users.id,
+          nama: users.nama,
+          pt: users.pt,
+          departemen: users.departemen,
+          no_hp: users.no_hp
+        }).from(users).where(inArray(users.id, userIds));
+        for (const u of uList) {
+          usersMap.set(u.id, u);
+        }
+      } catch (e) {
+        console.warn('Could not query users batch in admin orders:', e);
+      }
+    }
 
-      const itemsList = await db.select({
-        id: orderItems.id,
-        orderId: orderItems.orderId,
-        productId: orderItems.productId,
-        quantity: orderItems.quantity,
-        price: orderItems.price,
-        productNama: products.nama_barang
-      })
-      .from(orderItems)
-      .leftJoin(products, eq(orderItems.productId, products.id))
-      .where(eq(orderItems.orderId, ord.id));
+    const itemsMap = new Map<number, any[]>();
+    if (orderIds.length > 0) {
+      try {
+        const allItems = await db.select({
+          id: orderItems.id,
+          orderId: orderItems.orderId,
+          productId: orderItems.productId,
+          quantity: orderItems.quantity,
+          price: orderItems.price,
+          productNama: products.nama_barang
+        })
+        .from(orderItems)
+        .leftJoin(products, eq(orderItems.productId, products.id))
+        .where(inArray(orderItems.orderId, orderIds));
 
-      result.push({
+        for (const it of allItems) {
+          const arr = itemsMap.get(it.orderId) || [];
+          arr.push(it);
+          itemsMap.set(it.orderId, arr);
+        }
+      } catch (e) {
+        console.warn('Could not query order items batch in admin orders:', e);
+      }
+    }
+
+    const result = allOrdersList.map(ord => {
+      const ordUser = usersMap.get(ord.userId) || null;
+      const itemsList = itemsMap.get(ord.id) || [];
+      return {
         ...ord,
         review: reviewMap.get(ord.id) || null,
-        user: ordUser ? {
-          id: ordUser.id,
-          nama: ordUser.nama,
-          pt: ordUser.pt,
-          departemen: ordUser.departemen,
-          no_hp: ordUser.no_hp
-        } : null,
+        user: ordUser,
         items: itemsList.map(item => ({
           id: item.id,
           orderId: item.orderId,
@@ -2605,8 +2664,8 @@ app.get('/api/orders/all', requireAuth, requireAdmin, async (req: AuthRequest, r
             nama_barang: item.productNama || `Produk #${item.productId}`
           }
         }))
-      });
-    }
+      };
+    });
 
     // Always return DB result — even if empty
     res.json(result);
@@ -3752,30 +3811,50 @@ app.put('/api/products/batch-update', requireAuth, requireAdmin, async (req: Aut
 app.get('/api/it/metrics', requireAuth, requireIT, async (req: AuthRequest, res) => {
   try {
     const dbPingStart = Date.now();
-    const userList = await db.select().from(users);
+    const [userStatsRes, productStatsRes, orderStatsRes]: any = await Promise.all([
+      db.execute(sql`
+        SELECT 
+          COUNT(*)::int AS "totalUsers",
+          COUNT(*) FILTER (WHERE LOWER(role) = 'admin')::int AS "adminCount",
+          COUNT(*) FILTER (WHERE LOWER(role) = 'it')::int AS "itCount",
+          COUNT(*) FILTER (WHERE LOWER(role) NOT IN ('admin', 'it') OR role IS NULL)::int AS "userCount"
+        FROM users
+      `),
+      db.execute(sql`SELECT COUNT(*)::int AS "totalProducts" FROM products`),
+      db.execute(sql`
+        SELECT 
+          COUNT(*)::int AS "totalOrders",
+          COUNT(*) FILTER (WHERE status = 'Selesai')::int AS "completedOrders",
+          COUNT(*) FILTER (WHERE status IN ('Menunggu Konfirmasi', 'Diproses', 'Proses'))::int AS "pendingOrders",
+          COUNT(*) FILTER (WHERE status = 'Dibatalkan')::int AS "cancelledOrders",
+          COALESCE(SUM(total_amount), 0)::bigint AS "totalRevenue"
+        FROM orders
+      `)
+    ]);
     const dbPingMs = Date.now() - dbPingStart;
 
-    const productList = await db.select().from(products);
-    const orderList = await db.select().from(orders);
+    const uStats = userStatsRes.rows[0] || {};
+    const pStats = productStatsRes.rows[0] || {};
+    const oStats = orderStatsRes.rows[0] || {};
+
+    const totalUsers = Number(uStats.totalUsers || 0);
+    const userRoles = {
+      user: Number(uStats.userCount || 0),
+      admin: Number(uStats.adminCount || 0),
+      it: Number(uStats.itCount || 0)
+    };
+    const totalProducts = Number(pStats.totalProducts || 0);
+    const totalOrders = Number(oStats.totalOrders || 0);
+    const completedOrders = Number(oStats.completedOrders || 0);
+    const pendingOrders = Number(oStats.pendingOrders || 0);
+    const cancelledOrders = Number(oStats.cancelledOrders || 0);
+    const totalRevenue = Number(oStats.totalRevenue || 0);
 
     const memUsage = process.memoryUsage();
     const uptimeSec = Math.floor(process.uptime());
-
-    const userRoles = { user: 0, admin: 0, it: 0 };
-    userList.forEach(u => {
-      const r = (u.role || 'user').toLowerCase();
-      if (r in userRoles) (userRoles as any)[r]++;
-      else userRoles.user++;
-    });
-
     const avgLatency = trafficStats.responseTimes.length > 0
       ? Math.round(trafficStats.responseTimes.reduce((a, b) => a + b, 0) / trafficStats.responseTimes.length)
       : 8;
-
-    const completedOrders = orderList.filter(o => o.status === 'Selesai').length;
-    const pendingOrders = orderList.filter(o => o.status === 'Menunggu Konfirmasi' || o.status === 'Diproses').length;
-    const cancelledOrders = orderList.filter(o => o.status === 'Dibatalkan').length;
-    const totalRevenue = orderList.reduce((acc, o) => acc + (o.total_amount || 0), 0);
 
     const uptimeDays = Math.floor(uptimeSec / 86400);
     const uptimeHours = Math.floor((uptimeSec % 86400) / 3600);
@@ -3811,13 +3890,13 @@ app.get('/api/it/metrics', requireAuth, requireIT, async (req: AuthRequest, res)
         status: dbPingMs < 100 ? 'Sangat Cepat & Optimal' : 'Normal',
         engine: 'Cloud SQL PostgreSQL',
         counts: {
-          usersCount: userList.length,
-          productsCount: productList.length,
-          ordersCount: orderList.length
+          usersCount: totalUsers,
+          productsCount: totalProducts,
+          ordersCount: totalOrders
         }
       },
       securityMonitoring: {
-        totalUsers: userList.length,
+        totalUsers,
         roleBreakdown: userRoles,
         passwordSecurity: 'Bcrypt Hashing (10 Salt Rounds)',
         failedAuthCount: trafficStats.failedAuthCount,
@@ -3839,9 +3918,9 @@ app.get('/api/it/metrics', requireAuth, requireIT, async (req: AuthRequest, res)
         { name: 'JWT Security Token Service', type: 'Otentikasi & Keamanan Session', status: 'Optimal', latencyMs: 3, uptimePercent: '100%' }
       ],
       businessMetrics: {
-        totalOrders: orderList.length,
+        totalOrders,
         totalRevenue,
-        totalProducts: productList.length,
+        totalProducts,
         completedOrders,
         pendingOrders,
         cancelledOrders

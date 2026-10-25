@@ -715,7 +715,7 @@ export const DashboardAdmin = () => {
 
       const interval = setInterval(() => {
         if (!document.hidden) fetchOrders(true);
-      }, 8000);
+      }, 15000);
       const onVisible = () => {
         if (!document.hidden) fetchOrders(true);
       };
