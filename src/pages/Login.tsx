@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth, SESSION_EXPIRED_KEY } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, ArrowRight, ShieldCheck, UserCheck, Wrench, KeyRound, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
 import { BelanjainLogo } from '../components/BelanjainLogo';
@@ -7,7 +7,13 @@ import { BelanjainLogo } from '../components/BelanjainLogo';
 export const Login = () => {
   const [no_hp, setNoHp] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => {
+    if (sessionStorage.getItem(SESSION_EXPIRED_KEY)) {
+      sessionStorage.removeItem(SESSION_EXPIRED_KEY);
+      return 'Sesi Anda telah berakhir. Silakan login kembali.';
+    }
+    return '';
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [loadingRole, setLoadingRole] = useState<string | null>(null);
   const { login, user } = useAuth();

@@ -21,6 +21,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+export const SESSION_EXPIRED_KEY = 'saza_session_expired';
+
+// Only the requireAuth middleware returns these; other 401s (wrong password, etc.) must not log the user out.
+const isAuthRejection = (body: unknown): boolean =>
+  typeof body === 'object' &&
+  body !== null &&
+  typeof (body as { error?: unknown }).error === 'string' &&
+  /^Unauthorized: (Invalid|Missing) token$|^Sesi (pengguna )?tidak valid/.test((body as { error: string }).error);
+
+const clearStoredSession = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -45,6 +59,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const expireSession = () => {
+    if (!localStorage.getItem('token')) return;
+    clearStoredSession();
+    sessionStorage.setItem(SESSION_EXPIRED_KEY, '1');
+    setToken(null);
+    setUser(null);
+  };
+
+  useEffect(() => {
+    const nativeFetch = window.fetch.bind(window);
+
+    window.fetch = async (input, init) => {
+      const res = await nativeFetch(input, init);
+      if (res.status !== 401) return res;
+
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (!url.includes('/api/') || url.includes('/api/auth/login')) return res;
+
+      const body: unknown = await res.clone().json().catch(() => null);
+      if (isAuthRejection(body)) expireSession();
+      return res;
+    };
+
+    return () => {
+      window.fetch = nativeFetch;
+    };
+  }, []);
+
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -58,7 +100,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       fetch('/api/auth/me', {
         headers: { Authorization: `Bearer ${storedToken}` }
       })
-        .then(res => res.json())
+        .then(res => (res.ok ? res.json() : null))
         .then(data => {
           if (data && data.user) {
             setUser(data.user);
@@ -66,6 +108,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }
         })
         .catch(() => {});
+    } else if (storedToken || storedUser) {
+      clearStoredSession();
     }
     setLoading(false);
   }, []);
@@ -80,8 +124,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearStoredSession();
   };
 
   if (loading) return null;
