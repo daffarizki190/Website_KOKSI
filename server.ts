@@ -1445,7 +1445,7 @@ app.get('/api/products', requireAuth, async (req, res) => {
 
     const now = Date.now();
     if (cachedProductList && now < cachedProductListExpiry) {
-      res.setHeader('Cache-Control', 'private, max-age=30');
+      res.setHeader('Cache-Control', 'private, max-age=60');
       res.json(cachedProductList);
       return;
     }
@@ -1455,9 +1455,9 @@ app.get('/api/products', requireAuth, async (req, res) => {
     
     const productList = await withDbRetry(() => db.select().from(products));
     cachedProductList = productList;
-    cachedProductListExpiry = now + 60000; // 60s TTL cache
+    cachedProductListExpiry = now + 300000; // 5m TTL cache
 
-    res.setHeader('Cache-Control', 'private, max-age=30');
+    res.setHeader('Cache-Control', 'private, max-age=60');
     res.json(productList);
   } catch (error) {
     console.error('Database query error during products fetch:', error);
@@ -1480,7 +1480,11 @@ app.post('/api/products', requireAuth, requireAdmin, async (req: any, res) => {
     const newProduct = await withDbRetry(() => db.insert(products).values({
       nama_barang, kategori, sub_kategori, harga: Number(harga), stok: Number(stok), imageUrl: imageUrl || ''
     }).returning());
-    invalidateProductCache();
+    if (cachedProductList && newProduct[0]) {
+      cachedProductList.push(newProduct[0]);
+    } else {
+      invalidateProductCache();
+    }
     await logActivity(req.user?.id || null, req.user?.nama || 'Admin', 'Tambah Produk', `Menambahkan produk baru: ${nama_barang} (Kategori: ${kategori})`);
     res.status(201).json(newProduct[0]);
   } catch (error) {
@@ -1509,7 +1513,16 @@ app.put('/api/products/:id', requireAuth, requireAdmin, async (req: any, res) =>
       .set(updateData)
       .where(eq(products.id, productId))
       .returning());
-    invalidateProductCache();
+    if (cachedProductList && updated[0]) {
+      const cIdx = cachedProductList.findIndex(p => p.id === productId);
+      if (cIdx !== -1) {
+        cachedProductList[cIdx] = updated[0];
+      } else {
+        invalidateProductCache();
+      }
+    } else {
+      invalidateProductCache();
+    }
     res.json(updated[0]);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update product' });
@@ -1575,7 +1588,11 @@ app.delete('/api/products/:id', requireAuth, requireAdmin, async (req: any, res)
 
     // 4. Hapus produk utama dari tabel products
     await withDbRetry(() => db.delete(products).where(eq(products.id, productId)));
-    invalidateProductCache();
+    if (cachedProductList) {
+      cachedProductList = cachedProductList.filter(p => p.id !== productId);
+    } else {
+      invalidateProductCache();
+    }
 
     await logActivity(
       req.user?.id || null,
@@ -2283,7 +2300,14 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
       for (const item of items) {
         const pId = Number(item.productId);
         const reqQty = Math.round(Number(item.quantity) || 1);
-        let prodList = await tx.select().from(products).where(eq(products.id, pId));
+        let prodList = await tx.select({
+          id: products.id,
+          nama_barang: products.nama_barang,
+          kategori: products.kategori,
+          sub_kategori: products.sub_kategori,
+          harga: products.harga,
+          stok: products.stok
+        }).from(products).where(eq(products.id, pId));
 
         if (prodList.length === 0) {
           // Auto-seed product from default catalog if missing
@@ -2364,6 +2388,10 @@ app.post('/api/orders', requireAuth, async (req: AuthRequest, res) => {
       const qty = Math.round(Number(item.quantity) || 1);
       const memProd = DEFAULT_CATALOG_PRODUCTS.find(p => p.id === pId);
       if (memProd) memProd.stok = Math.max(0, memProd.stok - qty);
+      if (cachedProductList) {
+        const cachedProd = cachedProductList.find(p => p.id === pId);
+        if (cachedProd) cachedProd.stok = Math.max(0, cachedProd.stok - qty);
+      }
     }
 
     // Build response object with product names
@@ -2680,9 +2708,9 @@ app.get('/api/orders/all', requireAuth, requireAdmin, async (req: AuthRequest, r
 app.get('/api/admin/stats', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const [allOrders, allProducts, allUsers] = await Promise.all([
-      withDbRetry(() => db.select().from(orders)),
-      withDbRetry(() => db.select().from(products)),
-      withDbRetry(() => db.select().from(users)),
+      withDbRetry(() => db.select({ id: orders.id, status: orders.status, total_amount: orders.total_amount }).from(orders)),
+      withDbRetry(() => db.select({ id: products.id, stok: products.stok }).from(products)),
+      withDbRetry(() => db.select({ id: users.id }).from(users)),
     ]);
 
     const totalRevenue = allOrders.reduce((acc, o) => acc + (o.total_amount || 0), 0);
@@ -3688,7 +3716,14 @@ app.post('/api/products/batch', requireAuth, requireAdmin, async (req: AuthReque
     }
 
     // --- Proses valid items ke DB ---
-    const existingProducts = await withDbRetry(() => db.select().from(products));
+    const existingProducts = await withDbRetry(() =>
+      db.select({
+        id: products.id,
+        nama_barang: products.nama_barang,
+        kategori: products.kategori,
+        sub_kategori: products.sub_kategori
+      }).from(products)
+    );
 
     const insertedItems: ProductRow[] = [];
     const updatedItems:  ProductRow[] = [];
@@ -3723,6 +3758,7 @@ app.post('/api/products/batch', requireAuth, requireAdmin, async (req: AuthReque
       const chunk = insertValues.slice(i, i + chunkSize);
       await withDbRetry(() => db.insert(products).values(chunk));
     }
+    invalidateProductCache();
 
     const actorName = (req as any).user?.name || (req as any).user?.nama || 'Admin';
     await logActivity(
@@ -3794,6 +3830,7 @@ app.put('/api/products/batch-update', requireAuth, requireAdmin, async (req: Aut
       const chunk = updatePromises.slice(i, i + chunkSize);
       await Promise.all(chunk.map(op => withDbRetry(op)));
     }
+    invalidateProductCache();
 
     res.status(200).json({
       message: 'Berhasil mengupdate kategori produk',
@@ -3967,9 +4004,9 @@ app.post('/api/it/audit-log', requireAuth, requireIT, async (req: AuthRequest, r
 // 5. Generate IT periodic diagnostic report
 app.get('/api/it/summary', requireAuth, requireIT, async (req: AuthRequest, res) => {
   try {
-    const userList = await db.select().from(users);
-    const productList = await db.select().from(products);
-    const orderList = await db.select().from(orders);
+    const userList = await db.select({ id: users.id }).from(users);
+    const productList = await db.select({ id: products.id }).from(products);
+    const orderList = await db.select({ id: orders.id, total_amount: orders.total_amount }).from(orders);
 
     const memUsage = process.memoryUsage();
     const heapMB = Math.round(memUsage.heapUsed / (1024 * 1024));
@@ -4063,7 +4100,7 @@ app.post('/api/it/test-apis', requireAuth, requireIT, async (req: AuthRequest, r
   // Test 2: Products Catalog Query
   const t1 = Date.now();
   try {
-    const prodTest = await withDbRetry(() => db.select().from(products).limit(5));
+    const prodTest = await withDbRetry(() => db.select({ id: products.id, nama_barang: products.nama_barang }).from(products).limit(5));
     const lat = Date.now() - t1;
     tests.push({
       name: 'Katalog Produk (/api/products)',
