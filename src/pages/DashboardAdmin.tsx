@@ -1280,7 +1280,6 @@ export const DashboardAdmin = () => {
       });
       if (res.ok) {
         setProducts(prev => prev.filter(p => p.id !== id));
-        fetchProducts();
         toast.success('Produk berhasil dihapus!');
       } else {
         const data = await res.json().catch(() => ({}));
@@ -1292,6 +1291,42 @@ export const DashboardAdmin = () => {
     }
   };
 
+  const compressImageToWebP = (file: File, maxSize = 300, quality = 0.72): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = error => reject(error);
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const img = new Image();
+        img.onerror = () => resolve(dataUrl);
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxSize || height > maxSize) {
+            if (width >= height) {
+              height = Math.round((height * maxSize) / width);
+              width = maxSize;
+            } else {
+              width = Math.round((width * maxSize) / height);
+              height = maxSize;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(dataUrl);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/webp', quality);
+          resolve(compressed.length < dataUrl.length ? compressed : dataUrl);
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -1300,12 +1335,7 @@ export const DashboardAdmin = () => {
 
       if (imageFile) {
         try {
-          finalImageUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(imageFile);
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = error => reject(error);
-          });
+          finalImageUrl = await compressImageToWebP(imageFile, 300, 0.72);
         } catch (error) {
           toast.error('Gagal memproses gambar');
           setIsUploading(false);
@@ -1327,8 +1357,17 @@ export const DashboardAdmin = () => {
       });
 
       if (res.ok) {
+        const savedProduct = await res.json().catch(() => null);
         setIsModalOpen(false);
-        fetchProducts();
+        if (savedProduct && savedProduct.id) {
+          setProducts(prev =>
+            editingProduct
+              ? prev.map(p => (p.id === savedProduct.id ? savedProduct : p))
+              : [...prev, savedProduct]
+          );
+        } else {
+          fetchProducts();
+        }
         toast.success(editingProduct ? 'Produk berhasil diperbarui!' : 'Produk baru berhasil ditambahkan!');
       } else {
         toast.error('Gagal menyimpan produk');

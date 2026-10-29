@@ -21,6 +21,7 @@ create_chats*
 fix_categories*
 out*.json
 scratch_*
+backup_*.json
 
 # Local presentation materials & screenshots
 Presentasi_KOKSI/
