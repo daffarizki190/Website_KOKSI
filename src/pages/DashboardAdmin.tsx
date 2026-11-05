@@ -3425,9 +3425,9 @@ export const DashboardAdmin = () => {
                               </div>
                               <div style={{ width: '1.5px', height: '32px', backgroundColor: '#000' }} />
                               <img
-                                src="/koksi-logo.svg"
+                                src="/koksi-logo-bw.svg"
                                 alt="KOKSI - Koperasi Karyawan PT. Siemens Indonesia"
-                                style={{ height: '38px', width: 'auto', objectFit: 'contain', display: 'block' }}
+                                style={{ height: '38px', width: 'auto', objectFit: 'contain', display: 'block', filter: 'grayscale(100%) contrast(120%)' }}
                               />
                             </div>
                             <h2 className="font-extrabold text-base mb-0.5">BELANJAIN SAZA DI KOKSI</h2>
