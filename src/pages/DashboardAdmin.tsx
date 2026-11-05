@@ -1025,7 +1025,6 @@ export const DashboardAdmin = () => {
       if (res.ok) {
         setProducts(prev => prev.filter(p => p.id !== targetId));
         setDeleteProductConfirmModal(null);
-        fetchProducts();
         toast.success('Produk berhasil dihapus!');
       } else {
         const data = await res.json().catch(() => ({}));
@@ -2700,7 +2699,7 @@ export const DashboardAdmin = () => {
       {/* Navbar Admin */}
       <header className="bg-slate-900 text-white sticky top-0 z-30 shadow-md shrink-0 w-full max-w-full">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-[64px] py-2.5 sm:py-0 flex items-center justify-between gap-2 w-full">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-tr from-teal-500 via-teal-400 to-amber-400 text-slate-950 rounded-xl flex items-center justify-center font-black text-lg sm:text-xl italic shadow-md shrink-0">
               B
             </div>
@@ -2712,6 +2711,13 @@ export const DashboardAdmin = () => {
                 PT. Siemens Indonesia
               </p>
             </div>
+            <div className="w-px h-7 bg-slate-700 shrink-0 mx-0.5" aria-hidden="true" />
+            <img
+              src="/koksi-logo-dark.svg"
+              alt="KOKSI - Koperasi Karyawan PT. Siemens Indonesia"
+              title="KOKSI - Koperasi Karyawan PT. Siemens Indonesia"
+              className="h-8 sm:h-9 w-auto object-contain select-none shrink-0"
+            />
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <button
@@ -3412,7 +3418,19 @@ export const DashboardAdmin = () => {
                       <div className="print-section text-black bg-white" style={{ fontFamily: 'monospace', display: 'flex', justifyContent: 'center', paddingTop: '20px' }}>
                         <div className="no-print-border" style={{ width: '100%', maxWidth: '18cm', padding: '0 1.5cm' }}>
                           <div className="text-center mb-6">
-                            <h2 className="font-extrabold text-xl mb-1">BELANJAIN SAZA DI KOKSI</h2>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '8px' }}>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontWeight: 900, fontSize: '18px', lineHeight: 1.1, letterSpacing: '-0.02em' }}>BelanjaIn Saza</div>
+                                <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.08em' }}>PT. SIEMENS INDONESIA</div>
+                              </div>
+                              <div style={{ width: '1.5px', height: '32px', backgroundColor: '#000' }} />
+                              <img
+                                src="/koksi-logo.svg"
+                                alt="KOKSI - Koperasi Karyawan PT. Siemens Indonesia"
+                                style={{ height: '38px', width: 'auto', objectFit: 'contain', display: 'block' }}
+                              />
+                            </div>
+                            <h2 className="font-extrabold text-base mb-0.5">BELANJAIN SAZA DI KOKSI</h2>
                             <p className="text-xs font-bold">Koperasi Karyawan Siemens Indonesia (KOKSI)</p>
                             <p className="text-xs">PT. Siemens Indonesia</p>
                             <div className="border-b-2 border-dashed border-black my-4"></div>

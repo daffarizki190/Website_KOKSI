@@ -38,8 +38,20 @@ export const BelanjainLogo: React.FC<BelanjainLogoProps> = ({
     lg: 'text-xs'
   }[size];
 
+  const koksiImgSize = {
+    sm: 'h-8 sm:h-9',
+    md: 'h-9 sm:h-10',
+    lg: 'h-11 sm:h-12'
+  }[size];
+
+  const dividerHeight = {
+    sm: 'h-6',
+    md: 'h-7',
+    lg: 'h-9'
+  }[size];
+
   return (
-    <div className={`inline-flex items-center gap-2.5 ${className}`}>
+    <div className={`inline-flex items-center gap-2 sm:gap-2.5 ${className}`}>
       {/* Stylized Icon Badge */}
       <div
         className={`${iconContainerSize} flex items-center justify-center shrink-0 shadow-sm transition-transform hover:scale-105 ${
@@ -72,6 +84,22 @@ export const BelanjainLogo: React.FC<BelanjainLogoProps> = ({
           </p>
         )}
       </div>
+
+      {/* Vertical Co-Branding Divider */}
+      <div
+        className={`w-px ${dividerHeight} shrink-0 mx-0.5 ${
+          dark ? 'bg-slate-700' : 'bg-slate-200'
+        }`}
+        aria-hidden="true"
+      />
+
+      {/* Frameless Vector KOKSI Logo */}
+      <img
+        src={dark ? '/koksi-logo-dark.svg' : '/koksi-logo.svg'}
+        alt="KOKSI - Koperasi Karyawan PT. Siemens Indonesia"
+        title="KOKSI - Koperasi Karyawan PT. Siemens Indonesia"
+        className={`${koksiImgSize} w-auto object-contain select-none shrink-0`}
+      />
     </div>
   );
 };

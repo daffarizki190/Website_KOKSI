@@ -162,17 +162,24 @@ export const ScanBarcodeAdmin = () => {
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-4 bg-slate-800/80 backdrop-blur border-b border-slate-700">
-        <button
-          onClick={() => navigate('/admin')}
-          className="p-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div>
-          <h1 className="font-bold text-base">Scan Barcode Pesanan</h1>
-          <p className="text-slate-400 text-xs">Arahkan ke QR Code anggota</p>
+      <div className="flex items-center justify-between gap-3 px-4 py-3.5 bg-slate-800/80 backdrop-blur border-b border-slate-700">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/admin')}
+            className="p-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="font-bold text-base">Scan Barcode Pesanan</h1>
+            <p className="text-slate-400 text-xs">Arahkan ke QR Code anggota</p>
+          </div>
         </div>
+        <img
+          src="/koksi-logo-dark.svg"
+          alt="KOKSI - Koperasi Karyawan PT. Siemens Indonesia"
+          className="h-7 sm:h-8 w-auto object-contain select-none shrink-0"
+        />
       </div>
 
       {/* Camera area */}
