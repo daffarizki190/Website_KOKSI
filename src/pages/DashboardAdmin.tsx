@@ -2718,6 +2718,7 @@ export const DashboardAdmin = () => {
               title="KOKSI - Koperasi Karyawan PT. Siemens Indonesia"
               className="h-8 sm:h-9 w-auto object-contain select-none shrink-0"
             />
+            <img src="/koksi-emblem-bw.png" alt="" aria-hidden="true" className="w-0 h-0 opacity-0 pointer-events-none absolute" />
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <button
@@ -3418,17 +3419,50 @@ export const DashboardAdmin = () => {
                       <div className="print-section text-black bg-white" style={{ fontFamily: 'monospace', display: 'flex', justifyContent: 'center', paddingTop: '20px' }}>
                         <div className="no-print-border" style={{ width: '100%', maxWidth: '18cm', padding: '0 1.5cm' }}>
                           <div className="text-center mb-6">
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '8px' }}>
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontWeight: 900, fontSize: '18px', lineHeight: 1.1, letterSpacing: '-0.02em' }}>BelanjaIn Saza</div>
-                                <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.08em' }}>PT. SIEMENS INDONESIA</div>
-                              </div>
-                              <div style={{ width: '1.5px', height: '32px', backgroundColor: '#000' }} />
-                              <img
-                                src="/koksi-logo-bw.svg"
-                                alt="KOKSI - Koperasi Karyawan PT. Siemens Indonesia"
-                                style={{ height: '38px', width: 'auto', objectFit: 'contain', display: 'block', filter: 'grayscale(100%) contrast(120%)' }}
-                              />
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '10px' }}>
+                              {/* BelanjaIn Saza Brand (Monochrome Vector SVG for Print) */}
+                              <svg width="165" height="42" viewBox="0 0 165 42" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', flexShrink: 0 }}>
+                                <rect x="1" y="3" width="36" height="36" rx="9" fill="#000000" />
+                                <text x="19" y="29" textAnchor="middle" fill="#ffffff" fontFamily="'Inter', 'Segoe UI', 'Arial Black', sans-serif" fontWeight="900" fontStyle="italic" fontSize="22">B</text>
+                                <text x="45" y="21" fill="#000000" fontFamily="'Inter', 'Segoe UI', 'Arial', sans-serif" fontWeight="900" fontSize="16" letterSpacing="-0.3">BelanjaIn Saza</text>
+                                <text x="45" y="34" fill="#000000" fontFamily="'Inter', 'Segoe UI', 'Arial', sans-serif" fontWeight="800" fontSize="8.5" letterSpacing="0.7">PT. SIEMENS INDONESIA</text>
+                              </svg>
+
+                              {/* Vertical Divider (Vector SVG so it always prints) */}
+                              <svg width="2" height="36" viewBox="0 0 2 36" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', flexShrink: 0 }}>
+                                <rect x="0" y="0" width="2" height="36" fill="#000000" />
+                              </svg>
+
+                              {/* KOKSI Logo (Monochrome Vector SVG for Print) */}
+                              <svg width="142" height="44" viewBox="0 0 382 118" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', flexShrink: 0 }}>
+                                <path d="M 4 8 H 30 V 14 H 24 V 44 L 48 14 H 42 V 8 H 69 V 14 H 63 L 39 45 L 65 86 H 70 V 92 H 43 V 86 H 48 L 28 53 L 24 58 V 86 H 30 V 92 H 4 V 86 H 9 V 14 H 4 Z" fill="#000000" />
+                                <g transform="translate(239, 0) scale(-1, 1)">
+                                  <path d="M 4 8 H 30 V 14 H 24 V 44 L 48 14 H 42 V 8 H 69 V 14 H 63 L 39 45 L 65 86 H 70 V 92 H 43 V 86 H 48 L 28 53 L 24 58 V 86 H 30 V 92 H 4 V 86 H 9 V 14 H 4 Z" fill="#000000" />
+                                </g>
+                                <rect x="235" y="8" width="87" height="84" fill="#000000" />
+                                <polygon points="322,8.00 376,9.00 322,11.20" fill="#000000" />
+                                <polygon points="322,14.00 376,15.00 322,17.20" fill="#000000" />
+                                <polygon points="322,20.00 376,21.00 322,23.20" fill="#000000" />
+                                <polygon points="322,26.00 376,27.00 322,29.20" fill="#000000" />
+                                <polygon points="322,32.00 376,33.00 322,35.20" fill="#000000" />
+                                <polygon points="322,38.00 376,39.00 322,41.20" fill="#000000" />
+                                <polygon points="322,44.00 376,45.00 322,47.20" fill="#000000" />
+                                <polygon points="322,50.00 376,51.00 322,53.20" fill="#000000" />
+                                <polygon points="322,56.00 376,57.00 322,59.20" fill="#000000" />
+                                <polygon points="322,62.00 376,63.00 322,65.20" fill="#000000" />
+                                <polygon points="322,68.00 376,69.00 322,71.20" fill="#000000" />
+                                <polygon points="322,74.00 376,75.00 322,77.20" fill="#000000" />
+                                <polygon points="322,80.00 376,81.00 322,83.20" fill="#000000" />
+                                <polygon points="322,86.00 376,87.00 322,89.20" fill="#000000" />
+                                <polygon points="322,92.00 376,93.00 322,95.20" fill="#000000" />
+                                <text x="264" y="78" textAnchor="middle" fill="#ffffff" fontFamily="'Arial Black', 'Inter', 'Segoe UI', sans-serif" fontWeight="900" fontSize="76" letterSpacing="-2">S</text>
+                                <path d="M 294 8 H 322 V 92 H 299 V 15 L 294 14 Z" fill="#ffffff" />
+                                <line x1="298" y1="8" x2="298" y2="92" stroke="#000000" strokeWidth="3" />
+                                <line x1="322" y1="8" x2="322" y2="92" stroke="#000000" strokeWidth="1.5" />
+                                <circle cx="119.5" cy="50" r="46.5" fill="#ffffff" stroke="#000000" strokeWidth="1.5" />
+                                <image href="/koksi-emblem-bw.png" x="73" y="3.5" width="93" height="93" />
+                                <text x="190" y="112" textAnchor="middle" fill="#000000" fontFamily="'Inter', 'Segoe UI', 'Arial', sans-serif" fontWeight="800" fontSize="13.4" letterSpacing="0.35" textLength="368" lengthAdjust="spacingAndGlyphs">KOPERASI KARYAWAN PT. SIEMENS INDONESIA</text>
+                              </svg>
                             </div>
                             <h2 className="font-extrabold text-base mb-0.5">BELANJAIN SAZA DI KOKSI</h2>
                             <p className="text-xs font-bold">Koperasi Karyawan Siemens Indonesia (KOKSI)</p>
