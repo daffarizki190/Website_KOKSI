@@ -259,6 +259,12 @@ export const ReviewsPage: React.FC = () => {
                 Transparansi penilaian belanja & kualitas koperasi
               </p>
             </div>
+            <div className="hidden sm:block h-8 w-px bg-slate-200 shrink-0 mx-1" aria-hidden="true" />
+            <img
+              src="/koksi-logo.svg"
+              alt="KOKSI - Koperasi Karyawan PT. Siemens Indonesia"
+              className="hidden sm:block h-8 md:h-9 w-auto object-contain select-none shrink-0"
+            />
           </div>
 
           <div className="flex items-center gap-2">

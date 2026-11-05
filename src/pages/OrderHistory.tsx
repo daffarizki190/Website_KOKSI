@@ -439,13 +439,19 @@ export default function OrderHistory() {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center text-white">
+                <div className="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center text-white shrink-0">
                   <ShoppingBag className="w-5 h-5" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold leading-tight uppercase tracking-wide text-slate-900">Riwayat & Status Pesanan</h1>
+                  <h1 className="text-sm sm:text-lg font-bold leading-tight uppercase tracking-wide text-slate-900">Riwayat & Status Pesanan</h1>
                   <p className="text-[10px] text-slate-500 uppercase tracking-wider">Update Real-Time BelanjaIn Saza</p>
                 </div>
+                <div className="hidden sm:block h-8 w-px bg-slate-200 shrink-0 mx-1" aria-hidden="true" />
+                <img
+                  src="/koksi-logo.svg"
+                  alt="KOKSI - Koperasi Karyawan PT. Siemens Indonesia"
+                  className="hidden sm:block h-8 md:h-9 w-auto object-contain select-none shrink-0"
+                />
               </div>
             </div>
             <div className="flex items-center gap-2">
